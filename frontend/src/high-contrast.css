@@ -69,7 +69,7 @@
   .track-browser__drawer, .track-browser__menu, .track-volume-control__popover,
   .session-panel__bar, .session-panel__drawer, .utility-dock,
   .mobile-tab-bar, .mobile-playlists-view, .mobile-main-volume .volume-control,
-  .transport-side-control, .status-history, .queue-indicator,
+  .status-history, .queue-indicator,
   .queue-indicator__items, .settings-modal, .about-panel,
   .database-modal, .rename-modal, .database-track-menu,
   .section-controls__region, .dynamic-clips
@@ -251,9 +251,20 @@
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.queue-indicator__label, .queue-indicator__toggle svg) { color: var(--theme-accent) !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.queue-indicator__toggle, .track-browser__header) { border-radius: 6px !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.queue-indicator__item, .queue-indicator__top-row) { background: var(--theme-surface) !important; }
-:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(button.autoplay-button, button.now-playing__volume) { border: 2px solid var(--theme-border) !important; color: var(--theme-text) !important; background: var(--theme-button) !important; box-shadow: none !important; }
-:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.autoplay-button.is-on { border-color: var(--theme-accent) !important; color: var(--contrast-on-accent) !important; background: var(--theme-accent) !important; }
-:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.autoplay-button:not(:disabled):hover { border-color: var(--theme-accent) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.autoplay-switch {
+  --autoplay-track-off: var(--theme-button);
+  --autoplay-border-off: var(--theme-border);
+  --autoplay-thumb-off: var(--theme-text);
+  --autoplay-icon-off: var(--theme-page);
+  --autoplay-track-on: var(--theme-accent);
+  --autoplay-border-on: var(--theme-accent);
+  --autoplay-thumb-on: var(--contrast-on-accent);
+  --autoplay-icon-on: var(--theme-accent);
+  border-width: 2px;
+  box-shadow: none;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.autoplay-switch:not(:disabled):hover { border-color: var(--theme-accent); filter: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.now-playing__volume { border: 2px solid var(--theme-border) !important; color: var(--theme-text) !important; background: var(--theme-button) !important; box-shadow: none !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.now-playing__volume:disabled { color: var(--theme-faint) !important; background: var(--contrast-disabled-bg) !important; opacity: .72; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.track-browser__queue-progress, .section-control-button__queue-progress, .queue-indicator__queue-progress, .clip-progress) {
   border: 1px solid var(--theme-border);

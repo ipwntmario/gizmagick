@@ -83,7 +83,7 @@
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .track-library-shell, .session-panel__bar, .session-panel__drawer,
   .utility-dock, .mobile-tab-bar, .mobile-main-volume .volume-control,
-  .transport-side-control, .status-history, .track-browser__drawer,
+  .status-history, .track-browser__drawer,
   .track-browser__menu, .track-volume-control__popover, .settings-modal,
   .about-panel, .mobile-playlists-view, .database-track-menu
 ) {
@@ -211,9 +211,33 @@
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__toolbar { border-color: var(--theme-line); }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__filter-button { border-color: var(--theme-line); color: var(--theme-text); background: var(--theme-raised); }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__filter-button:is(:hover, [aria-expanded="true"]) { color: var(--theme-accent); background: var(--theme-tint); }
-:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .autoplay-button { color: var(--theme-muted); }
-:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .autoplay-button.is-on { color: var(--theme-accent); background: var(--theme-tint); }
-:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .autoplay-button:not(:disabled):hover { color: var(--theme-accent); background: var(--theme-raised); }
+:root[data-theme="light"] .autoplay-switch {
+  --autoplay-track-off: #e7e7ef;
+  --autoplay-border-off: #77717d;
+  --autoplay-thumb-off: #5143a4;
+  --autoplay-icon-off: #fff;
+  --autoplay-border-on: #946d24;
+}
+:root[data-theme="signet"] .autoplay-switch {
+  --autoplay-track-off: #dfd0b3;
+  --autoplay-border-off: #916c58;
+  --autoplay-thumb-off: #754c79;
+  --autoplay-icon-off: #fff0d4;
+  --autoplay-track-on: linear-gradient(145deg, #fff3ce, #e1bd75 48%, #af7b48);
+  --autoplay-border-on: #9b653b;
+  --autoplay-thumb-on: #4d2944;
+  --autoplay-icon-on: #ffe2a0;
+}
+:root[data-theme="castle-torchlit"] .autoplay-switch {
+  --autoplay-track-off: #34363a;
+  --autoplay-border-off: #b7a17a;
+  --autoplay-thumb-off: #d4d5d8;
+  --autoplay-icon-off: #282620;
+  --autoplay-track-on: linear-gradient(145deg, #ffe3a0, var(--house-gold));
+  --autoplay-border-on: var(--house-gold);
+  --autoplay-thumb-on: #452915;
+  --autoplay-icon-on: #ffe3a0;
+}
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.now-playing__volume:disabled { color: var(--theme-faint) !important; }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .toggle-switch > span { border-color: var(--theme-border); background: rgba(65,55,77,.17); }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"]) .toggle-switch input:checked + span { border-color: var(--theme-accent); background: var(--theme-accent); }

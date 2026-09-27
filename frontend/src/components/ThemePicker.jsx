@@ -68,21 +68,44 @@ function ThemePreview({ theme }) {
 export default function ThemePicker({ room, initialThemeId, onCancel, onApply }) {
   const themes = availableThemes();
   const [selectedId, setSelectedId] = useState(initialThemeId);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dialogRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const mobileTriggerRef = useRef(null);
   const onCancelRef = useRef(onCancel);
   const selectedTheme = themes.find(({ id }) => id === selectedId) || themes[0];
+  const groups = [...new Set(themes.map(({ group }) => group))];
+  const cycleTheme = (direction) => {
+    setMobileMenuOpen(false);
+    setSelectedId((currentId) => {
+      const currentIndex = themes.findIndex(({ id }) => id === currentId);
+      return themes[(currentIndex + direction + themes.length) % themes.length].id;
+    });
+  };
 
   useEffect(() => { onCancelRef.current = onCancel; }, [onCancel]);
   useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    mobileMenuRef.current?.querySelector('[aria-pressed="true"]')?.focus();
+    const onPointerDown = (event) => {
+      if (!mobileMenuRef.current?.contains(event.target)) setMobileMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [mobileMenuOpen]);
+  useEffect(() => {
     const focusToRestore = document.activeElement;
-    dialogRef.current?.querySelector('[aria-pressed="true"]')?.focus();
+    const isVisible = (element) => element.getClientRects().length > 0;
+    [...dialogRef.current.querySelectorAll('button[aria-pressed="true"], [data-theme-picker-trigger]')]
+      .find(isVisible)?.focus();
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
         onCancelRef.current();
       }
       if (event.key !== "Tab") return;
-      const focusable = [...dialogRef.current.querySelectorAll("button:not(:disabled)")];
+      const focusable = [...dialogRef.current.querySelectorAll("button:not(:disabled), select:not(:disabled)")]
+        .filter(isVisible);
       const first = focusable[0];
       const last = focusable.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
@@ -104,7 +127,7 @@ export default function ThemePicker({ room, initialThemeId, onCancel, onApply })
         </header>
         <div className="theme-picker__body">
           <nav className="theme-picker__choices" aria-label="Themes">
-            {[...new Set(themes.map(({ group }) => group))].map((group) => (
+            {groups.map((group) => (
               <div className="theme-picker__group" key={group}>
                 <h3>{group}</h3>
                 <div className="theme-picker__group-options">
@@ -119,6 +142,72 @@ export default function ThemePicker({ room, initialThemeId, onCancel, onApply })
             ))}
           </nav>
           <ThemePreview theme={selectedTheme} />
+          <div className="theme-picker__mobile-controls" onKeyDown={(event) => {
+            if (!mobileMenuOpen) return;
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              setMobileMenuOpen(false);
+              mobileTriggerRef.current?.focus();
+              return;
+            }
+            const options = [...(mobileMenuRef.current?.querySelectorAll(".theme-picker__mobile-option") || [])];
+            const currentIndex = options.indexOf(event.target);
+            if (currentIndex < 0) return;
+            const nextIndex = event.key === "ArrowDown" ? (currentIndex + 1) % options.length
+              : event.key === "ArrowUp" ? (currentIndex - 1 + options.length) % options.length
+                : event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : -1;
+            if (nextIndex >= 0) { event.preventDefault(); options[nextIndex].focus(); }
+          }}>
+            <span className="theme-picker__mobile-label">Theme</span>
+            <div className="theme-picker__mobile-row">
+              <button type="button" className="theme-picker__cycle" onClick={() => cycleTheme(-1)} aria-label="Previous theme" title="Previous theme"><Icon name="chevronUp" size={19} /></button>
+              <div className="theme-picker__mobile-menu" ref={mobileMenuRef} onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setMobileMenuOpen(false);
+              }}>
+                <button
+                  ref={mobileTriggerRef}
+                  type="button"
+                  className="theme-picker__mobile-trigger"
+                  data-theme-picker-trigger
+                  aria-label={`Choose theme, ${selectedTheme.name}`}
+                  aria-expanded={mobileMenuOpen}
+                  aria-controls={mobileMenuOpen ? "theme-picker-mobile-options" : undefined}
+                  onClick={() => setMobileMenuOpen((open) => !open)}
+                >
+                  <span className={`session-theme-picker__swatch session-theme-picker__swatch--${selectedTheme.id}`} aria-hidden="true" />
+                  <span>{selectedTheme.name}</span>
+                  <Icon name="chevronDown" size={17} />
+                </button>
+                {mobileMenuOpen && (
+                  <div className="theme-picker__mobile-options" id="theme-picker-mobile-options" aria-label="Themes">
+                    {groups.map((group) => (
+                      <div className="theme-picker__mobile-group" key={group}>
+                        <h3>{group}</h3>
+                        {themes.filter((theme) => theme.group === group).map((theme) => (
+                          <button
+                            key={theme.id}
+                            type="button"
+                            className={`theme-picker__mobile-option ${selectedId === theme.id ? "is-selected" : ""}`}
+                            aria-pressed={selectedId === theme.id}
+                            onClick={() => {
+                              setSelectedId(theme.id);
+                              setMobileMenuOpen(false);
+                              mobileTriggerRef.current?.focus();
+                            }}
+                          >
+                            <span className={`session-theme-picker__swatch session-theme-picker__swatch--${theme.id}`} aria-hidden="true" />
+                            <span>{theme.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button type="button" className="theme-picker__cycle" onClick={() => cycleTheme(1)} aria-label="Next theme" title="Next theme"><Icon name="chevronDown" size={19} /></button>
+            </div>
+          </div>
         </div>
         <footer className="theme-picker__footer">
           <span>Selection affects this session when you choose OK.</span>

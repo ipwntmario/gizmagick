@@ -335,7 +335,6 @@ export default function TrackList({
               );
             })}
           </div>
-          <div className="track-browser__hint">Tap a track on mobile · Double-click on desktop</div>
     </section>
   );
 }

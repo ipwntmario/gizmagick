@@ -1180,7 +1180,7 @@ body {
   transition: background .16s ease, color .16s ease;
 }
 .database-row:hover { background: rgba(255,255,255,.035); }
-.database-row--track { grid-template-columns: 28px minmax(0,1fr) !important; padding-left: 20px !important; padding-right: 16px !important; }
+.database-row--track { grid-template-columns: 28px minmax(0,1fr) 30px !important; padding-left: 20px !important; padding-right: 16px !important; }
 .database-row--track.is-expanded { background: rgba(125,105,225,.055); }
 .database-row--track.is-menu-open { z-index: 4; background: rgba(255,255,255,.045); }
 .database-row--section { grid-template-columns: 20px 28px minmax(0,1fr) !important; padding-left: 50px !important; padding-right: 20px !important; color: rgba(255,255,255,.82); }
@@ -1204,7 +1204,7 @@ body {
 .database-renameable { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 3px 0; cursor: pointer; touch-action: pan-y; }
 .database-renameable__content { min-width: 0; overflow-wrap: anywhere; }
 .database-label--track { font-weight: 720; }
-.database-track-main { display: flex; min-width: 0; align-items: center; gap: 5px; }
+.database-track-main { display: contents; }
 .database-track-label { display: flex; min-width: 0; align-items: center; padding: 3px 0; cursor: pointer; overflow-wrap: anywhere; }
 .database-label--section { font-size: 13px; }
 .database-label--mode { font-size: 12px; }

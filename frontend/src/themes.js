@@ -4,7 +4,7 @@ export const THEMES = [
   { id: "light", name: "Light", group: "Standard" },
   { id: "high-contrast-light", name: "High Contrast Light", group: "Standard" },
   { id: "signet", name: "Signet", group: "Fantasy", cursorEffect: "wand" },
-  { id: "castle-torchlit", name: "Castle (Torchlit)", group: "Fantasy", cursorEffect: "wand" },
+  { id: "castle-torchlit", name: "Castle", group: "Fantasy", cursorEffect: "wand" },
   { id: "h4ck3r", name: "H4ck3r", group: "Tech", cursorEffect: "terminal" },
 ];
 

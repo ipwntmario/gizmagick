@@ -28,13 +28,10 @@ function ThemePreview({ theme }) {
           </div>
           <div className="theme-preview__player">
             <div className="theme-preview__track-title">Signal Drift <span>NOW PLAYING</span></div>
-            <div className="theme-preview__section-group">
-              <div className="theme-preview__group-label">SECTIONS</div>
-              <div className="theme-preview__button-row">
-                <span className="theme-preview__section is-active">Main</span>
-                <span className="theme-preview__section">Bridge</span>
-                <span className="theme-preview__section is-end">Ending</span>
-              </div>
+            <div className="theme-preview__clips">
+              <div className="theme-preview__group-label">CLIPS <Icon name="chevronDown" size={13} /></div>
+              <div className="theme-preview__clip-time"><span>1:20</span><span>2:00</span></div>
+              <div className="theme-preview__clip-bar"><span /></div>
             </div>
             <div className="theme-preview__section-group">
               <div className="theme-preview__group-label">MODES</div>
@@ -44,16 +41,18 @@ function ThemePreview({ theme }) {
                 <span className="theme-preview__mode">Ambient</span>
               </div>
             </div>
-            <div className="theme-preview__clips">
-              <div className="theme-preview__group-label">CLIPS <Icon name="chevronDown" size={13} /></div>
-              <div className="theme-preview__clip-time"><span>1:20</span><span>2:00</span></div>
-              <div className="theme-preview__clip-bar"><span /></div>
+            <div className="theme-preview__section-group">
+              <div className="theme-preview__group-label theme-preview__group-label--sections">SECTIONS <span>Main</span></div>
+              <div className="theme-preview__button-row">
+                <span className="theme-preview__section">Bridge</span>
+                <span className="theme-preview__section is-end">Ending</span>
+              </div>
             </div>
             <div className="theme-preview__transport">
               <span className="theme-preview__autoplay"><Icon name="play" size={11} /></span>
-              <span className="theme-preview__transport-button"><Icon name="undo" size={16} /></span>
-              <span className="theme-preview__transport-button is-play"><Icon name="play" size={19} /></span>
-              <span className="theme-preview__transport-button"><Icon name="stop" size={15} /></span>
+              <span className="theme-preview__transport-button is-undo"><Icon name="undo" size={16} /></span>
+              <span className="theme-preview__transport-button is-play"><Icon name="pause" size={19} /></span>
+              <span className="theme-preview__transport-button is-stop"><Icon name="stop" size={15} /></span>
               <span className="theme-preview__volume"><Icon name="volume" size={18} /></span>
             </div>
             <div className="theme-preview__indicator"><strong>TRACK</strong><span>Signal Drift</span><Icon name="chevronUp" size={15} /></div>

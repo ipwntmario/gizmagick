@@ -930,6 +930,7 @@ body {
 .session-theme-picker__swatch--high-contrast-light { border-color: #4e6470; background: linear-gradient(135deg, #fff 50%, #005a73 50%); box-shadow: none; }
 .session-theme-picker__swatch--signet { background: linear-gradient(135deg, #e4b670, #a73f80 55%, #343d8d); }
 .session-theme-picker__swatch--castle-torchlit { background: linear-gradient(135deg, #641016 0 25%, #d49b23 25% 50%, #285b34 50% 75%, #213d62 75%); }
+.session-theme-picker__swatch--h4ck3r { border-color: #2edb65; background: repeating-linear-gradient(0deg, #06170c 0 3px, #0b2915 3px 4px); box-shadow: inset 0 0 0 4px #050d08, inset 0 0 0 6px #49f87a; }
 .session-panel__presence { margin-top: 12px; padding: 12px 5px 2px; border-top: 1px solid rgba(255,255,255,.08); }
 .session-panel__actions { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); }
 .session-panel__action { display: flex; width: 100%; min-height: 46px; align-items: center; gap: 11px; padding: 6px 10px; border: 1px solid transparent; border-radius: 12px; color: rgba(255,255,255,.78); background: rgba(255,255,255,.025); text-align: left; transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease; }

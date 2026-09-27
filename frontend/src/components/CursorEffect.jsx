@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import TerminalCursorEffect from "./TerminalCursorEffect";
 
 const POINTER_QUERY = "(hover: hover) and (pointer: fine)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -161,5 +162,6 @@ export default function CursorEffect({ enabled, effect, themeId }) {
     };
   }, [active, themeId]);
 
+  if (enabled && effect === "terminal" && motionAllowed) return <TerminalCursorEffect />;
   return active ? <canvas ref={canvasRef} className="cursor-effect" aria-hidden="true" /> : null;
 }

@@ -30,9 +30,13 @@ function readIdentity(roomId) {
 export function useSession() {
   const [roomId, setRoomId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.has('room') ? params.get('room') : read('ui.roomChoice', 'private') === 'private' ? '' : 'awc';
+    const savedRoomId = read('ui.roomChoice', 'private');
+    return params.has('room') ? params.get('room') : savedRoomId === 'private' ? '' : savedRoomId;
   });
-  const [roomIdentities, setRoomIdentities] = useState(() => ({ awc: readIdentity('awc') }));
+  const [roomIdentities, setRoomIdentities] = useState(() => ({
+    awc: readIdentity('awc'),
+    'cyberspace-club': readIdentity('cyberspace-club'),
+  }));
 
   const setRoomIdentity = useCallback((targetRoomId, patch) => {
     if (!targetRoomId) return;

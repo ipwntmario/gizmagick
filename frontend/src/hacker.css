@@ -1,0 +1,116 @@
+/* H4ck3r uses terminal phosphor green on nearly black surfaces. */
+:root[data-theme="h4ck3r"] {
+  color-scheme: dark;
+  --theme-page: #020503;
+  --theme-surface: #07110a;
+  --theme-raised: #0a1b0f;
+  --theme-text: #c7ffd2;
+  --theme-muted: #87c99a;
+  --theme-faint: #609271;
+  --theme-border: rgba(92, 237, 127, .45);
+  --theme-line: rgba(92, 237, 127, .28);
+  --theme-accent: #67ff8d;
+  --theme-tint: rgba(54, 208, 93, .16);
+  --theme-button: #102b18;
+  --theme-button-text: #c7ffd2;
+  --theme-input: #020b05;
+  --theme-shadow: 0 0 0 1px rgba(27, 91, 45, .45), 0 10px 28px rgba(0, 0, 0, .52);
+}
+
+:root[data-theme="h4ck3r"] .app-shell {
+  font-family: "Cascadia Mono", Consolas, "Lucida Console", monospace !important;
+}
+:root[data-theme="h4ck3r"] :is(.track-browser__list, .session-panel__drawer, .database-modal) {
+  scrollbar-color: #286a3a #061009;
+}
+:root[data-theme="h4ck3r"] :is(
+  .track-library-shell, .track-browser__drawer, .track-browser__menu,
+  .track-volume-control__popover, .session-panel__bar, .session-panel__drawer,
+  .utility-dock, .status-history, .queue-indicator, .section-controls__region,
+  .dynamic-clips, .mobile-tab-bar, .settings-modal, .about-panel,
+  .database-modal, .rename-modal, .mobile-playlists-view
+) { border-radius: 4px; }
+
+:root[data-theme="h4ck3r"] :is(
+  .session-room, .session-panel__action, .session-theme-picker__choice,
+  .track-browser__row, .section-control-button, .transport-undo,
+  .transport-stop, .track-browser__filter-button
+) { border-radius: 3px; }
+
+:root[data-theme="h4ck3r"] :is(.session-room__icon--online, .session-room__icon--private) {
+  color: var(--theme-accent);
+  background: #0d3019;
+  box-shadow: none;
+}
+:root[data-theme="h4ck3r"] :is(.session-panel__heading, .track-library__heading-copy strong,
+  .section-controls__heading, .dynamic-clips__heading, .now-playing__title) {
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+:root[data-theme="h4ck3r"] :is(.queue-indicator__toggle, .queue-indicator.is-open .queue-indicator__toggle) {
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text);
+  background: #0e2a17;
+  box-shadow: none;
+}
+:root[data-theme="h4ck3r"] :is(.queue-indicator__toggle:hover, .queue-indicator.is-open .queue-indicator__toggle:hover) {
+  background: #174426;
+}
+:root[data-theme="h4ck3r"] :is(.queue-indicator__label, .queue-indicator__toggle svg) { color: var(--theme-accent); }
+:root[data-theme="h4ck3r"] :is(.clip-progress__fill, .track-browser__queue-progress > span,
+  .section-control-button__queue-progress > span, .queue-indicator__queue-progress > span) {
+  background: #55e77e;
+  box-shadow: 0 0 8px rgba(55, 240, 101, .35);
+}
+:root[data-theme="h4ck3r"] :is(.track-browser__queue-progress, .section-control-button__queue-progress,
+  .queue-indicator__queue-progress) { background: rgba(85, 231, 126, .18); }
+:root[data-theme="h4ck3r"] .clip-progress__thumb {
+  border-color: var(--theme-accent);
+  background: #07200e;
+  box-shadow: 0 0 8px rgba(103, 255, 141, .55);
+}
+:root[data-theme="h4ck3r"] :is(.section-control-button--mode, .section-control-button--mode.is-queued,
+  .section-control-button--mode.is-active, .section-control-button--section.is-end,
+  .transport-stop.is-highlighted) {
+  border-color: var(--theme-accent);
+  color: var(--theme-text);
+  background: #124322;
+  box-shadow: none;
+}
+:root[data-theme="h4ck3r"] .section-control-button--mode.is-active {
+  color: #031207;
+  background: var(--theme-accent);
+}
+:root[data-theme="h4ck3r"] .primary-playback-button {
+  border-color: var(--theme-accent);
+  color: #041509;
+  background: var(--theme-accent);
+  box-shadow: 0 0 15px rgba(62, 220, 103, .26);
+}
+:root[data-theme="h4ck3r"] .primary-playback-button.is-playing {
+  color: var(--theme-accent);
+  background: #10351c;
+}
+:root[data-theme="h4ck3r"] .primary-playback-button:disabled:not(.is-loading) {
+  border-color: var(--theme-line);
+  color: var(--theme-faint);
+  background: #0d1c12;
+  box-shadow: none;
+}
+:root[data-theme="h4ck3r"] .primary-playback-button.is-compact { color: var(--theme-accent); background: transparent; box-shadow: none; }
+:root[data-theme="h4ck3r"] .autoplay-switch {
+  --autoplay-track-off: #08150c;
+  --autoplay-border-off: #4c9460;
+  --autoplay-thumb-off: #91cda0;
+  --autoplay-icon-off: #061409;
+  --autoplay-track-on: #174a27;
+  --autoplay-border-on: var(--theme-accent);
+  --autoplay-thumb-on: var(--theme-accent);
+  --autoplay-icon-on: #05210d;
+}
+:root[data-theme="h4ck3r"] .autoplay-switch__thumb { box-shadow: none; }
+:root[data-theme="h4ck3r"] .track-browser__row.is-queued,
+:root[data-theme="h4ck3r"] .section-control-button.is-queued { --queued-edge-rgb: 103, 255, 141; }
+:root[data-theme="h4ck3r"] .status-bar__pulse { background: var(--theme-accent); box-shadow: 0 0 8px var(--theme-accent); }
+:root[data-theme="h4ck3r"] :is(.volume-control input[type="range"], .track-volume-control__slider input) { accent-color: var(--theme-accent); }
+:root[data-theme="h4ck3r"] :is(button, a, input, select, [role="button"]):focus-visible { outline-color: var(--theme-accent); }

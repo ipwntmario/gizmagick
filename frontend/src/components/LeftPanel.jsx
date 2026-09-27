@@ -8,6 +8,7 @@ const LONG_PRESS_MS = 550;
 const rooms = [
   { id: "", name: "Private Session", detail: "Offline", icon: "door", private: true },
   { id: "awc", name: "A Wizard's Chronicle", detail: "Online room", icon: "wand" },
+  { id: "cyberspace-club", name: "Cyberspace Club", detail: "Online room", icon: "code" },
 ];
 
 function persist(key, val) { try { localStorage.setItem(key, val); } catch {} }
@@ -43,7 +44,6 @@ export default function LeftPanel({
   const users = roomState?.users || [];
   const latencyMs = roomState?.latencyMs ?? null;
   const offsetMs = roomState?.serverOffsetMs ?? null;
-  const awcIdentity = roomIdentities?.awc || { role: "GM", displayName: "" };
 
   useLayoutEffect(() => {
     const update = () => {
@@ -145,6 +145,7 @@ export default function LeftPanel({
         <div className="session-panel__rooms">
           {rooms.map((room) => {
             const selected = room.id === currentRoomId;
+            const roomIdentity = roomIdentities?.[room.id] || { role: "GM", displayName: "" };
             const themeChoice = themeChoices[room.id || "private"] ?? readStr(themeStorageKey(room.id), null);
             const themes = availableThemes();
             return (
@@ -192,7 +193,7 @@ export default function LeftPanel({
                         <label>
                           <span>Display name</span>
                           <input
-                            value={awcIdentity.displayName}
+                            value={roomIdentity.displayName}
                             onChange={(event) => setRoomIdentity(room.id, { displayName: event.target.value })}
                             placeholder="Your name"
                             spellCheck="false"
@@ -201,7 +202,7 @@ export default function LeftPanel({
                         <label>
                           <span>Role</span>
                           <select
-                            value={awcIdentity.role}
+                            value={roomIdentity.role}
                             onChange={(event) => setRoomIdentity(room.id, { role: event.target.value })}
                           >
                             <option value="GM">Audio Manager</option>

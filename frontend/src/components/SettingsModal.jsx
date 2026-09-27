@@ -131,7 +131,7 @@ export default function SettingsModal({
             <label className="settings-field settings-field--toggle">
               <span className="settings-field__copy">
                 <strong>Cursor effect</strong>
-                <small>Show a magical glow and sparkles in Signet and Castle (Torchlit). Respects reduced-motion preferences.</small>
+                <small>Show theme-specific cursor effects in Signet, Castle (Torchlit), and H4ck3r. Respects reduced-motion preferences.</small>
               </span>
               <span className="toggle-switch">
                 <input

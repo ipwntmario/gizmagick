@@ -1,5 +1,5 @@
 /* Theme colors live here so new session themes can reuse the same surfaces. */
-:root[data-theme="light"] {
+:root[data-theme="light"], .theme-preview[data-theme="light"] {
   color-scheme: light;
   --theme-page: radial-gradient(ellipse at 50% 0%, #ffffff, #eef0f6 55%, #e2e5ef);
   --theme-surface: linear-gradient(155deg, #ffffff, #f3f4f9);
@@ -17,7 +17,7 @@
   --theme-shadow: 0 17px 48px rgba(49, 57, 85, .19), 0 2px 8px rgba(49, 57, 85, .08);
 }
 
-:root[data-theme="signet"] {
+:root[data-theme="signet"], .theme-preview[data-theme="signet"] {
   color-scheme: light;
   --theme-page: radial-gradient(ellipse at 50% 7%, rgba(255, 233, 178, .82), transparent 43%),
     radial-gradient(ellipse at 7% 63%, rgba(158, 76, 157, .34), transparent 48%),
@@ -40,7 +40,7 @@
   --theme-shadow: 0 19px 45px rgba(68, 36, 63, .3), 0 3px 8px rgba(68, 36, 63, .18);
 }
 
-:root[data-theme="castle-torchlit"] {
+:root[data-theme="castle-torchlit"], .theme-preview[data-theme="castle-torchlit"] {
   color-scheme: dark;
   --house-red: #650b10;
   --house-gold: #dba41d;

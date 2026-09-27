@@ -1,5 +1,5 @@
 /* H4ck3r uses terminal phosphor green on nearly black surfaces. */
-:root[data-theme="h4ck3r"] {
+:root[data-theme="h4ck3r"], .theme-preview[data-theme="h4ck3r"] {
   color-scheme: dark;
   --theme-page: #020503;
   --theme-surface: #07110a;

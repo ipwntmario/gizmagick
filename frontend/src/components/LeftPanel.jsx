@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import UsersPanel from "./UsersPanel";
 import Icon from "./Icon";
-import { availableThemes, resolveTheme, themeStorageKey } from "../themes";
+import ThemePicker from "./ThemePicker";
+import { resolveTheme, themeStorageKey } from "../themes";
 
 const LS_PANEL_OPEN = "ui.panelOpen";
 const LONG_PRESS_MS = 550;
@@ -30,6 +31,7 @@ export default function LeftPanel({
 }) {
   const [open, setOpen] = useState(() => readStr(LS_PANEL_OPEN, "true") === "true");
   const [editingRoomId, setEditingRoomId] = useState(null);
+  const [themePickerRoom, setThemePickerRoom] = useState(null);
   const gesture = useRef(null);
   const longPressTimer = useRef(null);
   const suppressClick = useRef(false);
@@ -147,7 +149,7 @@ export default function LeftPanel({
             const selected = room.id === currentRoomId;
             const roomIdentity = roomIdentities?.[room.id] || { role: "GM", displayName: "" };
             const themeChoice = themeChoices[room.id || "private"] ?? readStr(themeStorageKey(room.id), null);
-            const themes = availableThemes();
+            const currentTheme = resolveTheme(room.id, themeChoice);
             return (
               <div className="session-room-wrap" key={room.private ? "private" : room.id}>
                 <button
@@ -212,29 +214,12 @@ export default function LeftPanel({
                         </label>
                       </>
                     )}
-                    <fieldset className="session-theme-picker">
-                      <legend>Theme</legend>
-                      {[...new Set(themes.map(({ group }) => group))].map((group) => (
-                        <div className="session-theme-picker__group" key={group}>
-                          <h4 className="session-theme-picker__group-title">{group}</h4>
-                          <div className="session-theme-picker__choices">
-                            {themes.filter((theme) => theme.group === group).map((theme) => (
-                              <label className="session-theme-picker__choice" key={theme.id}>
-                                <input
-                                  type="radio"
-                                  name={`theme-${room.id || "private"}`}
-                                  value={theme.id}
-                                  checked={resolveTheme(room.id, themeChoice).id === theme.id}
-                                  onChange={() => onChooseTheme?.(room.id, theme.id)}
-                                />
-                                <span className={`session-theme-picker__swatch session-theme-picker__swatch--${theme.id}`} aria-hidden="true" />
-                                <span>{theme.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </fieldset>
+                    <button type="button" className="session-theme-launch" onClick={() => setThemePickerRoom(room)}>
+                      <span className="session-theme-launch__label">Theme</span>
+                      <span className={`session-theme-picker__swatch session-theme-picker__swatch--${currentTheme.id}`} aria-hidden="true" />
+                      <strong>{currentTheme.name}</strong>
+                      <Icon name="chevronRight" size={16} />
+                    </button>
                   </div>
               </div>
             );
@@ -283,6 +268,21 @@ export default function LeftPanel({
           </button>
         </div>
       </div>
+      {themePickerRoom && (
+        <ThemePicker
+          key={themePickerRoom.id || "private"}
+          room={themePickerRoom}
+          initialThemeId={resolveTheme(
+            themePickerRoom.id,
+            themeChoices[themePickerRoom.id || "private"] ?? readStr(themeStorageKey(themePickerRoom.id), null),
+          ).id}
+          onCancel={() => setThemePickerRoom(null)}
+          onApply={(themeId) => {
+            onChooseTheme?.(themePickerRoom.id, themeId);
+            setThemePickerRoom(null);
+          }}
+        />
+      )}
     </aside>
   );
 }

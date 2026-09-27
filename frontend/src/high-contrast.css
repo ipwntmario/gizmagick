@@ -1,5 +1,5 @@
 /* The two high-contrast themes share flat surfaces and visible states. */
-:root[data-theme="high-contrast"] {
+:root[data-theme="high-contrast"], .theme-preview[data-theme="high-contrast"] {
   color-scheme: dark;
   --app-background: #090c0f;
   --app-foreground: #fff;
@@ -29,7 +29,7 @@
   background: var(--theme-page);
 }
 
-:root[data-theme="high-contrast-light"] {
+:root[data-theme="high-contrast-light"], .theme-preview[data-theme="high-contrast-light"] {
   color-scheme: light;
   --app-background: #f3f6f7;
   --app-foreground: #111b22;

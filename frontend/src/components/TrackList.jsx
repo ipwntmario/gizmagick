@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { activeTrackFilterCount, orderTracks, trackTitle } from "../data/trackOrdering";
+import { matchesTrackSearch } from "../data/trackSearch";
 import Icon from "./Icon";
 import TrackFilterControls from "./TrackFilterControls";
 
@@ -81,8 +82,11 @@ export default function TrackList({
   const [heldTrack, setHeldTrack] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const filterButtonRef = useRef(null);
   const sortButtonRef = useRef(null);
+  const searchInputRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const pointerGestureRef = useRef(null);
   const menuOpenTimerRef = useRef(null);
@@ -106,7 +110,8 @@ export default function TrackList({
 
   const orderedNames = useMemo(() => orderTracks(tracks, {
     sortMode, filters, pinned, names,
-  }), [tracks, sortMode, filters, pinned, names]);
+  }).filter((name) => matchesTrackSearch(searchQuery, trackTitle(name, tracks[name], names), name)),
+  [tracks, sortMode, filters, pinned, names, searchQuery]);
 
   const titleFor = (name) => trackTitle(name, tracks[name], names);
 
@@ -195,11 +200,56 @@ export default function TrackList({
           <Icon name="chevronLeft" size={18} />
         </button>
       </div>
-      <div className="track-browser__toolbar">
+      <div className={`track-browser__toolbar ${searchExpanded ? "is-search-expanded" : ""}`}>
+        <div className="track-browser__search" onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setSearchExpanded(false);
+        }}>
+          <button
+            type="button"
+            className="track-browser__search-icon"
+            aria-label={searchExpanded ? "Finish search" : "Focus track search"}
+            title={searchExpanded ? "Finish search" : "Search tracks"}
+            onClick={() => {
+              if (searchExpanded) {
+                setSearchExpanded(false);
+                searchInputRef.current?.blur();
+              } else searchInputRef.current?.focus();
+            }}
+          >
+            <Icon name="search" size={16} />
+          </button>
+          <input
+            ref={searchInputRef}
+            type="search"
+            value={searchQuery}
+            placeholder="Search tracks"
+            aria-label="Search tracks"
+            enterKeyHint="search"
+            onFocus={() => {
+              setFiltersOpen(false);
+              setSortOpen(false);
+              setSearchExpanded(true);
+            }}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === "Escape") {
+                event.preventDefault();
+                setSearchExpanded(false);
+                searchInputRef.current?.blur();
+              }
+            }}
+          />
+          {searchQuery && <button type="button" className="track-browser__search-clear" aria-label="Clear track search" title="Clear search" onClick={() => {
+            setSearchQuery("");
+            searchInputRef.current?.focus();
+          }}><Icon name="close" size={14} /></button>}
+        </div>
         <button
           ref={filterButtonRef}
           type="button"
           className="track-browser__filter-button"
+          aria-label="Filters"
+          title="Filters"
           aria-expanded={filtersOpen}
           aria-controls="library-filters"
           onClick={() => {
@@ -208,13 +258,14 @@ export default function TrackList({
           }}
         >
           <Icon name="filter" size={16} />
-          <span>Filters</span>
           {activeTrackFilterCount(filters) > 0 && <span className="track-browser__filter-count">{activeTrackFilterCount(filters)}</span>}
         </button>
         <button
           ref={sortButtonRef}
           type="button"
           className="track-browser__sort-button"
+          aria-label="Sort tracks"
+          title="Sort tracks"
           aria-expanded={sortOpen}
           aria-controls="library-sort"
           onClick={() => {
@@ -223,7 +274,6 @@ export default function TrackList({
           }}
         >
           <Icon name="sort" size={16} />
-          <span>Sort</span>
         </button>
       </div>
       {filtersOpen && <TrackFilterControls
@@ -267,7 +317,7 @@ export default function TrackList({
         </div>
       )}
           <div className="track-browser__list">
-            {orderedNames.length === 0 && <p className="track-browser__empty" role="status">No tracks match these filters. Change them in Library Filters.</p>}
+            {orderedNames.length === 0 && <p className="track-browser__empty" role="status">{searchQuery.trim() ? "No tracks match this search." : "No tracks match these filters. Change them in Library Filters."}</p>}
             {orderedNames.map((name) => {
               const track = tracks[name];
               const isPlaying = playingTrack === name;

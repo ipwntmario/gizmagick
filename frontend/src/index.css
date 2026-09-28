@@ -302,10 +302,20 @@ body {
 .track-browser__drawer-heading { display: flex; flex: 0 0 auto; align-items: baseline; justify-content: space-between; padding: 13px 15px 11px; border-bottom: 1px solid rgba(255,255,255,.07); font-size: 11px; font-weight: 780; letter-spacing: .09em; text-transform: uppercase; }
 .track-browser__drawer-heading small { color: rgba(255,255,255,.33); font-size: 9px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .track-browser__toolbar { display: flex; flex: 0 0 auto; min-width: 0; border-bottom: 1px solid rgba(255,255,255,.065); }
-.track-browser__filter-button, .track-browser__sort-button { display: inline-flex; box-sizing: border-box; flex: 1 1 50%; min-height: 38px; align-items: center; justify-content: flex-start; gap: 6px; padding: 4px 12px; border: 0; border-radius: 0; color: rgba(255,255,255,.78); background: rgba(255,255,255,.035); cursor: pointer; font: inherit; font-size: 11px; font-weight: 690; }
-.track-browser__sort-button { border-left: 1px solid rgba(255,255,255,.065); }
+.track-browser__filter-button, .track-browser__sort-button { position: relative; display: grid; box-sizing: border-box; width: 40px; min-width: 0; min-height: 38px; flex: 0 0 40px; place-items: center; overflow: hidden; padding: 0; border: 0; border-radius: 0; color: rgba(255,255,255,.78); background: rgba(255,255,255,.035); cursor: pointer; font: inherit; transition: flex-basis .22s ease, opacity .16s ease, visibility .22s; }
+.track-browser__toolbar.is-search-expanded :is(.track-browser__filter-button, .track-browser__sort-button) { flex-basis: 0; opacity: 0; visibility: hidden; pointer-events: none; }
+.track-browser__filter-button, .track-browser__sort-button { border-left: 1px solid rgba(255,255,255,.065); }
 .track-browser__filter-button:hover, .track-browser__filter-button[aria-expanded="true"], .track-browser__sort-button:hover, .track-browser__sort-button[aria-expanded="true"] { color: #fff; background: rgba(255,255,255,.09); }
-.track-browser__filter-count { display: grid; min-width: 17px; height: 17px; place-items: center; border: 1px solid currentColor; border-radius: 4px; font-size: 10px; }
+.track-browser__filter-count { position: absolute; top: 2px; right: 2px; display: grid; min-width: 12px; height: 12px; place-items: center; border: 1px solid currentColor; border-radius: 4px; font-size: 8px; line-height: 1; }
+.track-browser__search { display: flex; box-sizing: border-box; min-width: 0; min-height: 38px; flex: 1 1 auto; align-items: center; color: rgba(255,255,255,.78); background: rgba(255,255,255,.035); }
+.track-browser__search:focus-within { color: #fff; background: rgba(255,255,255,.07); }
+.track-browser__search-icon, .track-browser__search-clear { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; padding: 0; border: 0; border-radius: 0; color: inherit; background: transparent; cursor: pointer; }
+.track-browser__search-clear { width: 30px; flex-basis: 30px; }
+.track-browser__search :is(button:hover, button:focus-visible) { color: var(--theme-accent, #b5a9ff); border-color: transparent; }
+.track-browser__search input { box-sizing: border-box; width: 100%; min-width: 0; height: 36px; flex: 1 1 auto; padding: 0 8px 0 0; border: 0; outline: none; color: inherit; background: transparent; font: inherit; font-size: 12px; }
+.track-browser__search input::placeholder { color: rgba(255,255,255,.52); opacity: 1; }
+.track-browser__search input::-webkit-search-cancel-button { display: none; }
+.track-browser__search:focus-within { outline: 2px solid var(--theme-accent, #b5a9ff); outline-offset: -2px; }
 .track-sort { display: grid; flex: 0 0 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,.065); background: rgba(255,255,255,.018); }
 .track-sort button { display: flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 6px 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 8px; color: rgba(255,255,255,.7); background: rgba(255,255,255,.025); font: inherit; font-size: 11px; font-weight: 680; }
 .track-sort button:is(:hover, .is-active) { border-color: rgba(143,124,255,.45); color: #fff; background: rgba(143,124,255,.14); }
@@ -1146,7 +1156,7 @@ body {
 .track-filters__footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--theme-line, #727687); font-size: 12px; }
 .database-empty { padding: 24px; color: var(--theme-muted, #c5c8d4); text-align: center; font-size: 13px; }
 .track-browser__empty { padding: 20px 12px; color: var(--theme-muted, #c5c8d4); font-size: 12px; line-height: 1.5; text-align: center; }
-.database-filter-button:focus-visible, .track-browser__filter-button:focus-visible, .track-browser__sort-button:focus-visible, .track-sort button:focus-visible, .track-filters :is(input, button):focus-visible { outline: 2px solid var(--theme-accent, #b5a9ff); outline-offset: 3px; }
+.database-filter-button:focus-visible, .track-browser__filter-button:focus-visible, .track-browser__sort-button:focus-visible, .track-browser__search button:focus-visible, .track-sort button:focus-visible, .track-filters :is(input, button):focus-visible { outline: 2px solid var(--theme-accent, #b5a9ff); outline-offset: 3px; }
 
 .database-button {
   min-height: 32px;
@@ -1364,6 +1374,7 @@ button:focus-visible {
   .section-controls__body { transition-duration: .01ms !important; }
   .clip-progress__fill, .primary-playback-button, .transport-stop, .transport-undo, .section-control-button { transition-duration: .01ms !important; }
   .track-browser__drawer, .track-library-shell, .track-library-restore, .queue-indicator * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .track-browser__toolbar *, .track-browser__search { transition-duration: .01ms !important; }
   .track-browser__row.is-undoing::after, .section-control-button.is-undoing::after, .now-playing__copy.is-undoing::after { animation-duration: .01ms !important; }
   .track-browser__row.is-queued, .section-control-button.is-queued { animation: none; border-color: rgba(var(--queued-edge-rgb), .55); box-shadow: inset 0 0 0 1px rgba(var(--queued-edge-rgb), .15); }
   .track-browser__queue-progress > span, .section-control-button__queue-progress > span, .queue-indicator__queue-progress > span { transition: none; }

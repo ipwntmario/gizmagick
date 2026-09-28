@@ -156,7 +156,7 @@
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .session-room, .session-panel__action, .session-theme-picker__choice,
   .settings-group, .settings-about-link, .settings-field,
-  .track-browser__row, .track-browser__filter-button, .track-browser__sort-button, .track-sort, .track-sort button, .track-filters, .database-row,
+  .track-browser__row, .track-browser__filter-button, .track-browser__sort-button, .track-browser__search, .track-sort, .track-sort button, .track-filters, .database-row,
   .database-row--mode, .about-panel__concepts, .about-panel__flow li,
   .about-panel__updates li, .about-panel__tutorial
 ) {
@@ -167,6 +167,8 @@
 }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.track-browser__filter-button, .track-browser__sort-button) { border: 1px solid var(--theme-line) !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.track-browser__filter-button, .track-browser__sort-button):is(:hover, [aria-expanded="true"]) { border-color: var(--theme-accent) !important; color: var(--theme-accent) !important; background: var(--theme-tint) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__search { border: 1px solid var(--theme-line) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__search:focus-within { border-color: var(--theme-accent) !important; background: var(--theme-tint) !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-sort button:is(:hover, .is-active) { border-color: var(--theme-accent) !important; color: var(--theme-accent) !important; background: var(--theme-tint) !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .session-room:hover, .session-panel__action:hover,

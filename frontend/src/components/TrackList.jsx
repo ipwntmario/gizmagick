@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { activeTrackFilterCount, orderTracks, trackTitle } from "../data/trackOrdering";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { activeTrackFilterCount, DEFAULT_TRACK_FILTERS, orderTracks, trackTitle } from "../data/trackOrdering";
 import { matchesTrackSearch } from "../data/trackSearch";
 import Icon from "./Icon";
 import TrackFilterControls from "./TrackFilterControls";
@@ -108,10 +108,25 @@ export default function TrackList({
     menuOpenTimerRef.current = setTimeout(() => setMenuAction(action), 450);
   };
 
-  const orderedNames = useMemo(() => orderTracks(tracks, {
-    sortMode, filters, pinned, names,
-  }).filter((name) => matchesTrackSearch(searchQuery, trackTitle(name, tracks[name], names), name)),
-  [tracks, sortMode, filters, pinned, names, searchQuery]);
+  const { orderedNames, visibleCount, filteredResultCount } = useMemo(() => {
+    const filteredNames = orderTracks(tracks, { sortMode, filters, pinned, names });
+    if (!searchQuery.trim()) {
+      return { orderedNames: filteredNames, visibleCount: filteredNames.length, filteredResultCount: 0 };
+    }
+
+    const matchesSearch = (name) => matchesTrackSearch(searchQuery, trackTitle(name, tracks[name], names), name);
+    const visibleNames = filteredNames.filter(matchesSearch);
+    const visibleSet = new Set(filteredNames);
+    const filteredResultNames = orderTracks(tracks, {
+      sortMode, filters: DEFAULT_TRACK_FILTERS, pinned, names,
+    }).filter((name) => !visibleSet.has(name) && matchesSearch(name));
+
+    return {
+      orderedNames: [...visibleNames, ...filteredResultNames],
+      visibleCount: visibleNames.length,
+      filteredResultCount: filteredResultNames.length,
+    };
+  }, [tracks, sortMode, filters, pinned, names, searchQuery]);
 
   const titleFor = (name) => trackTitle(name, tracks[name], names);
 
@@ -318,8 +333,9 @@ export default function TrackList({
       )}
           <div className="track-browser__list">
             {orderedNames.length === 0 && <p className="track-browser__empty" role="status">{searchQuery.trim() ? "No tracks match this search." : "No tracks match these filters. Change them in Library Filters."}</p>}
-            {orderedNames.map((name) => {
+            {orderedNames.map((name, index) => {
               const track = tracks[name];
+              const isFilteredResult = index >= visibleCount;
               const isPlaying = playingTrack === name;
               const isQueued = queuedTrack === name;
               const tags = [
@@ -329,9 +345,14 @@ export default function TrackList({
               ].filter(Boolean);
 
               return (
+                <Fragment key={name}>
+                {isFilteredResult && index === visibleCount && (
+                  <p className="track-browser__filtered-heading">
+                    Outside current filters · {filteredResultCount} {filteredResultCount === 1 ? "track" : "tracks"}
+                  </p>
+                )}
                 <div
                   className={`track-browser__row ${selectedTrack === name ? "is-selected" : ""} ${isPlaying ? "is-playing" : ""} ${isQueued ? "is-queued" : ""} ${undoEffect?.kind === "track" && undoEffect?.next === name ? "is-undoing" : ""}`}
-                  key={name}
                   onPointerEnter={(event) => { if (event.pointerType === "mouse") setHoveredTrack(name); }}
                   onPointerLeave={(event) => { if (event.pointerType === "mouse") setHoveredTrack(null); }}
                 >
@@ -434,6 +455,7 @@ export default function TrackList({
                     </span>
                   )}
                 </div>
+                </Fragment>
               );
             })}
           </div>

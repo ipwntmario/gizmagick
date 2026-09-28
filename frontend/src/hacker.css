@@ -20,12 +20,13 @@
 :root[data-theme="h4ck3r"] .app-shell {
   font-family: "Cascadia Mono", Consolas, "Lucida Console", monospace !important;
 }
-:root[data-theme="h4ck3r"] :is(.track-browser__list, .session-panel__drawer, .database-modal) {
+:root[data-theme="h4ck3r"] :is(.track-browser__list, .session-panel__drawer, .app-menu__drawer, .database-modal) {
   scrollbar-color: #286a3a #061009;
 }
 :root[data-theme="h4ck3r"] :is(
   .track-library-shell, .track-browser__drawer, .track-browser__menu,
   .track-volume-control__popover, .session-panel__bar, .session-panel__drawer,
+  .app-menu__trigger, .app-menu__drawer, .app-menu__volume,
   .utility-dock, .status-history, .queue-indicator, .section-controls__region,
   .dynamic-clips, .mobile-tab-bar, .settings-modal, .about-panel,
   .database-modal, .rename-modal, .mobile-playlists-view
@@ -43,6 +44,7 @@
   background: #0d3019;
   box-shadow: none;
 }
+:root[data-theme="h4ck3r"] .app-menu__avatar { color: #041509; }
 :root[data-theme="h4ck3r"] :is(.session-panel__heading, .track-library__heading-copy strong,
   .section-controls__heading, .dynamic-clips__heading, .now-playing__title) {
   letter-spacing: .08em;

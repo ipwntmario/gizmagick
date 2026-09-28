@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import UsersPanel from "./UsersPanel";
 import Icon from "./Icon";
 import ThemePicker from "./ThemePicker";
+import useDrawerSwipe from "./useDrawerSwipe";
 import { resolveTheme, themeStorageKey } from "../themes";
 
-const LS_PANEL_OPEN = "ui.panelOpen";
 const LONG_PRESS_MS = 550;
 const rooms = [
   { id: "", name: "Private Session", detail: "Offline", icon: "door", private: true },
@@ -12,7 +12,6 @@ const rooms = [
   { id: "cyberspace-club", name: "Cyberspace Club", detail: "Online room", icon: "code" },
 ];
 
-function persist(key, val) { try { localStorage.setItem(key, val); } catch {} }
 function readStr(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } }
 
 export default function LeftPanel({
@@ -24,50 +23,39 @@ export default function LeftPanel({
   themeChoices = {},
   onChooseTheme,
   libraryDocked = false,
-  volumeExpanded = false,
-  canAccessDatabase = false,
-  onOpenDatabase,
-  onOpenSettings,
+  open,
+  onOpenChange,
 }) {
-  const [open, setOpen] = useState(() => readStr(LS_PANEL_OPEN, "true") === "true");
   const [editingRoomId, setEditingRoomId] = useState(null);
   const [themePickerRoom, setThemePickerRoom] = useState(null);
   const gesture = useRef(null);
+  const menuButtonRef = useRef(null);
   const longPressTimer = useRef(null);
   const suppressClick = useRef(false);
-  const barRef = useRef(null);
-  const roomNameMeasureRef = useRef(null);
-  const [compactHeader, setCompactHeader] = useState(false);
-
-  useEffect(() => persist(LS_PANEL_OPEN, String(open)), [open]);
   useEffect(() => () => clearTimeout(longPressTimer.current), []);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      onOpenChange(false);
+      menuButtonRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onOpenChange]);
 
   const activeRoom = rooms.find((room) => room.id === currentRoomId) || rooms[0];
   const users = roomState?.users || [];
   const latencyMs = roomState?.latencyMs ?? null;
   const offsetMs = roomState?.serverOffsetMs ?? null;
 
-  useLayoutEffect(() => {
-    const update = () => {
-      if (!volumeExpanded || open || !window.matchMedia("(max-width: 760px)").matches) {
-        setCompactHeader(false);
-        return;
-      }
-      const barLeft = barRef.current?.getBoundingClientRect().left ?? 8;
-      const nameWidth = roomNameMeasureRef.current?.getBoundingClientRect().width ?? 0;
-      const fullBarRight = barLeft + 44 + 28 + 9 + nameWidth + 14 + 2;
-      const expandedVolumeLeft = window.innerWidth - 8 - Math.min(270, window.innerWidth - 118) - 2;
-      setCompactHeader(fullBarRight + 8 > expandedVolumeLeft);
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, [volumeExpanded, open, activeRoom.name]);
-
   function closePanel() {
-    setOpen(false);
+    onOpenChange(false);
     setEditingRoomId(null);
+    menuButtonRef.current?.focus();
   }
+
+  const swipe = useDrawerSwipe("left", closePanel);
 
   function selectRoom(roomId) {
     setRoomId(roomId);
@@ -109,19 +97,22 @@ export default function LeftPanel({
 
   return (
     <aside
-      className={`session-panel ${open ? "is-open" : "is-closed"} ${libraryDocked ? "is-library-docked" : ""} ${compactHeader ? "is-header-compact" : ""}`}
+      className={`session-panel ${open ? "is-open" : "is-closed"} ${libraryDocked ? "is-library-docked" : ""}`}
       aria-label="Session rooms"
       onPointerMove={cancelHoldOnMove}
       onPointerCancel={endTouch}
     >
-      <div ref={barRef} className="session-panel__bar">
+      <button type="button" className="side-drawer__backdrop" aria-label="Close sessions" tabIndex={open ? 0 : -1} onClick={closePanel} />
+      <div className="session-panel__bar">
         <button
+          ref={menuButtonRef}
           className="session-panel__menu"
           type="button"
-          aria-label={open ? "Close rooms" : "Open rooms"}
+          aria-label={open ? "Close sessions" : "Open sessions"}
           aria-expanded={open}
+          aria-controls="sessions-drawer"
           onClick={() => {
-            setOpen((value) => !value);
+            onOpenChange(!open);
             if (open) setEditingRoomId(null);
           }}
         >
@@ -131,14 +122,21 @@ export default function LeftPanel({
           <span className={`session-room__icon session-room__icon--${activeRoom.private ? "private" : "online"}`}>
             <Icon name={activeRoom.icon} size={19} />
           </span>
-          <span className="session-panel__current-name" aria-hidden={compactHeader}>{activeRoom.name}</span>
-          <span ref={roomNameMeasureRef} className="session-panel__current-measure" aria-hidden="true">{activeRoom.name}</span>
+          <span className="session-panel__current-name">{activeRoom.name}</span>
         </div>
       </div>
 
       <div
-        className="session-panel__drawer"
+        id="sessions-drawer"
+        className={`session-panel__drawer ${swipe.dragging ? "is-dragging" : ""}`}
         aria-hidden={!open}
+        inert={!open}
+        style={swipe.style}
+        onPointerDown={swipe.onPointerDown}
+        onPointerMove={swipe.onPointerMove}
+        onPointerUp={swipe.onPointerUp}
+        onPointerCancel={swipe.onPointerCancel}
+        onClickCapture={swipe.onClickCapture}
       >
         <div className="session-panel__heading">
           <span>Sessions</span>
@@ -232,41 +230,6 @@ export default function LeftPanel({
           </div>
         )}
 
-        <div className="session-panel__actions" aria-label="Main menu">
-          {canAccessDatabase && (
-            <button
-              type="button"
-              className="session-panel__action"
-              onClick={() => {
-                closePanel();
-                onOpenDatabase?.();
-              }}
-            >
-              <span className="session-panel__action-icon"><Icon name="archive" size={19} /></span>
-              <span className="session-panel__action-copy">
-                <strong>Database</strong>
-                <small>Manage tracks and display names</small>
-              </span>
-              <Icon name="chevronRight" size={17} />
-            </button>
-          )}
-
-          <button
-            type="button"
-            className="session-panel__action"
-            onClick={() => {
-              closePanel();
-              onOpenSettings?.();
-            }}
-          >
-            <span className="session-panel__action-icon"><Icon name="settings" size={19} /></span>
-            <span className="session-panel__action-copy">
-              <strong>Settings</strong>
-              <small>Playback and interface options</small>
-            </span>
-            <Icon name="chevronRight" size={17} />
-          </button>
-        </div>
       </div>
       {themePickerRoom && (
         <ThemePicker

@@ -67,8 +67,9 @@
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .track-library-shell, .track-library-restore, .track-browser__header,
   .track-browser__drawer, .track-browser__menu, .track-volume-control__popover,
-  .session-panel__bar, .session-panel__drawer, .utility-dock,
-  .mobile-tab-bar, .mobile-playlists-view, .mobile-main-volume .volume-control,
+  .session-panel__bar, .session-panel__drawer, .app-menu__trigger,
+  .app-menu__drawer, .app-menu__volume, .app-menu__volume .volume-control, .utility-dock,
+  .mobile-tab-bar, .mobile-playlists-view,
   .status-history, .queue-indicator,
   .queue-indicator__items, .settings-modal, .about-panel,
   .database-modal, .rename-modal, .database-track-menu,
@@ -84,6 +85,7 @@
   background: rgba(0, 0, 0, .88) !important;
   backdrop-filter: none !important;
 }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .side-drawer__backdrop { background: rgba(0, 0, 0, .88) !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .settings-modal__header, .database-modal__header, .database-toolbar,
   .database-list-heading, .about-panel__header, .about-panel__tabs,
@@ -97,7 +99,7 @@
   backdrop-filter: none !important;
 }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
-  .track-library-shell, .track-browser__drawer, .session-panel__drawer,
+  .track-library-shell, .track-browser__drawer, .session-panel__drawer, .app-menu__drawer,
   .settings-modal, .about-panel, .database-modal, .rename-modal
 ) { border-radius: 8px !important; }
 

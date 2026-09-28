@@ -25,6 +25,7 @@ import { useSession } from "./net/useSession";
 import { resolveTheme, themeSessionKey, themeStorageKey } from "./themes";
 import { useRoom } from "./net/useRoom";
 import LeftPanel from "./components/LeftPanel";
+import AppMenu from "./components/AppMenu";
 import DatabaseModal from "./components/DatabaseModal";
 import SettingsModal from "./components/SettingsModal";
 import AboutModal from "./components/AboutModal";
@@ -34,7 +35,6 @@ import QueueIndicator from "./components/QueueIndicator";
 import SectionPanel from "./components/SectionPanel";
 import Transport from "./components/Transport";
 import StatusBar from "./components/StatusBar";
-import VolumeControl from "./components/VolumeControl";
 import TrackVolumeControl from "./components/TrackVolumeControl";
 import AutoplayButton from "./components/AutoplayButton";
 import PrimaryPlaybackButton from "./components/PrimaryPlaybackButton";
@@ -226,6 +226,14 @@ export default function App() {
 
   // Database modal
   const [dbOpen, setDbOpen] = useState(false);
+  const [activeDrawer, setActiveDrawer] = useState(() => {
+    try { return localStorage.getItem("ui.panelOpen") === "true" ? "sessions" : null; }
+    catch { return null; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("ui.panelOpen", String(activeDrawer === "sessions")); }
+    catch { /* Storage may be disabled. */ }
+  }, [activeDrawer]);
 
   // App.jsx (top-level state)
   const [dbSort, setDbSort] = useState(() => localStorage.getItem("wizamp_dbSort") || "alpha-asc");
@@ -270,7 +278,14 @@ export default function App() {
   const [trackVolume, setTrackVolume] = useState(1); // 0..1
   const [userVolume, setUserVolume] = useState(1);   // 0..1 (local)
   const [userMuted, setUserMuted] = useState(false);
-  const [userVolumeOpen, setUserVolumeOpen] = useState(false);
+  const [userVolumeOpen, setUserVolumeOpen] = useState(() => {
+    try { return localStorage.getItem("wizamp_menuVolumeExpanded") !== "false"; }
+    catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_menuVolumeExpanded", String(userVolumeOpen)); }
+    catch { /* Storage may be disabled. */ }
+  }, [userVolumeOpen]);
 
   const displayedStatus = loading ? "Loading data…" : dataError || status;
   useEffect(() => {
@@ -1432,10 +1447,21 @@ export default function App() {
         onChooseTheme={chooseTheme}
         room={room}
         libraryDocked={libraryExpanded && !isReadOnlyRole}
-        volumeExpanded={userVolumeOpen}
+        open={activeDrawer === "sessions"}
+        onOpenChange={(open) => setActiveDrawer(open ? "sessions" : null)}
+      />
+      <AppMenu
+        open={activeDrawer === "menu"}
+        onOpenChange={(open) => setActiveDrawer(open ? "menu" : null)}
         canAccessDatabase={isActiveRole}
         onOpenDatabase={() => setDbOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        volumeExpanded={userVolumeOpen}
+        onVolumeExpandedChange={setUserVolumeOpen}
+        volume={userVolume}
+        onVolumeChange={setUserVolume}
+        muted={userMuted}
+        onMutedChange={setUserMuted}
       />
 
       {!isReadOnlyRole && (
@@ -1672,30 +1698,7 @@ export default function App() {
         </section>
       )}
 
-      <div className={`utility-dock ${showStatus ? "" : "status-hidden"}`}>
-        {showStatus && <StatusBar text={displayedStatus} history={statusHistory} />}
-        <div className="utility-dock__volume">
-          <VolumeControl
-            expanded={userVolumeOpen}
-            onExpandedChange={setUserVolumeOpen}
-            volume={userVolume}
-            onVolumeChange={setUserVolume}
-            muted={userMuted}
-            onMutedChange={setUserMuted}
-          />
-        </div>
-      </div>
-
-      <div className="mobile-main-volume">
-        <VolumeControl
-          expanded={userVolumeOpen}
-          onExpandedChange={setUserVolumeOpen}
-          volume={userVolume}
-          onVolumeChange={setUserVolume}
-          muted={userMuted}
-          onMutedChange={setUserMuted}
-        />
-      </div>
+      {showStatus && <div className="utility-dock"><StatusBar text={displayedStatus} history={statusHistory} /></div>}
 
       <div className="mobile-queue-shortcut">
         <QueueIndicator

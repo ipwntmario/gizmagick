@@ -1,4 +1,5 @@
 const paths = {
+  user: <><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></>,
   filter: <><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></>,
   sort: <><path d="M8 6h12M8 12h9M8 18h6"/><path d="m3 7 2-2 2 2M5 5v14"/></>,

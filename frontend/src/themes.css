@@ -82,7 +82,8 @@
 /* The library, menus, dialogs, and playback dock share the same material. */
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(
   .track-library-shell, .session-panel__bar, .session-panel__drawer,
-  .utility-dock, .mobile-tab-bar, .mobile-main-volume .volume-control,
+  .app-menu__trigger, .app-menu__drawer, .app-menu__volume,
+  .utility-dock, .mobile-tab-bar,
   .status-history, .track-browser__drawer,
   .track-browser__menu, .track-volume-control__popover, .settings-modal,
   .about-panel, .mobile-playlists-view, .database-track-menu
@@ -118,7 +119,11 @@
   background: var(--theme-raised) !important;
 }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) .queue-indicator__items { background: var(--theme-surface) !important; }
-:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(.session-panel, .track-browser__drawer, .track-library-shell, .utility-dock, .settings-modal, .about-panel) { color: var(--theme-text); }
+:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(.session-panel, .app-menu, .track-browser__drawer, .track-library-shell, .utility-dock, .settings-modal, .about-panel) { color: var(--theme-text); }
+:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) .app-menu__volume .volume-control { border-color: var(--theme-border); background: var(--theme-raised); }
+:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) .app-menu__volume.is-collapsed .volume-control { border: 0; background: transparent; }
+:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) .app-menu__volume-heading small { color: var(--theme-muted); }
+:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) .app-menu__avatar { color: var(--contrast-on-accent, #fff); background: var(--theme-accent); }
 
 /* Text that the original dark palette colored explicitly. */
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(
@@ -282,7 +287,7 @@
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) .mobile-tab-bar button.is-active { color: var(--theme-accent); background: var(--theme-tint); }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(.session-panel__menu:hover, .session-room__more:hover, .volume-control__button:hover, .status-bar__toggle:hover) { color: var(--theme-accent) !important; background: var(--theme-tint); }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(.volume-control input[type="range"], .track-volume-control__slider input) { accent-color: var(--theme-accent); }
-:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(.session-theme-picker__choice, .session-identity.is-visible, .track-library__heading, .session-panel__presence, .session-panel__actions) { border-color: var(--theme-line); }
+:root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(.session-theme-picker__choice, .session-identity.is-visible, .track-library__heading, .session-panel__presence) { border-color: var(--theme-line); }
 
 :root[data-theme="light"] :is(.queue-indicator__toggle, .queue-indicator.is-open .queue-indicator__toggle) {
   border-color: #b9afd9;
@@ -301,11 +306,11 @@
 
 /* Signet borrows the cover's warm paper, painted violet, and raised gold. */
 :root[data-theme="signet"] .app-shell { font-family: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif !important; }
-:root[data-theme="signet"] :is(.track-library-shell, .session-panel__drawer, .settings-modal, .about-panel, .database-modal, .rename-modal) {
+:root[data-theme="signet"] :is(.track-library-shell, .session-panel__drawer, .app-menu__drawer, .settings-modal, .about-panel, .database-modal, .rename-modal) {
   border: 2px ridge #aa774b;
   box-shadow: inset 0 0 0 3px rgba(255, 241, 203, .54), var(--theme-shadow) !important;
 }
-:root[data-theme="signet"] :is(.track-library__heading-copy strong, .session-panel__heading, .section-controls__heading, .dynamic-clips__heading, .about-panel__header h2, .settings-modal__header h2, .database-modal__header h2) {
+:root[data-theme="signet"] :is(.track-library__heading-copy strong, .session-panel__heading, .app-menu__heading, .section-controls__heading, .dynamic-clips__heading, .about-panel__header h2, .settings-modal__header h2, .database-modal__header h2) {
   font-family: Palatino, "Palatino Linotype", Georgia, serif;
   font-variant: small-caps;
   font-weight: 800;
@@ -383,11 +388,11 @@
     radial-gradient(ellipse 105% 95% at 50% 27%, #7c7466, #60584d 64%, #494339);
   box-shadow: inset 1px 1px 1px rgba(251, 229, 177, .19), inset -2px -2px 4px rgba(10, 13, 12, .24), 0 3px 5px rgba(15, 15, 13, .28);
 }
-:root[data-theme="castle-torchlit"] :is(.track-library-shell, .session-panel__drawer, .settings-modal, .about-panel, .database-modal, .rename-modal) {
+:root[data-theme="castle-torchlit"] :is(.track-library-shell, .session-panel__drawer, .app-menu__drawer, .settings-modal, .about-panel, .database-modal, .rename-modal) {
   border: 2px ridge var(--house-bronze);
   box-shadow: inset 0 0 0 2px rgba(215, 176, 100, .12), var(--theme-shadow) !important;
 }
-:root[data-theme="castle-torchlit"] :is(.session-panel__heading, .track-library__heading-copy strong, .section-controls__heading, .dynamic-clips__heading, .about-panel__header h2, .settings-modal__header h2, .database-modal__header h2) {
+:root[data-theme="castle-torchlit"] :is(.session-panel__heading, .app-menu__heading, .track-library__heading-copy strong, .section-controls__heading, .dynamic-clips__heading, .about-panel__header h2, .settings-modal__header h2, .database-modal__header h2) {
   color: var(--house-gold);
   font-family: Georgia, "Times New Roman", serif;
   font-variant: small-caps;
@@ -395,6 +400,7 @@
   text-shadow: 0 1px #211714, 0 2px 8px rgba(255, 157, 26, .25);
 }
 :root[data-theme="castle-torchlit"] .session-room__icon--online { border: 1px solid var(--house-bronze); color: var(--house-silver); background: linear-gradient(145deg, #315774, var(--house-blue)); }
+:root[data-theme="castle-torchlit"] .app-menu__avatar { color: var(--house-black); }
 :root[data-theme="castle-torchlit"] .session-room__icon--private { color: var(--house-yellow); background: var(--house-black); }
 :root[data-theme="castle-torchlit"] .track-library__heading-copy svg { color: var(--house-gold); }
 :root[data-theme="castle-torchlit"] .settings-group__icon { color: var(--house-silver); background: var(--house-green); }

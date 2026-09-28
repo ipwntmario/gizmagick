@@ -34,7 +34,8 @@
 :root[data-theme="h4ck3r"] :is(
   .session-room, .session-panel__action, .session-theme-picker__choice,
   .track-browser__row, .section-control-button, .transport-undo,
-  .transport-stop, .track-browser__filter-button
+  .transport-stop, .track-browser__filter-button, .track-browser__sort-button,
+  .track-sort button
 ) { border-radius: 3px; }
 
 :root[data-theme="h4ck3r"] :is(.session-room__icon--online, .session-room__icon--private) {

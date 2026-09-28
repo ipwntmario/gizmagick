@@ -229,6 +229,10 @@ export default function App() {
 
   // App.jsx (top-level state)
   const [dbSort, setDbSort] = useState(() => localStorage.getItem("wizamp_dbSort") || "alpha-asc");
+  const [librarySort, setLibrarySort] = useState(() => {
+    try { return localStorage.getItem("wizamp_librarySort") === "alpha-desc" ? "alpha-desc" : "alpha-asc"; }
+    catch { return "alpha-asc"; }
+  });
   const [libraryFilters, setLibraryFilters] = useState(() => {
     try {
       const saved = localStorage.getItem("wizamp_libraryFilters");
@@ -436,6 +440,9 @@ export default function App() {
 
   // Track select menu persist (optional)
   useEffect(() => { localStorage.setItem("wizamp_dbSort", dbSort); }, [dbSort]);
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_librarySort", librarySort); } catch { /* Storage may be disabled. */ }
+  }, [librarySort]);
   useEffect(() => {
     try { localStorage.setItem("wizamp_libraryFilters", JSON.stringify(libraryFilters)); } catch { /* Storage may be disabled. */ }
   }, [libraryFilters]);
@@ -1443,7 +1450,8 @@ export default function App() {
               queuedTrackProgress={queuedTrackProgress}
               undoEffect={undoEffect}
               disabled={!isActiveRole && room.onlineActive}
-              sortMode={dbSort}
+              sortMode={librarySort}
+              onChangeSort={setLibrarySort}
               filters={libraryFilters}
               onChangeFilters={setLibraryFilters}
               pinned={pinned}

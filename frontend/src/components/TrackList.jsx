@@ -61,6 +61,7 @@ export default function TrackList({
   undoEffect,
   disabled,
   sortMode = "alpha-asc",
+  onChangeSort,
   filters,
   onChangeFilters,
   pinned,
@@ -79,7 +80,9 @@ export default function TrackList({
   const [hoveredTrack, setHoveredTrack] = useState(null);
   const [heldTrack, setHeldTrack] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   const filterButtonRef = useRef(null);
+  const sortButtonRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const pointerGestureRef = useRef(null);
   const menuOpenTimerRef = useRef(null);
@@ -199,11 +202,28 @@ export default function TrackList({
           className="track-browser__filter-button"
           aria-expanded={filtersOpen}
           aria-controls="library-filters"
-          onClick={() => setFiltersOpen(value => !value)}
+          onClick={() => {
+            setSortOpen(false);
+            setFiltersOpen(value => !value);
+          }}
         >
           <Icon name="filter" size={16} />
           <span>Filters</span>
           {activeTrackFilterCount(filters) > 0 && <span className="track-browser__filter-count">{activeTrackFilterCount(filters)}</span>}
+        </button>
+        <button
+          ref={sortButtonRef}
+          type="button"
+          className="track-browser__sort-button"
+          aria-expanded={sortOpen}
+          aria-controls="library-sort"
+          onClick={() => {
+            setFiltersOpen(false);
+            setSortOpen(value => !value);
+          }}
+        >
+          <Icon name="sort" size={16} />
+          <span>Sort</span>
         </button>
       </div>
       {filtersOpen && <TrackFilterControls
@@ -214,6 +234,38 @@ export default function TrackList({
         totalCount={Object.keys(tracks || {}).length}
         onEscape={() => { setFiltersOpen(false); filterButtonRef.current?.focus(); }}
       />}
+      {sortOpen && (
+        <div
+          className="track-sort"
+          id="library-sort"
+          role="group"
+          aria-label="Sort tracks"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              setSortOpen(false);
+              sortButtonRef.current?.focus();
+            }
+          }}
+        >
+          {[["alpha-asc", "A to Z"], ["alpha-desc", "Z to A"]].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={sortMode === value ? "is-active" : ""}
+              aria-pressed={sortMode === value}
+              onClick={() => {
+                onChangeSort?.(value);
+                setSortOpen(false);
+                sortButtonRef.current?.focus();
+              }}
+            >
+              <Icon name="sort" size={15} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
           <div className="track-browser__list">
             {orderedNames.length === 0 && <p className="track-browser__empty" role="status">No tracks match these filters. Change them in Library Filters.</p>}
             {orderedNames.map((name) => {

@@ -55,6 +55,7 @@ export function useRoom({
 
   const [connected, setConnected] = useState(false);
   const [users, setUsers] = useState([]);
+  const [presenceRoomId, setPresenceRoomId] = useState(null);
   const [lastError, setLastError] = useState(null);
   const [latencyMs, setLatencyMs] = useState(null);
   const [offsetMs, setOffsetMs] = useState(0); // serverNow ≈ Date.now() + offsetMs
@@ -81,6 +82,7 @@ export function useRoom({
 
   const connect = useCallback(() => {
     if (!shouldOnline || !roomId) return;
+    setPresenceRoomId(null);
 
     if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
     if (pingTimer.current) { clearInterval(pingTimer.current); pingTimer.current = null; }
@@ -130,6 +132,7 @@ export function useRoom({
       console.log("[room] ←", data.type, data);
       if (data.type === "PRESENCE" && Array.isArray(data.users)) {
         setUsers(data.users);
+        setPresenceRoomId(roomId);
       } else if (data.type === "PONG") {
         const recv = Date.now();
         const clientSend = Number(data.echoClientMs) || recv;
@@ -206,6 +209,7 @@ export function useRoom({
     ws.onclose = (evt) => {
       if (connIdRef.current !== myId) return;
       setConnected(false);
+      setPresenceRoomId(null);
       console.log("[room] socket closed; will retry in 2000ms");
       console.log("[room] CLOSE", { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
       if (pingTimer.current) { clearInterval(pingTimer.current); pingTimer.current = null; }
@@ -231,6 +235,7 @@ export function useRoom({
       wsRef.current = null;
       setConnected(false);
       setUsers([]);
+      setPresenceRoomId(null);
       if (ws) { try { ws.close(); } catch {} }
       startedRef.current = false;
     };
@@ -343,6 +348,7 @@ export function useRoom({
     onlineActive: shouldOnline && !!roomId,
     connected,
     users,
+    presenceReady: connected && !!roomId && presenceRoomId === roomId,
     roomId,
     setReady,
     requestPlay,

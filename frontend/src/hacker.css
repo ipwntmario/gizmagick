@@ -20,6 +20,8 @@
 :root[data-theme="h4ck3r"] .app-shell {
   font-family: "Cascadia Mono", Consolas, "Lucida Console", monospace !important;
 }
+:root[data-theme="h4ck3r"] .session-panel { --session-join-color: #67ff8d; --session-leave-color: #ff8d91; }
+:root[data-theme="h4ck3r"] .session-panel__count { border-radius: 2px; }
 :root[data-theme="h4ck3r"] :is(.track-browser__list, .session-panel__drawer, .app-menu__drawer, .database-modal) {
   scrollbar-color: #286a3a #061009;
 }

@@ -62,6 +62,8 @@
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(body, #root) { background: var(--theme-page) !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) a { color: var(--theme-accent); text-decoration: underline; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) a:hover { color: var(--theme-text); }
+:root[data-theme="high-contrast"] .session-panel { --session-join-color: #a4f5b9; --session-leave-color: #ffb1ad; }
+:root[data-theme="high-contrast-light"] .session-panel { --session-join-color: #075d36; --session-leave-color: #8d2329; }
 
 /* A visible outline takes the place of depth, glow, and translucent glass. */
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(

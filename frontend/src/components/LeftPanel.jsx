@@ -3,14 +3,17 @@ import UsersPanel from "./UsersPanel";
 import Icon from "./Icon";
 import ThemePicker from "./ThemePicker";
 import useDrawerSwipe from "./useDrawerSwipe";
+import { getPresenceChanges } from "../data/presence";
 import { resolveTheme, themeStorageKey } from "../themes";
 
 const LONG_PRESS_MS = 550;
-const rooms = [
-  { id: "", name: "Private Session", detail: "Offline", icon: "door", private: true },
+const EMPTY_USERS = [];
+const onlineRooms = [
   { id: "awc", name: "A Wizard's Chronicle", detail: "Online room", icon: "wand" },
   { id: "cyberspace-club", name: "Cyberspace Club", detail: "Online room", icon: "code" },
 ];
+const privateRoom = { id: "", name: "Private Session", detail: "Offline", icon: "door", private: true };
+const rooms = [...onlineRooms, privateRoom];
 
 function readStr(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } }
 
@@ -22,7 +25,6 @@ export default function LeftPanel({
   setRoomIdentity,
   themeChoices = {},
   onChooseTheme,
-  libraryDocked = false,
   open,
   onOpenChange,
 }) {
@@ -32,6 +34,8 @@ export default function LeftPanel({
   const menuButtonRef = useRef(null);
   const longPressTimer = useRef(null);
   const suppressClick = useRef(false);
+  const previousPresence = useRef({ roomId: currentRoomId, users: null });
+  const [presenceNotices, setPresenceNotices] = useState([]);
   useEffect(() => () => clearTimeout(longPressTimer.current), []);
   useEffect(() => {
     if (!open) return undefined;
@@ -44,10 +48,39 @@ export default function LeftPanel({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onOpenChange]);
 
-  const activeRoom = rooms.find((room) => room.id === currentRoomId) || rooms[0];
-  const users = roomState?.users || [];
+  const activeRoom = rooms.find((room) => room.id === currentRoomId) || privateRoom;
+  const users = roomState?.users ?? EMPTY_USERS;
+  const presenceReady = !!roomState?.presenceReady;
   const latencyMs = roomState?.latencyMs ?? null;
   const offsetMs = roomState?.serverOffsetMs ?? null;
+  const currentNotice = presenceNotices[0] ?? null;
+  const presenceCount = presenceReady ? users.length : 0;
+
+  useEffect(() => {
+    const previous = previousPresence.current;
+    if (previous.roomId !== currentRoomId) {
+      previousPresence.current = { roomId: currentRoomId, users: null };
+      setPresenceNotices([]);
+      return;
+    }
+    if (!presenceReady) {
+      previousPresence.current = { roomId: currentRoomId, users: null };
+      return;
+    }
+
+    const nextUsers = new Map(users.map((user) => [String(user.id), user.name || "Unknown"]));
+    if (previous.users) {
+      const changes = getPresenceChanges(previous.users, nextUsers);
+      if (changes.length) setPresenceNotices((queue) => [...queue, ...changes]);
+    }
+    previousPresence.current = { roomId: currentRoomId, users: nextUsers };
+  }, [currentRoomId, presenceReady, users]);
+
+  useEffect(() => {
+    if (!currentNotice) return undefined;
+    const timer = setTimeout(() => setPresenceNotices((queue) => queue.slice(1)), 3000);
+    return () => clearTimeout(timer);
+  }, [currentNotice]);
 
   function closePanel() {
     onOpenChange(false);
@@ -97,13 +130,13 @@ export default function LeftPanel({
 
   return (
     <aside
-      className={`session-panel ${open ? "is-open" : "is-closed"} ${libraryDocked ? "is-library-docked" : ""}`}
+      className={`session-panel ${open ? "is-open" : "is-closed"}`}
       aria-label="Session rooms"
       onPointerMove={cancelHoldOnMove}
       onPointerCancel={endTouch}
     >
       <button type="button" className="side-drawer__backdrop" aria-label="Close sessions" tabIndex={open ? 0 : -1} onClick={closePanel} />
-      <div className="session-panel__bar">
+      <div className={`session-panel__bar ${currentNotice ? "has-notice" : ""}`}>
         <button
           ref={menuButtonRef}
           className="session-panel__menu"
@@ -123,7 +156,15 @@ export default function LeftPanel({
             <Icon name={activeRoom.icon} size={19} />
           </span>
           <span className="session-panel__current-name">{activeRoom.name}</span>
+          {currentRoomId && (
+            <span className="session-panel__count" aria-label={`${presenceCount} ${presenceCount === 1 ? "person" : "people"} in session`} title={`${presenceCount} ${presenceCount === 1 ? "person" : "people"} in session`}>
+              <Icon name="user" size={13} />{presenceCount}
+            </span>
+          )}
         </div>
+        <span className={`session-panel__notice ${currentNotice ? `is-${currentNotice.kind}` : ""}`} aria-live="polite" aria-atomic="true" title={currentNotice ? `${currentNotice.kind === "join" ? "+" : "−"} ${currentNotice.name}` : undefined}>
+          {currentNotice && `${currentNotice.kind === "join" ? "+" : "−"} ${currentNotice.name}`}
+        </span>
       </div>
 
       <div
@@ -149,7 +190,7 @@ export default function LeftPanel({
             const themeChoice = themeChoices[room.id || "private"] ?? readStr(themeStorageKey(room.id), null);
             const currentTheme = resolveTheme(room.id, themeChoice);
             return (
-              <div className="session-room-wrap" key={room.private ? "private" : room.id}>
+              <div className={`session-room-wrap ${room.private ? "is-private" : ""}`} key={room.private ? "private" : room.id}>
                 <button
                   type="button"
                   className={`session-room ${selected ? "is-selected" : ""}`}

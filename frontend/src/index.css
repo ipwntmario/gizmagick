@@ -177,7 +177,7 @@ body {
 .track-library-shell {
   position: fixed;
   z-index: 75;
-  top: 56px;
+  top: 68px;
   bottom: 12px;
   left: 12px;
   display: flex;
@@ -185,7 +185,7 @@ body {
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.11);
-  border-radius: 0 0 16px 16px;
+  border-radius: 16px;
   color: #f7f8fb;
   background: linear-gradient(155deg, rgba(29,30,39,.975), rgba(14,15,21,.985));
   box-shadow: 0 22px 60px rgba(0,0,0,.42), 0 2px 8px rgba(0,0,0,.24);
@@ -237,7 +237,7 @@ body {
 .track-library-restore {
   position: fixed;
   z-index: 75;
-  top: 64px;
+  top: 68px;
   left: 12px;
   border: 1px solid rgba(255,255,255,.11);
   background: rgba(20,21,27,.92);
@@ -704,6 +704,8 @@ body {
 
 .session-panel {
   --panel-width: min(340px, calc(100vw - 24px));
+  --session-join-color: #8de5ae;
+  --session-leave-color: #ff939c;
   position: fixed;
   z-index: 80;
   top: 12px;
@@ -737,7 +739,7 @@ body {
   z-index: 2;
   display: flex;
   width: max-content;
-  max-width: min(100%, calc(100vw - 80px));
+  max-width: calc(100vw - 80px);
   height: 44px;
   align-items: center;
   overflow: hidden;
@@ -747,7 +749,7 @@ body {
   box-shadow: 0 8px 30px rgba(0,0,0,.3);
   backdrop-filter: blur(18px) saturate(130%);
   pointer-events: auto;
-  transition: width .3s cubic-bezier(.2,.8,.2,1), border-radius .3s cubic-bezier(.2,.8,.2,1);
+  transition: width .3s cubic-bezier(.2,.8,.2,1);
 }
 
 .session-panel__menu {
@@ -770,6 +772,7 @@ body {
 .session-panel__current {
   display: flex;
   max-width: 245px;
+  min-width: 0;
   align-items: center;
   gap: 9px;
   overflow: hidden;
@@ -781,6 +784,13 @@ body {
   transform: translateX(0);
   transition: max-width .28s cubic-bezier(.2,.8,.2,1), opacity .18s ease .1s, transform .28s ease;
 }
+
+.session-panel__current-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.session-panel__count { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; padding: 3px 5px; border: 1px solid var(--theme-line, rgba(255,255,255,.15)); border-radius: 7px; color: var(--theme-text, #f7f8fb); background: var(--theme-tint, rgba(255,255,255,.08)); font-size: 11px; font-variant-numeric: tabular-nums; }
+.session-panel__notice { display: block; max-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 750; opacity: 0; transition: max-width .25s ease, opacity .2s ease, padding .25s ease; }
+.session-panel__bar.has-notice .session-panel__notice { max-width: min(190px, 38vw); padding-right: 12px; opacity: 1; }
+.session-panel__notice.is-join { color: var(--session-join-color); }
+.session-panel__notice.is-leave { color: var(--session-leave-color); }
 
 
 .session-panel.is-open .session-panel__current {
@@ -839,6 +849,8 @@ body {
 
 .session-panel__rooms { display: grid; gap: 8px; }
 .session-room-wrap { position: relative; display: grid; gap: 0; }
+.session-room-wrap.is-private { margin-top: 18px; }
+.session-room-wrap.is-private::before { position: absolute; top: -13px; right: 0; left: 0; border-top: 1px solid var(--theme-line, rgba(255,255,255,.2)); content: ""; }
 
 .session-room {
   position: relative;
@@ -1573,6 +1585,4 @@ button:focus-visible {
     margin-left: auto !important;
   }
   .app-shell.is-role-read-only.is-library-expanded .utility-dock:not(.status-hidden) { left: 12px; }
-  .session-panel.is-closed.is-library-docked { --panel-width: min(var(--library-width, 300px), 60vw); }
-  .session-panel.is-closed.is-library-docked .session-panel__bar { width: min(var(--library-width, 300px), 60vw); border-radius: 14px 14px 0 0; }
 }

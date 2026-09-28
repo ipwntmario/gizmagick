@@ -79,6 +79,10 @@
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) a { color: var(--theme-accent); }
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) button { color: inherit; }
 
+:root[data-theme="light"] .session-panel { --session-join-color: #14643f; --session-leave-color: #b12f46; }
+:root[data-theme="signet"] .session-panel { --session-join-color: #246344; --session-leave-color: #a72f49; }
+:root[data-theme="castle-torchlit"] .session-panel { --session-join-color: #f4ce66; --session-leave-color: #ff9ba5; }
+
 /* The library, menus, dialogs, and playback dock share the same material. */
 :root:is([data-theme="light"], [data-theme="signet"], [data-theme="castle-torchlit"], [data-theme="high-contrast"], [data-theme="high-contrast-light"], [data-theme="h4ck3r"]) :is(
   .track-library-shell, .session-panel__bar, .session-panel__drawer,

@@ -1147,6 +1147,7 @@ export default function App() {
   const roomState = {
     isOnline: onlineEnabled,
     users: room?.users ?? [],
+    presenceReady: room?.presenceReady ?? false,
     latencyMs: room?.latencyMs ?? null,
     serverOffsetMs: room?.offsetMs ?? null,
   };
@@ -1446,7 +1447,6 @@ export default function App() {
         themeChoices={themeChoices}
         onChooseTheme={chooseTheme}
         room={room}
-        libraryDocked={libraryExpanded && !isReadOnlyRole}
         open={activeDrawer === "sessions"}
         onOpenChange={(open) => setActiveDrawer(open ? "sessions" : null)}
       />

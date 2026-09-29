@@ -66,6 +66,7 @@ export default function App() {
     }
   });
   const [libraryExpanded, setLibraryExpanded] = useState(true);
+  const [pinnedPeopleBottom, setPinnedPeopleBottom] = useState(0);
   const [libraryWidth, setLibraryWidth] = useState(300);
   const [resizingLibrary, setResizingLibrary] = useState(false);
   const libraryResizePointer = useRef(null);
@@ -1429,10 +1430,11 @@ export default function App() {
   };
 
   return (
-    <div className={`app-shell ${libraryExpanded ? "is-library-expanded" : "is-library-collapsed"} ${resizingLibrary ? "is-library-resizing" : ""} ${showStatus ? "" : "is-status-hidden"} ${isReadOnlyRole ? "is-role-read-only" : ""}`} style={{
+    <div className={`app-shell ${libraryExpanded ? "is-library-expanded" : "is-library-collapsed"} ${resizingLibrary ? "is-library-resizing" : ""} ${showStatus ? "" : "is-status-hidden"} ${isReadOnlyRole ? "is-role-read-only" : ""} ${pinnedPeopleBottom > 0 ? "is-people-pinned" : ""}`} style={{
       fontFamily: "sans-serif",
       padding: 20,
-      "--library-width": `${libraryWidth}px`
+      "--library-width": `${libraryWidth}px`,
+      "--pinned-people-bottom": `${pinnedPeopleBottom}px`,
       }}>
 
       <AboutModal
@@ -1459,6 +1461,7 @@ export default function App() {
         room={room}
         open={activeDrawer === "sessions"}
         onOpenChange={(open) => setActiveDrawer(open ? "sessions" : null)}
+        onPinnedPeopleBottomChange={setPinnedPeopleBottom}
       />
       <AppMenu
         open={activeDrawer === "menu"}

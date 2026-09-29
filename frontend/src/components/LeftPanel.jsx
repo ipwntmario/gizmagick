@@ -28,11 +28,16 @@ export default function LeftPanel({
   onChooseTheme,
   open,
   onOpenChange,
+  onPinnedPeopleBottomChange,
 }) {
   const [editingRoomId, setEditingRoomId] = useState(null);
   const [themePickerRoom, setThemePickerRoom] = useState(null);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peoplePinned, setPeoplePinned] = useState(false);
   const gesture = useRef(null);
   const menuButtonRef = useRef(null);
+  const peopleButtonRef = useRef(null);
+  const indicatorRef = useRef(null);
   const longPressTimer = useRef(null);
   const suppressClick = useRef(false);
   const previousPresence = useRef({ roomId: currentRoomId, users: null });
@@ -56,6 +61,46 @@ export default function LeftPanel({
   const offsetMs = roomState?.serverOffsetMs ?? null;
   const currentNotice = presenceNotices[0] ?? null;
   const presenceCount = presenceReady ? users.length : 0;
+  const peopleExpanded = peopleOpen && !!currentRoomId && !open;
+  const pinnedExpanded = peopleExpanded && peoplePinned;
+
+  useEffect(() => {
+    setPeopleOpen(false);
+    setPeoplePinned(false);
+  }, [currentRoomId]);
+
+  useEffect(() => {
+    if (!pinnedExpanded) {
+      onPinnedPeopleBottomChange?.(0);
+      return undefined;
+    }
+    const indicator = indicatorRef.current;
+    if (!indicator) return undefined;
+    const updateBottom = () => onPinnedPeopleBottomChange?.(Math.ceil(indicator.getBoundingClientRect().bottom));
+    updateBottom();
+    const observer = new ResizeObserver(updateBottom);
+    observer.observe(indicator);
+    return () => observer.disconnect();
+  }, [pinnedExpanded, onPinnedPeopleBottomChange]);
+
+  useEffect(() => {
+    if (!peopleExpanded || peoplePinned) return undefined;
+    const onPointerDown = (event) => {
+      if (!indicatorRef.current?.contains(event.target)) setPeopleOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setPeopleOpen(false);
+      peopleButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [peopleExpanded, peoplePinned]);
 
   useEffect(() => {
     const previous = previousPresence.current;
@@ -85,6 +130,7 @@ export default function LeftPanel({
 
   function closePanel() {
     onOpenChange(false);
+    if (!peoplePinned) setPeopleOpen(false);
     setEditingRoomId(null);
     menuButtonRef.current?.focus();
   }
@@ -131,13 +177,14 @@ export default function LeftPanel({
 
   return (
     <aside
-      className={`session-panel ${open ? "is-open" : "is-closed"}`}
+      className={`session-panel ${open ? "is-open" : "is-closed"} ${peopleExpanded ? "is-people-open" : ""} ${pinnedExpanded ? "is-people-pinned" : ""}`}
       aria-label="Session rooms"
       onPointerMove={cancelHoldOnMove}
       onPointerCancel={endTouch}
     >
       <button type="button" className="side-drawer__backdrop" aria-label="Close sessions" tabIndex={open ? 0 : -1} onClick={closePanel} />
-      <div className={`session-panel__bar ${currentNotice ? "has-notice" : ""}`}>
+      <div ref={indicatorRef} className={`session-panel__bar ${currentNotice ? "has-notice" : ""} ${peopleExpanded ? "is-people-open" : ""}`}>
+        <div className="session-panel__indicator">
         <button
           ref={menuButtonRef}
           className="session-panel__menu"
@@ -146,26 +193,49 @@ export default function LeftPanel({
           aria-expanded={open}
           aria-controls="sessions-drawer"
           onClick={() => {
+            if (!peoplePinned) setPeopleOpen(false);
             onOpenChange(!open);
             if (open) setEditingRoomId(null);
           }}
         >
           <Icon name="menu" size={22} />
         </button>
-        <div className="session-panel__current" aria-hidden={open}>
+        <div className="session-panel__current" aria-hidden={open} inert={open}>
           <span className={`session-room__icon session-room__icon--${activeRoom.private ? "private" : "online"}`}>
             <Icon name={activeRoom.icon} size={19} />
           </span>
           <span className="session-panel__current-name">{activeRoom.name}</span>
-          {currentRoomId && (
-            <span className="session-panel__count" aria-label={`${presenceCount} ${presenceCount === 1 ? "person" : "people"} in session`} title={`${presenceCount} ${presenceCount === 1 ? "person" : "people"} in session`}>
+          {currentRoomId && !peopleExpanded && (
+            <button
+              type="button"
+              className="session-panel__count session-panel__count-button"
+              aria-label={`Show ${presenceCount} ${presenceCount === 1 ? "person" : "people"} in session`}
+              aria-expanded={false}
+              aria-controls="session-indicator-users"
+              title="Show users"
+              onClick={() => setPeopleOpen(true)}
+            >
               <Icon name="user" size={13} />{presenceCount}
-            </span>
+            </button>
           )}
         </div>
         <span className={`session-panel__notice ${currentNotice ? `is-${currentNotice.kind}` : ""}`} aria-live="polite" aria-atomic="true" title={currentNotice ? `${currentNotice.kind === "join" ? "+" : "−"} ${currentNotice.name}` : undefined}>
           {currentNotice && `${currentNotice.kind === "join" ? "+" : "−"} ${currentNotice.name}`}
         </span>
+        {peopleExpanded && (
+          <div className="session-panel__people-actions">
+            <button type="button" className={`session-panel__people-action ${peoplePinned ? "is-active" : ""}`} aria-label={peoplePinned ? "Unpin users" : "Pin users"} aria-pressed={peoplePinned} title={peoplePinned ? "Unpin users" : "Pin users"} onClick={() => setPeoplePinned((value) => !value)}>
+              <Icon name="pin" size={16} />
+            </button>
+            <button ref={peopleButtonRef} type="button" className="session-panel__people-action" aria-label="Collapse users" aria-expanded={true} aria-controls="session-indicator-users" title="Collapse users" onClick={() => { setPeopleOpen(false); setPeoplePinned(false); }}>
+              <Icon name="chevronUp" size={18} />
+            </button>
+          </div>
+        )}
+        </div>
+        <div id="session-indicator-users" className="session-panel__people" aria-hidden={!peopleExpanded} inert={!peopleExpanded}>
+          <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} headerCount={presenceCount} />
+        </div>
       </div>
 
       <div

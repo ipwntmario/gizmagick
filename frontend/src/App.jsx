@@ -41,6 +41,7 @@ import PrimaryPlaybackButton from "./components/PrimaryPlaybackButton";
 import ClipProgress from "./components/ClipProgress";
 import DynamicClipPanel from "./components/DynamicClipPanel";
 import CursorEffect from "./components/CursorEffect";
+import { LATEST_RELEASE_SIGNATURE } from "./releaseNotes";
 import icon1Url from "./assets/icons/icon1.png";
 import icon2bUrl from "./assets/icons/icon2b.png";
 
@@ -55,7 +56,10 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("wizamp_useAlternateIcon", useAlternateIcon ? "1" : "0"); } catch {}
   }, [useAlternateIcon]);
-  const [showAbout, setShowAbout] = useState(true);
+  const [showAbout, setShowAbout] = useState(() => {
+    try { return localStorage.getItem("wizamp_seenLatestUpdate") !== LATEST_RELEASE_SIGNATURE; }
+    catch { return true; }
+  });
   const [aboutSection, setAboutSection] = useState(() => {
     try {
       const hasSeenGuide = localStorage.getItem("wizamp_hasSeenGuide") === "1";
@@ -65,6 +69,10 @@ export default function App() {
       return "guide";
     }
   });
+  useEffect(() => {
+    if (!showAbout || aboutSection !== "updates") return;
+    try { localStorage.setItem("wizamp_seenLatestUpdate", LATEST_RELEASE_SIGNATURE); } catch {}
+  }, [showAbout, aboutSection]);
   const [libraryExpanded, setLibraryExpanded] = useState(true);
   const [pinnedPeopleBottom, setPinnedPeopleBottom] = useState(0);
   const [libraryWidth, setLibraryWidth] = useState(300);

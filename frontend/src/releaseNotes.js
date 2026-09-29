@@ -27,3 +27,5 @@ export const RELEASE_NOTES = [
 
 export const LATEST_RELEASE = RELEASE_NOTES[0];
 export const PREVIOUS_RELEASES = RELEASE_NOTES.slice(1);
+// Include the notes as well as the version so edits to the latest update show again.
+export const LATEST_RELEASE_SIGNATURE = JSON.stringify(LATEST_RELEASE);

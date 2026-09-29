@@ -89,6 +89,7 @@ export class RoomHub {
           name: data.name || "Anon",
           role: data.role || "Player",
           ready: !!data.ready,
+          loading: !data.ready && data.loading === true,
           roomId: data.roomId || "default",
         };
         this.clients.set(ws, user);
@@ -117,6 +118,7 @@ export class RoomHub {
         const u = this.clients.get(ws);
         if (!u) return;
         u.ready = !!data.ready;
+        u.loading = !u.ready && data.loading === true;
         console.log("[RoomHub] SET_READY:", u.name, "→", u.ready);
         this.broadcastPresence(u.roomId);
         break;
@@ -491,7 +493,7 @@ export class RoomHub {
     const users = [];
     for (const [, u] of this.clients) {
       if (u.roomId === roomId) {
-        users.push({ id: u.id, name: u.name, role: u.role, ready: u.ready });
+        users.push({ id: u.id, name: u.name, role: u.role, ready: u.ready, loading: !!u.loading });
       }
     }
     console.log("[RoomHub] PRESENCE →", roomId, "users:", users.map(u => u.name));

@@ -19,6 +19,7 @@ function readStr(key, fallback) { try { return localStorage.getItem(key) ?? fall
 
 export default function LeftPanel({
   roomState,
+  showClockOffset = false,
   setRoomId,
   currentRoomId,
   roomIdentities,
@@ -267,7 +268,7 @@ export default function LeftPanel({
 
         {currentRoomId && (
           <div className="session-panel__presence">
-            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} />
+            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} />
           </div>
         )}
 

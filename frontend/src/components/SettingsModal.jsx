@@ -8,6 +8,7 @@ export default function SettingsModal({
   fadeOutSeconds, setFadeOutSeconds,
   pauseFadeSeconds, setPauseFadeSeconds,
   showStatus, setShowStatus,
+  showClockOffset, setShowClockOffset,
   cursorEffectEnabled, setCursorEffectEnabled,
   showPlayControlsButton, setShowPlayControlsButton,
   useAlternateIcon, setUseAlternateIcon,
@@ -177,6 +178,20 @@ export default function SettingsModal({
                     type="checkbox"
                     checked={!!showStatus}
                     onChange={(event) => setShowStatus?.(event.target.checked)}
+                  />
+                  <span aria-hidden="true" />
+                </span>
+              </label>
+              <label className="settings-field settings-field--toggle">
+                <span className="settings-field__copy">
+                  <strong>Show clock offset</strong>
+                  <small>Show the room clock offset in the users panel.</small>
+                </span>
+                <span className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={!!showClockOffset}
+                    onChange={(event) => setShowClockOffset?.(event.target.checked)}
                   />
                   <span aria-hidden="true" />
                 </span>

@@ -9,7 +9,7 @@ const roleIcon = (role) => {
   }
 };
 
-export default function UsersPanel({ users = [], latencyMs, offsetMs }) {
+export default function UsersPanel({ users = [], latencyMs, offsetMs, showClockOffset = false }) {
   return (
     <div
       style={{
@@ -30,7 +30,7 @@ export default function UsersPanel({ users = [], latencyMs, offsetMs }) {
           <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 18, display: "inline-flex", justifyContent: "center" }}><Icon name={roleIcon(u.role)} size={17} /></span>
             <span style={{ fontWeight: 500 }}>{u.name || "Unknown"}</span>
-            <span style={{
+            {(u.ready || u.loading) && <span style={{
               marginLeft: "auto",
               fontSize: 11,
               padding: "2px 6px",
@@ -39,15 +39,15 @@ export default function UsersPanel({ users = [], latencyMs, offsetMs }) {
               border: `1px solid ${u.ready ? "rgba(16,185,129,0.5)" : "rgba(245,158,11,0.5)"}`,
             }}>
               {u.ready ? "ready" : "loading"}
-            </span>
+            </span>}
           </div>
         ))}
       </div>
 
-      {(latencyMs != null || offsetMs != null) && (
+      {(latencyMs != null || (showClockOffset && offsetMs != null)) && (
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
           {latencyMs != null && <div>Latency: {Math.round(latencyMs)} ms</div>}
-          {offsetMs != null && <div>Clock offset: {Math.round(offsetMs)} ms</div>}
+          {showClockOffset && offsetMs != null && <div>Clock offset: {Math.round(offsetMs)} ms</div>}
         </div>
       )}
     </div>

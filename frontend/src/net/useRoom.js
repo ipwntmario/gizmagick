@@ -64,6 +64,7 @@ export function useRoom({
   const reconnectTimer = useRef(null);
   const pingTimer = useRef(null);
   const lastReadyRef = useRef(null);
+  const lastLoadingRef = useRef(false);
   const connIdRef = useRef(0);
   const startedRef = useRef(false);
 
@@ -108,11 +109,12 @@ export function useRoom({
         role: role || "Player",
         clientVersion: "phase2",
         ready: lastReadyRef.current === null ? false : !!lastReadyRef.current,
+        loading: lastLoadingRef.current,
       }));
       console.log("[room] → HELLO", { roomId, name: displayName || "Anon", role, ready: lastReadyRef.current });
 
       if (lastReadyRef.current !== null) {
-        ws.send(JSON.stringify({ type: "SET_READY", ready: !!lastReadyRef.current }));
+        ws.send(JSON.stringify({ type: "SET_READY", ready: !!lastReadyRef.current, loading: lastLoadingRef.current }));
         console.log("[room] → SET_READY", lastReadyRef.current);
       }
       // start ping loop
@@ -241,11 +243,12 @@ export function useRoom({
     };
   }, [shouldOnline, roomId, connect]);
 
-  const setReady = useCallback((ready) => {
+  const setReady = useCallback((ready, { loading = false } = {}) => {
     lastReadyRef.current = !!ready;
+    lastLoadingRef.current = !ready && !!loading;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "SET_READY", ready: !!ready }));
+    ws.send(JSON.stringify({ type: "SET_READY", ready: !!ready, loading: lastLoadingRef.current }));
   }, []);
 
   const requestPlay = useCallback(({ trackName, sectionName, delayMs = 2000, override = false }) => {

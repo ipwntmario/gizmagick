@@ -29,6 +29,26 @@ test('Play respects role and readiness gates', () => {
   }
 });
 
+test('presence distinguishes idle, loading, and ready users', () => {
+  const hub = new RoomHub({}, {});
+  const messages = [];
+  const socket = { send: message => messages.push(JSON.parse(message)) };
+  const send = data => hub.webSocketMessage(socket, JSON.stringify(data));
+  const presence = () => messages.filter(message => message.type === 'PRESENCE').at(-1).users[0];
+
+  send({ type: 'HELLO', roomId: 'test', name: 'Listener' });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: false, loading: false });
+
+  send({ type: 'SET_READY', ready: false, loading: true });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: false, loading: true });
+
+  send({ type: 'SET_READY', ready: true });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: true, loading: false });
+
+  send({ type: 'SET_READY', ready: false });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: false, loading: false });
+});
+
 test('commands remain isolated to their room', () => {
   const { hub, send } = fixture();
   const otherMessages = [];

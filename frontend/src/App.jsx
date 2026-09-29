@@ -151,6 +151,12 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("wizamp_showStatus", showStatus ? "1" : "0"); } catch {}
   }, [showStatus]);
+  const [showClockOffset, setShowClockOffset] = useState(() => {
+    try { return localStorage.getItem("wizamp_showClockOffset") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_showClockOffset", showClockOffset ? "1" : "0"); } catch {}
+  }, [showClockOffset]);
   const [cursorEffectEnabled, setCursorEffectEnabled] = useState(() => {
     try { return localStorage.getItem("wizamp_cursorEffect") !== "0"; } catch { return true; }
   });
@@ -747,7 +753,8 @@ export default function App() {
     if (!name || engine.isPlaying || loadBusyRef.current) return;
     loadBusyRef.current = true;
     setIsLoadingTrack(true);
-    roomRef.current?.setReady(false);
+    roomRef.current?.setReady(false, { loading: true });
+    let loaded = false;
     try {
       const assets = await getTrackAssets(name);
       if (selectedTrackRef.current !== name) return;
@@ -768,6 +775,7 @@ export default function App() {
       setPlayingTrackName(name);
       setClipProgress(0);
       failedLoadRef.current = null;
+      loaded = true;
       roomRef.current?.setReady(true);
       if (pendingPlayRef.current?.trackName === name) {
         pendingPlayRef.current = null;
@@ -777,6 +785,7 @@ export default function App() {
       failedLoadRef.current = name;
       setStatus(`Failed to load ${name}: ${err.message}. Select the track again to retry.`);
     } finally {
+      if (!loaded) roomRef.current?.setReady(false);
       loadBusyRef.current = false;
       setIsLoadingTrack(false);
     }
@@ -1436,6 +1445,7 @@ export default function App() {
 
       <LeftPanel
         roomState={roomState}
+        showClockOffset={showClockOffset}
         setRoomId={setRoomId}
         currentRoomId={roomId}
         role={role}
@@ -1756,6 +1766,8 @@ export default function App() {
         setPauseFadeSeconds={setPauseFadeSeconds}
         showStatus={showStatus}
         setShowStatus={setShowStatus}
+        showClockOffset={showClockOffset}
+        setShowClockOffset={setShowClockOffset}
         showPlayControlsButton={showPlayControlsButton}
         setShowPlayControlsButton={setShowPlayControlsButton}
         useAlternateIcon={useAlternateIcon}

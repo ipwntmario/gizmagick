@@ -2,6 +2,8 @@
 
 A browser-based dynamic music player for tabletop sessions. Tracks can loop, transition between sections, switch musical modes, and synchronize playback across a room.
 
+Live app: [wizamp.app](https://wizamp.app).
+
 ## Local development
 
 Use Node.js 22.12+ and npm. From `frontend`:

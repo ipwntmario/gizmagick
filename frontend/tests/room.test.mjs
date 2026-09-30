@@ -49,6 +49,22 @@ test('presence distinguishes idle, loading, and ready users', () => {
   assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: false, loading: false });
 });
 
+test('changing a display name updates presence without changing the connection ID', () => {
+  const hub = new RoomHub({}, {});
+  const messages = [];
+  const socket = { send: message => messages.push(JSON.parse(message)) };
+  const send = data => hub.webSocketMessage(socket, JSON.stringify(data));
+
+  send({ type: 'HELLO', roomId: 'test', name: 'Old name', role: 'GM' });
+  const before = messages.at(-1).users[0];
+  send({ type: 'UPDATE_IDENTITY', name: 'New name', role: 'GM' });
+  const after = messages.at(-1).users[0];
+
+  assert.equal(after.id, before.id);
+  assert.equal(after.name, 'New name');
+  assert.equal(hub.clients.size, 1);
+});
+
 test('commands remain isolated to their room', () => {
   const { hub, send } = fixture();
   const otherMessages = [];

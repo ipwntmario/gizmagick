@@ -67,6 +67,8 @@ export function useRoom({
   const lastLoadingRef = useRef(false);
   const connIdRef = useRef(0);
   const startedRef = useRef(false);
+  const identityRef = useRef({ displayName, role });
+  identityRef.current = { displayName, role };
 
   // NTP-ish smoothing
   const updateOffset = useCallback((rtt, serverTimeMs) => {
@@ -102,16 +104,17 @@ export function useRoom({
       setConnected(true);
       console.log("[room] OPEN");
       // HELLO (seed ready)
+      const { displayName: currentName, role: currentRole } = identityRef.current;
       ws.send(JSON.stringify({
         type: "HELLO",
         roomId,
-        name: displayName || "Anon",
-        role: role || "Player",
+        name: currentName || "Anon",
+        role: currentRole || "Player",
         clientVersion: "phase2",
         ready: lastReadyRef.current === null ? false : !!lastReadyRef.current,
         loading: lastLoadingRef.current,
       }));
-      console.log("[room] → HELLO", { roomId, name: displayName || "Anon", role, ready: lastReadyRef.current });
+      console.log("[room] → HELLO", { roomId, name: currentName || "Anon", role: currentRole, ready: lastReadyRef.current });
 
       if (lastReadyRef.current !== null) {
         ws.send(JSON.stringify({ type: "SET_READY", ready: !!lastReadyRef.current, loading: lastLoadingRef.current }));
@@ -221,7 +224,13 @@ export function useRoom({
     };
 
     ws.onerror = () => { /* rely on onclose */ };
-  }, [shouldOnline, roomId, displayName, role, updateOffset]);
+  }, [shouldOnline, roomId, updateOffset]);
+
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "UPDATE_IDENTITY", name: displayName || "Anon", role: role || "Player" }));
+  }, [displayName, role]);
 
   useLayoutEffect(() => {
     if (!shouldOnline || !roomId) return;

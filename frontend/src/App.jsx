@@ -109,6 +109,7 @@ export default function App() {
   const isActiveRoleRef = useRef(true);
   const roomRef = useRef(null);
   const loadBusyRef = useRef(false);
+  const playbackGenerationRef = useRef(0);
   const failedLoadRef = useRef(null);
 
   // Mirrors of state for net callbacks
@@ -760,13 +761,14 @@ export default function App() {
 
   const loadTrackAssets = useCallback(async (name) => {
     if (!name || engine.isPlaying || loadBusyRef.current) return;
+    const generation = playbackGenerationRef.current;
     loadBusyRef.current = true;
     setIsLoadingTrack(true);
     roomRef.current?.setReady(false, { loading: true });
     let loaded = false;
     try {
       const assets = await getTrackAssets(name);
-      if (selectedTrackRef.current !== name) return;
+      if (generation !== playbackGenerationRef.current || selectedTrackRef.current !== name) return;
       const { clips: nextClips, sections: nextSections, basePath } = assets;
       engine.setData({ clips: nextClips, sections: nextSections, tracks });
       await engine.preloadTrack(name, {
@@ -774,6 +776,7 @@ export default function App() {
         basePath,
         preserveCache: assets.buffersReady,
       });
+      if (generation !== playbackGenerationRef.current) return;
       assets.buffersReady = false;
       if (selectedTrackRef.current !== name) {
         setPlayingTrackName(null);
@@ -791,12 +794,15 @@ export default function App() {
         roomRef.current?.requestSync();
       }
     } catch (err) {
+      if (generation !== playbackGenerationRef.current) return;
       failedLoadRef.current = name;
       setStatus(`Failed to load ${name}: ${err.message}. Select the track again to retry.`);
     } finally {
-      if (!loaded) roomRef.current?.setReady(false);
-      loadBusyRef.current = false;
-      setIsLoadingTrack(false);
+      if (generation === playbackGenerationRef.current) {
+        if (!loaded) roomRef.current?.setReady(false);
+        loadBusyRef.current = false;
+        setIsLoadingTrack(false);
+      }
     }
   }, [engine, tracks, loadSavedTrackVolume, getTrackAssets]);
 
@@ -811,6 +817,56 @@ export default function App() {
     scheduledCommandsRef.current.add(id);
   }, []);
   useEffect(() => cancelScheduledCommands, [cancelScheduledCommands, roomId, onlineEnabled]);
+
+  const playbackRoomIdRef = useRef(roomId);
+  useLayoutEffect(() => {
+    if (playbackRoomIdRef.current === roomId) return;
+    playbackRoomIdRef.current = roomId;
+    playbackGenerationRef.current += 1;
+    engine.resetForSession();
+    cancelScheduledCommands();
+    if (verifyTimer1Ref.current) clearTimeout(verifyTimer1Ref.current);
+    if (verifyTimer2Ref.current) clearTimeout(verifyTimer2Ref.current);
+    verifyTimer1Ref.current = null;
+    verifyTimer2Ref.current = null;
+    verifyingRef.current = false;
+    pendingPlayRef.current = null;
+    selectedTrackRef.current = null;
+    playingTrackNameRef.current = null;
+    queuedTrackRef.current = null;
+    queuedTrackPlayAfterReleaseRef.current = null;
+    queuedSectionRef.current = null;
+    queuedModeRef.current = null;
+    queuedTrackTimingRef.current = null;
+    queuedChoiceTimingRef.current = { section: null, mode: null };
+    ignoreQueueUntilMsRef.current = 0;
+    loadBusyRef.current = false;
+    failedLoadRef.current = null;
+    clearTimeout(undoEffectTimerRef.current);
+    updateUndoHistory([]);
+    setUndoEffect(null);
+    setSelectedTrack(null);
+    setPlayingTrackName(null);
+    setPlayRequestedFor(null);
+    setReleasedQueuedTrack(null);
+    setPendingNetStart(null);
+    setIsLoadingTrack(false);
+    setClips({});
+    setSections({});
+    setCurrentSectionName(null);
+    setCurrentModeName("base");
+    setQueuedSectionName(null);
+    setQueuedModeName(null);
+    setQueuedTrack(null);
+    setQueuedTrackProgress(null);
+    setQueuedChoiceProgress({ section: null, mode: null });
+    setReplacementInProgress(false);
+    setTrackVolume(1);
+    setClipProgress(0);
+    setClipPositionSeconds(0);
+    setClipDurationSeconds(0);
+    setStatus("Idle");
+  }, [roomId, engine, cancelScheduledCommands, updateUndoHistory, setReplacementInProgress]);
 
   const onPauseMsg = useCallback(() => {
     cancelScheduledCommands();
@@ -1547,46 +1603,26 @@ export default function App() {
 
       {audioLocked && room.onlineActive && (
         <div
-          style={{
-            position: "fixed",
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(0,0,0,0.5)",   // dark backdrop
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            zIndex: 9999
-          }}
-          onClick={handleEnableAudio} // optional: close modal when clicking backdrop
+          className="audio-unlock-overlay"
+          onClick={handleEnableAudio}
         >
           <div
-            style={{
-              background: "rgba(20,20,20,0.95)",
-              color: "#fff",
-              padding: "20px 24px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.15)",
-              maxWidth: 400,
-              width: "100%",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.3)"
-            }}
-            onClick={(e) => e.stopPropagation()} // prevent closing when clicking inside
+            className="audio-unlock-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="audio-unlock-title"
+            aria-describedby="audio-unlock-description"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div style={{ fontWeight: 600, marginBottom: 12 }}>
-              Audio is paused by the browser
-            </div>
-            <button
-              onClick={handleEnableAudio}
-              style={{
-                cursor: "pointer",
-                padding: "8px 14px",
-                borderRadius: 6,
-                border: "1px solid #aaa",
-                background: "#1e90ff",
-                color: "#fff",
-              }}
-            >
-              Enable audio
+            <div className="audio-unlock-panel__icon"><Icon name="headphones" size={25} /></div>
+            <div className="audio-unlock-panel__eyebrow">AUDIO PAUSED</div>
+            <h2 id="audio-unlock-title">Enable audio</h2>
+            <p id="audio-unlock-description">
+              Your browser has paused sound for this session. Enable it to hear the music and stay in sync.
+            </p>
+            <button type="button" className="audio-unlock-panel__button" onClick={handleEnableAudio} autoFocus>
+              <Icon name="play" size={17} />
+              <span>Enable audio</span>
             </button>
           </div>
         </div>

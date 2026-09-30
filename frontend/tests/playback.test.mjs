@@ -97,6 +97,49 @@ test('stop cancels scheduled-position transitions', () => withTimers(timers => {
   assert.equal(engine.isPlaying, false);
 }));
 
+test('switching sessions silences playback without reporting a stop', () => withTimers(timers => {
+  const engine = fixture();
+  const statuses = [];
+  let stopped = 0;
+  engine.onStatus = status => statuses.push(status);
+  engine.activeClips.A.source = { stop() { stopped += 1; } };
+  engine.lastPlayingClipName = 'A';
+  engine.currentTrackName = 'Old room track';
+  engine._isPreloaded = true;
+  engine.queuedNextSectionName = 'Next';
+  engine.stopTrack(true);
+  const stopTimer = engine._stopFinishTimer;
+
+  engine.resetForSession();
+
+  assert.equal(stopped, 1);
+  assert.equal(timers.has(stopTimer), false);
+  assert.equal(engine.currentTrackName, null);
+  assert.equal(engine.isPlaying, false);
+  assert.equal(engine.isPreloaded, false);
+  assert.equal(engine.queuedNextSectionName, null);
+  assert.deepEqual(statuses, []);
+}));
+
+test('a preload from the old session cannot restore its track', async () => {
+  const engine = fixture();
+  const statuses = [];
+  engine.onStatus = status => statuses.push(status);
+  engine.setData({ clips: { A: { file: 'a.ogg' } }, sections: {}, tracks: {} });
+  let finishDecode;
+  engine._loadBufferWithCache = () => new Promise(resolve => { finishDecode = resolve; });
+
+  const preload = engine.preloadTrack('Old room track');
+  engine.resetForSession();
+  finishDecode({ duration: 10 });
+  await preload;
+
+  assert.equal(engine.currentTrackName, null);
+  assert.equal(engine.isPreloaded, false);
+  assert.deepEqual(engine.activeClips, {});
+  assert.deepEqual(statuses, []);
+});
+
 test('a pending stop fade can be reversed before it completes', () => withTimers(timers => {
   const engine = fixture();
   const ramps = [];

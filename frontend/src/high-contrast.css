@@ -87,6 +87,9 @@
   background: rgba(0, 0, 0, .88) !important;
   backdrop-filter: none !important;
 }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .audio-unlock-overlay { background: rgba(0, 0, 0, .88); backdrop-filter: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .audio-unlock-panel { border: 2px solid var(--theme-border); border-radius: 8px; box-shadow: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .audio-unlock-panel__button { border: 2px solid var(--theme-accent); color: var(--contrast-on-accent); background: var(--theme-accent); }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .side-drawer__backdrop { background: rgba(0, 0, 0, .88) !important; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .settings-modal__header, .database-modal__header, .database-toolbar,

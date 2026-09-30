@@ -1,5 +1,5 @@
 // src/net/useRoom.js
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const ONLINE_ENV = (import.meta.env?.VITE_ONLINE_MODE === 'true');
 const WS_URL = import.meta.env?.VITE_WS_URL || "";
@@ -223,7 +223,7 @@ export function useRoom({
     ws.onerror = () => { /* rely on onclose */ };
   }, [shouldOnline, roomId, displayName, role, updateOffset]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldOnline || !roomId) return;
     if (startedRef.current) return;
     startedRef.current = true;

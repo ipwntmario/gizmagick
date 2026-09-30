@@ -27,7 +27,9 @@ export default function DatabaseModal({
   const [trackMenuOpen, setTrackMenuOpen] = useState(null);
   const [filters, setFilters] = useState(() => ({ ...DEFAULT_TRACK_FILTERS }));
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   const filterButtonRef = useRef(null);
+  const sortButtonRef = useRef(null);
   const activeFilterCount = activeTrackFilterCount(filters);
 
   useEffect(() => {
@@ -231,28 +233,34 @@ export default function DatabaseModal({
           borderBottom: "1px solid #444", padding: "8px 12px",
           display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap"
         }}>
-          <label className="database-toolbar__sort" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: "#bbb" }}>Sort:</span>
-            <select
-              value={sortMode}
-              onChange={(e) => onChangeSort?.(e.target.value)}
-              style={{ padding: "4px 6px", borderRadius: 6, background: "#222", color: "white", border: "1px solid #555" }}
-            >
-              <option value="alpha-asc">alphabetical (ascending)</option>
-              <option value="alpha-desc">alphabetical (descending)</option>
-            </select>
-          </label>
-
           <button
             ref={filterButtonRef}
             type="button"
-            className="database-button database-button--quiet database-filter-button"
+            className="track-browser__filter-button database-toolbar__control"
             aria-expanded={filtersOpen}
             aria-controls="database-filters"
-            onClick={() => setFiltersOpen(value => !value)}
+            onClick={() => {
+              setSortOpen(false);
+              setFiltersOpen(value => !value);
+            }}
           >
             <Icon name="filter" size={16} />
-            Filters{activeFilterCount > 0 && <span className="database-filter-count">{activeFilterCount}</span>}
+            <span>Filters</span>
+            {activeFilterCount > 0 && <span className="database-filter-count">{activeFilterCount}</span>}
+          </button>
+          <button
+            ref={sortButtonRef}
+            type="button"
+            className="track-browser__sort-button database-toolbar__control"
+            aria-expanded={sortOpen}
+            aria-controls="database-sort"
+            onClick={() => {
+              setFiltersOpen(false);
+              setSortOpen(value => !value);
+            }}
+          >
+            <Icon name="sort" size={16} />
+            <span>Sort</span>
           </button>
 
           <div className="database-toolbar__actions" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
@@ -282,6 +290,36 @@ export default function DatabaseModal({
                 filterButtonRef.current?.focus();
             }}
           />}
+          {sortOpen && <div
+            className="track-sort database-toolbar__sort-menu"
+            id="database-sort"
+            role="group"
+            aria-label="Sort tracks"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                setSortOpen(false);
+                sortButtonRef.current?.focus();
+              }
+            }}
+          >
+            {[["alpha-asc", "A to Z"], ["alpha-desc", "Z to A"]].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={sortMode === value ? "is-active" : ""}
+                aria-pressed={sortMode === value}
+                onClick={() => {
+                  onChangeSort?.(value);
+                  setSortOpen(false);
+                  sortButtonRef.current?.focus();
+                }}
+              >
+                <Icon name="sort" size={15} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>}
         </div>
 
         {/* Scrollable body */}

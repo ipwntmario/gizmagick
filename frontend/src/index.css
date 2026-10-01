@@ -327,7 +327,7 @@ body {
 .track-sort { display: grid; flex: 0 0 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,.065); background: rgba(255,255,255,.018); }
 .track-sort button { display: flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 6px 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 8px; color: rgba(255,255,255,.7); background: rgba(255,255,255,.025); font: inherit; font-size: 11px; font-weight: 680; }
 .track-sort button:is(:hover, .is-active) { border-color: rgba(143,124,255,.45); color: #fff; background: rgba(143,124,255,.14); }
-.track-browser__list { min-height: 0; flex: 1; overflow-y: auto; padding: 7px; overscroll-behavior: contain; scrollbar-color: rgba(255,255,255,.2) transparent; }
+.track-browser__list { min-height: 0; flex: 1; overflow-y: auto; padding: 0 7px 7px; overscroll-behavior: contain; scrollbar-color: rgba(255,255,255,.2) transparent; }
 .track-browser__filtered-heading { margin: 10px 12px 4px; color: var(--theme-muted, #c5c8d4); font-size: 10px; font-weight: 500; }
 .track-browser__row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: stretch; border: 1px solid transparent; border-radius: 11px; transition: border-color .16s ease, background .16s ease; }
 .track-browser__row + .track-browser__row { margin-top: 3px; }
@@ -1584,7 +1584,7 @@ button:focus-visible {
   .track-library__heading { display: none; }
   .track-library__collapse, .track-library-restore { display: none; }
   .track-library__resize-handle { display: none; }
-  .track-browser__list { padding: 5px; }
+  .track-browser__list { padding: 0 5px 5px; }
   .track-browser__menu { width: min(270px, calc(100vw - 54px)); }
   .mobile-playlists-view {
     position: fixed;

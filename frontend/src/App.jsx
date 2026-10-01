@@ -217,6 +217,7 @@ export default function App() {
   // Session-only undo history for pending queue changes.
   const [undoHistory, setUndoHistory] = useState([]);
   const undoHistoryRef = useRef([]);
+  const undoShortcutRef = useRef(null);
   const [undoEffect, setUndoEffect] = useState(null);
   const undoEffectTimerRef = useRef(null);
   const updateUndoHistory = useCallback((updater) => {
@@ -1396,6 +1397,21 @@ export default function App() {
       applyModeQueue(action.previous || null);
     }
   }
+
+  useLayoutEffect(() => { undoShortcutRef.current = undoLastQueuedChange; });
+
+  useEffect(() => {
+    if (!isActiveRole || undoHistory.length === 0) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key.toLowerCase() !== "z" || (!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey || event.defaultPrevented) return;
+      if (event.target?.closest?.("input, textarea, select, [contenteditable], [role='textbox']")) return;
+      if (document.querySelector('[aria-modal="true"]') || undoHistoryRef.current.length === 0) return;
+      event.preventDefault();
+      undoShortcutRef.current?.();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isActiveRole, undoHistory.length]);
 
   async function requestTrackPlayback(name, { alwaysStop = false, shouldPlay = true } = {}) {
     if (!name || (!isActiveRole && room.onlineActive)) return;

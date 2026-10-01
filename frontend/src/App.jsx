@@ -44,6 +44,7 @@ import CursorEffect from "./components/CursorEffect";
 import { LATEST_RELEASE_SIGNATURE } from "./releaseNotes";
 import icon1Url from "./assets/icons/icon1.png";
 import icon2bUrl from "./assets/icons/icon2b.png";
+import { heldStopFadeSeconds } from "./audio/stopFade";
 
 export default function App() {
   const { tracks, loading, error: dataError } = useMusicData();  // <- only rely on tracks here
@@ -141,6 +142,24 @@ export default function App() {
   const queuedTrackRef = useRef(null);
   const [replacementPending, setReplacementPending] = useState(false);
   const replacementPendingRef = useRef(false);
+  const [stopFadePhase, setStopFadePhase] = useState(null);
+  const stopFadePhaseRef = useRef(null);
+  const setCurrentStopFadePhase = useCallback((phase) => {
+    stopFadePhaseRef.current = phase;
+    setStopFadePhase(phase);
+  }, []);
+  const [autoplayFlashing, setAutoplayFlashing] = useState(false);
+  const [autoplayFlashId, setAutoplayFlashId] = useState(0);
+  const autoplayFlashTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(autoplayFlashTimerRef.current), []);
+  const [autoplaySuspended, setAutoplaySuspended] = useState(false);
+  const autoplaySuspendedRef = useRef(false);
+  const flashAutoplay = () => {
+    setAutoplayFlashId((id) => id + 1);
+    setAutoplayFlashing(true);
+    clearTimeout(autoplayFlashTimerRef.current);
+    autoplayFlashTimerRef.current = setTimeout(() => setAutoplayFlashing(false), 700);
+  };
   const setReplacementInProgress = useCallback((pending) => {
     replacementPendingRef.current = pending;
     setReplacementPending(pending);
@@ -377,6 +396,13 @@ export default function App() {
         console.log("[STATUS]", s);
         setStatus(s);
         if (s === "Stopped") {
+          const skipNextAutoplay = autoplaySuspendedRef.current;
+          if (skipNextAutoplay) {
+            autoplaySuspendedRef.current = false;
+            setAutoplaySuspended(false);
+            if (autoplayRef.current) flashAutoplay();
+          }
+          setCurrentStopFadePhase(null);
           dropUndoActions("stop");
           setReplacementInProgress(false);
           setClipProgress(0);
@@ -388,7 +414,7 @@ export default function App() {
 
           const queued = queuedTrackRef.current;
           if (queued) {
-            const playAfterRelease = queuedTrackPlayAfterReleaseRef.current ?? autoplayRef.current;
+            const playAfterRelease = skipNextAutoplay ? false : (queuedTrackPlayAfterReleaseRef.current ?? autoplayRef.current);
             queuedTrackRef.current = null;
             queuedTrackPlayAfterReleaseRef.current = null;
             setQueuedTrack(null);
@@ -664,17 +690,28 @@ export default function App() {
     }
   };
 
-  const handleStop = async ({ recordUndo = true } = {}) => {
-    if (recordUndo && isActive && Number(fadeOutSeconds) > 0) {
+  const handleStop = ({ recordUndo = true, quick = false } = {}) => {
+    if (stopFadePhaseRef.current === "quick") {
+      if (autoplaySuspendedRef.current) return;
+      autoplaySuspendedRef.current = true;
+      setAutoplaySuspended(true);
+      if (autoplayRef.current) flashAutoplay();
+      return;
+    }
+    const useQuickFade = quick || stopFadePhaseRef.current === "normal";
+    const fadeSecondsOverride = useQuickFade ? heldStopFadeSeconds(fadeOutSeconds) : null;
+    const stopFadeSeconds = fadeSecondsOverride ?? Number(fadeOutSeconds);
+    setCurrentStopFadePhase(stopFadeSeconds > 0 ? (useQuickFade ? "quick" : "normal") : null);
+    if (recordUndo && isActive && stopFadeSeconds > 0) {
       dropUndoActions("stop");
       pushUndoAction({ kind: "stop", previous: "playing", next: "stopping" });
     }
     if (room.onlineActive && isActiveRole) {
       // Tell everyone to stop (with fade)
-      room.requestStop(true);
+      room.requestStop(true, fadeSecondsOverride);
     } else {
       // Local stop only
-      engine.stopTrack(true);
+      engine.stopTrack(true, fadeSecondsOverride);
     }
   };
 
@@ -840,6 +877,11 @@ export default function App() {
     playbackRoomIdRef.current = roomId;
     playbackGenerationRef.current += 1;
     engine.resetForSession();
+    setCurrentStopFadePhase(null);
+    autoplaySuspendedRef.current = false;
+    setAutoplaySuspended(false);
+    clearTimeout(autoplayFlashTimerRef.current);
+    setAutoplayFlashing(false);
     cancelScheduledCommands();
     if (verifyTimer1Ref.current) clearTimeout(verifyTimer1Ref.current);
     if (verifyTimer2Ref.current) clearTimeout(verifyTimer2Ref.current);
@@ -881,7 +923,7 @@ export default function App() {
     setClipPositionSeconds(0);
     setClipDurationSeconds(0);
     setStatus("Idle");
-  }, [roomId, engine, cancelScheduledCommands, updateUndoHistory, setReplacementInProgress]);
+  }, [roomId, engine, cancelScheduledCommands, updateUndoHistory, setReplacementInProgress, setCurrentStopFadePhase]);
 
   const onPauseMsg = useCallback(() => {
     cancelScheduledCommands();
@@ -890,18 +932,25 @@ export default function App() {
     engine.pause(simple);
   }, [tracks, playingTrackName, selectedTrack, engine, cancelScheduledCommands]);
 
-  const onStopMsg = useCallback((fade = true) => {
+  const onStopMsg = useCallback((fade = true, fadeSecondsOverride = null) => {
     cancelScheduledCommands();
     pendingPlayRef.current = null;
     if (queuedTrackRef.current) setReplacementInProgress(true);
-    engine.stopTrack(fade);
-  }, [engine, cancelScheduledCommands, setReplacementInProgress]);
+    const fadeSeconds = fade ? (fadeSecondsOverride ?? engine.fadeOutSeconds) : 0;
+    const incomingPhase = fadeSeconds > 0 ? (fadeSecondsOverride == null ? "normal" : "quick") : null;
+    // The manager may have requested a quick stop before the first STOP echo arrives.
+    if (!(isActiveRoleRef.current && stopFadePhaseRef.current === "quick" && incomingPhase === "normal")) {
+      setCurrentStopFadePhase(incomingPhase);
+    }
+    engine.stopTrack(fade, fadeSecondsOverride);
+  }, [engine, cancelScheduledCommands, setReplacementInProgress, setCurrentStopFadePhase]);
 
   const onCancelStopMsg = useCallback(() => {
     engine.cancelStopFade?.();
+    setCurrentStopFadePhase(null);
     dropUndoActions("stop");
     setReplacementInProgress(false);
-  }, [engine, dropUndoActions, setReplacementInProgress]);
+  }, [engine, dropUndoActions, setReplacementInProgress, setCurrentStopFadePhase]);
 
   const onResumeMsg = useCallback((serverMs) => {
     const simple = !!tracks[playingTrackName || selectedTrack]?.simple;
@@ -1390,12 +1439,12 @@ export default function App() {
 
     if (action.kind === "stop") {
       if (room.onlineActive && isActiveRole) room.requestCancelStop?.();
-      else engine.cancelStopFade?.();
+      else { engine.cancelStopFade?.(); setCurrentStopFadePhase(null); }
     } else if (action.kind === "track") {
       if (action.stopPending || action.sectionNext) setReplacementInProgress(false);
       if (action.stopPending) {
         if (room.onlineActive && isActiveRole) room.requestCancelStop?.();
-        else engine.cancelStopFade?.();
+        else { engine.cancelStopFade?.(); setCurrentStopFadePhase(null); }
       }
       if (action.previous) void addTrackToQueue(action.previous, { recordUndo: false, playAfterRelease: action.previousPlayAfterRelease ?? null });
       else clearTrackQueue({ broadcast: true, pruneHistory: false });
@@ -1520,6 +1569,7 @@ export default function App() {
     !Object.values(sections).some((section) => section?.type === "end")
   );
   const changeAutoplay = (next) => {
+    if (autoplaySuspendedRef.current) return;
     setAutoplay(!!next);
     if (room.onlineActive && isActiveRole) room.requestSetAutoplay?.(!!next);
   };
@@ -1724,7 +1774,8 @@ export default function App() {
         <Transport
           disabled={!isActiveRole && room.onlineActive}
           primaryDisabled={(!playingTrackName && !queuedTrack) || replacementPending}
-          stopDisabled={replacementPending}
+          stopDisabled={replacementPending && !stopFadePhase}
+          stopFadePhase={stopFadePhase}
           isLoadingTrack={isLoadingTrack}
           isPlaying={isPlaying}
           isPaused={isPaused}
@@ -1737,7 +1788,7 @@ export default function App() {
           undoLabel={undoHistory.at(-1)?.kind === "stop" ? "Undo stop" : undefined}
           isStopHighlighted={isStopHighlighted}
           unlockAudio={() => engine.unlockAudio?.()}
-          leftControl={<AutoplayButton enabled={autoplay} onToggle={changeAutoplay} disabled={!isActiveRole && room.onlineActive} />}
+          leftControl={<AutoplayButton key={autoplayFlashId} enabled={autoplay && !autoplaySuspended} onToggle={changeAutoplay} disabled={autoplaySuspended || (!isActiveRole && room.onlineActive)} flashing={autoplayFlashing} suspended={autoplaySuspended} />}
           rightControl={selectedTrack ? (
             <TrackVolumeControl
               open={trackVolUIOpen}
@@ -1758,7 +1809,7 @@ export default function App() {
 
       {/* Playback queue with mirrored Auto-Play and track-volume controls */}
         <div className={`now-playing desktop-now-playing ${undoEffect?.kind === "track" ? "is-undoing" : ""}`}>
-          {!isPassiveRole && <div className="now-playing__side"><AutoplayButton enabled={autoplay} onToggle={changeAutoplay} disabled={!isActiveRole && room.onlineActive} /></div>}
+          {!isPassiveRole && <div className="now-playing__side"><AutoplayButton key={autoplayFlashId} enabled={autoplay && !autoplaySuspended} onToggle={changeAutoplay} disabled={autoplaySuspended || (!isActiveRole && room.onlineActive)} flashing={autoplayFlashing} suspended={autoplaySuspended} /></div>}
           <QueueIndicator currentTrack={playingTrackName} queuedTrack={queuedTrack} queuedTrackProgress={queuedTrackProgress} titleFor={getTrackTitle} />
 
           {!isPassiveRole && <div className="now-playing__side">

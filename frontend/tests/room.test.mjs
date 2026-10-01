@@ -132,6 +132,14 @@ test('cancelling a stop restores the room playing snapshot', () => {
   assert.deepEqual(hub.roomState.get('test').playing, playing);
 });
 
+test('a held stop broadcasts its fade duration while a normal stop keeps per-user settings', () => {
+  const { send, messages } = fixture();
+  send({ type: 'STOP_REQUEST', fade: true, fadeSeconds: 0.5 });
+  assert.deepEqual(messages.at(-1), { type: 'STOP', fade: true, fadeSeconds: 0.5 });
+  send({ type: 'STOP_REQUEST', fade: true });
+  assert.deepEqual(messages.at(-1), { type: 'STOP', fade: true });
+});
+
 test('seek is synchronized within the room and restricted to the active user', () => {
   const { send, messages } = fixture();
   send({ type: 'SEEK_REQUEST', positionSeconds: 42.5, serverMs: 13000 });

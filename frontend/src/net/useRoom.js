@@ -177,7 +177,7 @@ export function useRoom({
       } else if (data.type === "PAUSE") {
         onPauseRef.current?.();
       } else if (data.type === "STOP") {
-        onStopRef.current?.(!!data.fade);
+        onStopRef.current?.(!!data.fade, Number.isFinite(data.fadeSeconds) ? data.fadeSeconds : null);
       } else if (data.type === "CANCEL_STOP") {
         onCancelStopRef.current?.();
       } else if (data.type === "RESUME") {
@@ -272,9 +272,9 @@ export function useRoom({
     ws.send(JSON.stringify({ type: "PAUSE_REQUEST" }));
   }, []);
 
-  const requestStop = useCallback((fade = true) => {
+  const requestStop = useCallback((fade = true, fadeSecondsOverride = null) => {
     const ws = wsRef.current; if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "STOP_REQUEST", fade }));
+    ws.send(JSON.stringify({ type: "STOP_REQUEST", fade, ...(fadeSecondsOverride == null ? {} : { fadeSeconds: fadeSecondsOverride }) }));
   }, []);
 
   const requestCancelStop = useCallback(() => {

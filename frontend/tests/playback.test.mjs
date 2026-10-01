@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AudioEngine } from '../src/audio/audioEngine.js';
+import { heldStopFadeSeconds } from '../src/audio/stopFade.js';
 import { orderTracks } from '../src/data/trackOrdering.js';
 import { findSelectableEndSection } from '../src/data/sectionTransitions.js';
 
@@ -95,6 +96,35 @@ test('stop cancels scheduled-position transitions', () => withTimers(timers => {
   engine.stopTrack(false);
   assert.equal(timers.has(boundaryId), false);
   assert.equal(engine.isPlaying, false);
+}));
+
+test('held stop uses half of short fades, caps long fades, and keeps zero immediate', () => {
+  assert.equal(heldStopFadeSeconds(6), 0.5);
+  assert.equal(heldStopFadeSeconds(1.1), 0.5);
+  assert.equal(heldStopFadeSeconds(1), 0.5);
+  assert.equal(heldStopFadeSeconds(0.75), 0.375);
+  assert.equal(heldStopFadeSeconds(0.5), 0.25);
+  assert.equal(heldStopFadeSeconds(0.2), 0.1);
+  assert.equal(heldStopFadeSeconds(0), 0);
+});
+
+test('a held stop overrides only that stop without changing the saved engine fade', () => withTimers(() => {
+  const engine = fixture();
+  engine.setFadeOutSeconds(6);
+  engine.stopTrack(true, heldStopFadeSeconds(engine.fadeOutSeconds));
+  assert.equal(engine._stopFadeDuration, 0.5);
+  assert.equal(engine.fadeOutSeconds, 6);
+}));
+
+test('a second stop shortens an active fade from its current volume', () => withTimers(() => {
+  const engine = fixture();
+  engine.setFadeOutSeconds(6);
+  engine.stopTrack(true);
+  engine.audioCtx.currentTime = 3;
+  engine.stopTrack(true, 0.5);
+  assert.equal(engine._stopFadeDuration, 0.5);
+  assert.equal(engine._stopPendingUntil, 3.5);
+  assert.ok(Math.abs(engine._stopFadeStartGain - 2 / 3) < 0.001);
 }));
 
 test('switching sessions silences playback without reporting a stop', () => withTimers(timers => {

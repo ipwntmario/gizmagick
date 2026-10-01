@@ -59,6 +59,7 @@ export class AudioEngine {
     this._stopFinishTimer = null;   // timeout id for finishing stop
     this._stopFadeStartedAt = 0;
     this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
 
     // RNG/debug
     this._seed = null;
@@ -442,6 +443,7 @@ export class AudioEngine {
     this._stopPendingUntil = 0;
     this._stopFadeStartedAt = 0;
     this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
     this.isPaused = false;
     this.pausedInfo = null;
     this.lastPlayingClipName = null;
@@ -480,6 +482,7 @@ export class AudioEngine {
     this._stopPendingUntil = 0;
     this._stopFadeStartedAt = 0;
     this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
 
     // Stop all clip sources immediately
     try {
@@ -655,12 +658,12 @@ export class AudioEngine {
   }
 
   // ----- stop -----
-  stopTrack(withFade = true) {
+  stopTrack(withFade = true, fadeSecondsOverride = null) {
     if (!this.audioCtx) return;
 
     const ctx = this.audioCtx;
     const now = ctx.currentTime;
-    const fade = withFade ? Math.max(0, Number(this.fadeOutSeconds ?? 0)) : 0;
+    const fade = withFade ? Math.max(0, Number(fadeSecondsOverride ?? this.fadeOutSeconds) || 0) : 0;
 
     // If a stop is already pending, extend or keep the earliest finish
     if (this._stopFinishTimer) {
@@ -672,10 +675,15 @@ export class AudioEngine {
       // Let all existing transitions continue. Just fade the MASTER to 0.
       try {
         const g = this.masterGain.gain;
+        const previousFadeActive = this._stopPendingUntil > now && this._stopFadeDuration > 0;
+        const previousFadeFraction = previousFadeActive
+          ? Math.max(0, 1 - (now - this._stopFadeStartedAt) / this._stopFadeDuration)
+          : 1;
+        const startGain = previousFadeActive ? this._stopFadeStartGain * previousFadeFraction : g.value;
         g.cancelScheduledValues(now);
-        // start from current master value (likely == userGain)
-        g.setValueAtTime(g.value, now);
+        g.setValueAtTime(startGain, now);
         g.linearRampToValueAtTime(0, now + fade);
+        this._stopFadeStartGain = startGain;
       } catch {}
 
       this._stopPendingUntil = now + fade;
@@ -705,6 +713,7 @@ export class AudioEngine {
         this._stopPendingUntil = 0;
         this._stopFadeStartedAt = 0;
         this._stopFadeDuration = 0;
+        this._stopFadeStartGain = 0;
         this._stopFinishTimer = null;
         this.onStatus?.("Stopped");
       }, fade * 1000 + 50);
@@ -726,6 +735,7 @@ export class AudioEngine {
       this._stopPendingUntil = 0;
       this._stopFadeStartedAt = 0;
       this._stopFadeDuration = 0;
+      this._stopFadeStartGain = 0;
       this._stopFinishTimer = null;
       this.onStatus?.("Stopped");
     }
@@ -747,7 +757,7 @@ export class AudioEngine {
         gain.cancelAndHoldAtTime(now);
       } else {
         const total = Math.max(0.001, this._stopFadeDuration || 0.001);
-        const estimated = (this.userGain ?? 1) * Math.max(0, 1 - (elapsed / total));
+        const estimated = this._stopFadeStartGain * Math.max(0, 1 - (elapsed / total));
         gain.cancelScheduledValues(now);
         gain.setValueAtTime(estimated, now);
       }
@@ -757,6 +767,7 @@ export class AudioEngine {
     this._stopPendingUntil = 0;
     this._stopFadeStartedAt = 0;
     this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
     return true;
   }
 

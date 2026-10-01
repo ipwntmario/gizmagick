@@ -1235,6 +1235,7 @@ export default function App() {
 
   const roomState = {
     isOnline: onlineEnabled,
+    playbackActive: isActive,
     users: room?.users ?? [],
     presenceReady: room?.presenceReady ?? false,
     latencyMs: room?.latencyMs ?? null,

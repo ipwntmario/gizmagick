@@ -8,7 +8,7 @@ const roleIcon = (role) => {
   }
 };
 
-export default function UsersPanel({ users = [], latencyMs, offsetMs, showClockOffset = false, headerCount = null }) {
+export default function UsersPanel({ users = [], latencyMs, offsetMs, showClockOffset = false, headerCount = null, playbackActive = false }) {
   return (
     <div className="users-panel">
       <div className="users-panel__heading">
@@ -28,7 +28,7 @@ export default function UsersPanel({ users = [], latencyMs, offsetMs, showClockO
           <div key={u.id} className="users-panel__row">
             <span className="users-panel__role-icon"><Icon name={roleIcon(u.role)} size={17} /></span>
             <span className="users-panel__name">{u.name || "Unknown"}</span>
-            {(u.ready || u.loading) && <span className={`users-panel__status ${u.ready ? "is-ready" : "is-loading"}`}>
+            {!playbackActive && (u.ready || u.loading) && <span className={`users-panel__status ${u.ready ? "is-ready" : "is-loading"}`}>
               {u.ready ? "ready" : "loading"}
             </span>}
           </div>

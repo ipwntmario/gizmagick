@@ -236,7 +236,7 @@ export default function LeftPanel({
         )}
         </div>
         <div id="session-indicator-users" className="session-panel__people" aria-hidden={!peopleExpanded} inert={!peopleExpanded}>
-          <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} headerCount={presenceCount} />
+          <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} headerCount={presenceCount} playbackActive={roomState?.playbackActive} />
         </div>
       </div>
 
@@ -340,7 +340,7 @@ export default function LeftPanel({
 
         {currentRoomId && (
           <div className="session-panel__presence">
-            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} />
+            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} playbackActive={roomState?.playbackActive} />
           </div>
         )}
 

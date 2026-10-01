@@ -1,9 +1,12 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { activeTrackFilterCount, DEFAULT_TRACK_FILTERS, orderTracks, trackTitle } from "../data/trackOrdering";
 import { formatTrackDuration, trackDurationSeconds } from "../data/trackDuration";
 import { matchesTrackSearch } from "../data/trackSearch";
 import Icon from "./Icon";
 import TrackFilterControls from "./TrackFilterControls";
+
+const TRACK_LONG_PRESS_MS = 350;
 
 function OverflowTrackTitle({ children, active }) {
   const viewportRef = useRef(null);
@@ -82,6 +85,10 @@ export default function TrackList({
   const [menuAction, setMenuAction] = useState(null);
   const [hoveredTrack, setHoveredTrack] = useState(null);
   const [heldTrack, setHeldTrack] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 760px)").matches);
+  const [sheetOffset, setSheetOffset] = useState(0);
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const [sheetInteracted, setSheetInteracted] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [durations, setDurations] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,6 +99,17 @@ export default function TrackList({
   const pointerGestureRef = useRef(null);
   const menuOpenTimerRef = useRef(null);
   const menuCollapseTimerRef = useRef(null);
+  const menuTriggerRef = useRef(null);
+  const sheetRef = useRef(null);
+  const sheetGestureRef = useRef(null);
+  const sheetDraggedRef = useRef(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const update = () => setIsMobile(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   const clearMenuTimers = () => {
     clearTimeout(menuOpenTimerRef.current);
@@ -104,7 +122,7 @@ export default function TrackList({
   };
 
   const startMenuHover = (event, action) => {
-    if (event.pointerType !== "mouse") return;
+    if (isMobile || event.pointerType !== "mouse") return;
     clearMenuTimers();
     menuOpenTimerRef.current = setTimeout(() => setMenuAction(action), 450);
   };
@@ -148,7 +166,7 @@ export default function TrackList({
   const titleFor = (name) => trackTitle(name, tracks[name], names);
 
   useEffect(() => {
-    if (!menuTrack) return undefined;
+    if (!menuTrack || isMobile) return undefined;
     const closeMenu = (event) => {
       if (!event.target.closest(".track-browser__menu-wrap")) {
         clearMenuTimers();
@@ -161,7 +179,22 @@ export default function TrackList({
       document.removeEventListener("pointerdown", closeMenu);
       clearMenuTimers();
     };
-  }, [menuTrack]);
+  }, [menuTrack, isMobile]);
+
+  useEffect(() => {
+    if (!menuTrack || !isMobile) return undefined;
+    sheetRef.current?.querySelector(".track-browser__sheet-actions button")?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setMenuTrack(null);
+        setMenuAction(null);
+        menuTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [menuTrack, isMobile]);
 
   useEffect(() => () => {
     clearTimeout(longPressTimerRef.current);
@@ -173,16 +206,75 @@ export default function TrackList({
     action?.(name);
     setMenuTrack(null);
     setMenuAction(null);
+    if (!navigate && isMobile) menuTriggerRef.current?.focus();
     if (navigate) onNavigateToControls?.();
   };
 
+  const dismissSheet = () => {
+    clearMenuTimers();
+    setMenuTrack(null);
+    setMenuAction(null);
+    setSheetOffset(0);
+    setSheetDragging(false);
+    setSheetInteracted(false);
+    menuTriggerRef.current?.focus();
+  };
+
+  const onSheetPointerDown = (event) => {
+    if (event.pointerType === "mouse" && !event.target.closest(".track-browser__sheet-handle")) return;
+    sheetGestureRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+  };
+
+  const onSheetPointerMove = (event) => {
+    const gesture = sheetGestureRef.current;
+    if (gesture?.pointerId !== event.pointerId) return;
+    const deltaY = event.clientY - gesture.y;
+    if (!gesture.dragging && (deltaY < 8 || deltaY < Math.abs(event.clientX - gesture.x))) return;
+    if (!gesture.dragging) {
+      gesture.dragging = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    setSheetDragging(true);
+    setSheetInteracted(true);
+    gesture.offset = Math.max(0, deltaY);
+    setSheetOffset(gesture.offset);
+  };
+
+  const onSheetPointerUp = () => {
+    const gesture = sheetGestureRef.current;
+    sheetGestureRef.current = null;
+    if (!gesture?.dragging) return;
+    sheetDraggedRef.current = true;
+    window.setTimeout(() => { sheetDraggedRef.current = false; }, 300);
+    if (gesture.offset > 90) dismissSheet();
+    else { setSheetOffset(0); setSheetDragging(false); }
+  };
+
+  const onSheetPointerCancel = () => {
+    sheetGestureRef.current = null;
+    setSheetOffset(0);
+    setSheetDragging(false);
+  };
+
+  const openTrackMenu = (name, trigger) => {
+    menuTriggerRef.current = trigger;
+    sheetDraggedRef.current = false;
+    setSheetOffset(0);
+    setSheetInteracted(false);
+    setMenuAction(null);
+    setMenuTrack(name);
+  };
+
   const startLongPress = (event, name) => {
-    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+    if (!isMobile || (event.pointerType !== "touch" && event.pointerType !== "pen")) return;
     clearTimeout(longPressTimerRef.current);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    menuTriggerRef.current = event.currentTarget;
     pointerGestureRef.current = {
       name,
       x: event.clientX,
       y: event.clientY,
+      startedAt: performance.now(),
       canceled: false,
       longPress: false,
     };
@@ -191,7 +283,8 @@ export default function TrackList({
       if (!gesture || gesture.name !== name || gesture.canceled) return;
       gesture.longPress = true;
       setHeldTrack(name);
-    }, 500);
+      openTrackMenu(name, menuTriggerRef.current);
+    }, TRACK_LONG_PRESS_MS);
   };
 
   const updateLongPress = (event, name) => {
@@ -208,16 +301,48 @@ export default function TrackList({
     clearTimeout(longPressTimerRef.current);
     pointerGestureRef.current = null;
     setHeldTrack(null);
-    if (gesture?.name === name && (event.pointerType === "touch" || event.pointerType === "pen")
-        && !gesture?.longPress && !gesture?.canceled) {
-      runAction(onPlay, name);
+    if (gesture?.name === name && (event.pointerType === "touch" || event.pointerType === "pen") && !gesture.canceled) {
+      if (gesture.longPress) return;
+      if (performance.now() - gesture.startedAt >= TRACK_LONG_PRESS_MS) openTrackMenu(name, event.currentTarget);
+      else runAction(onPlay, name);
     }
+  };
+
+  const onTrackContextMenu = (event, name) => {
+    if (!isMobile) return;
+    event.preventDefault();
+    clearTimeout(longPressTimerRef.current);
+    const gesture = pointerGestureRef.current;
+    if (gesture?.name === name && gesture.canceled) return;
+    if (gesture?.name === name) {
+      gesture.longPress = true;
+      setHeldTrack(name);
+    }
+    openTrackMenu(name, event.currentTarget);
   };
 
   const cancelLongPress = () => {
     clearTimeout(longPressTimerRef.current);
     pointerGestureRef.current = null;
     setHeldTrack(null);
+  };
+
+  const renderMenuItems = (name, mobile = false) => {
+    const itemRole = mobile ? undefined : "menuitem";
+    if (!hasLoadedTrack) return <>
+      <button type="button" role={itemRole} onClick={() => runAction(onPlay, name)}>Play</button>
+      <button type="button" role={itemRole} onClick={() => runAction(onAddToQueue, name, { navigate: false })}>Add to queue</button>
+    </>;
+    if (menuAction) return <>
+      <button type="button" role={itemRole} className="track-browser__menu-back" onClick={() => openMenuAction(null)}><Icon name="chevronLeft" size={14} /> Back</button>
+      <button type="button" role={itemRole} onClick={() => runAction(menuAction === "play" ? onPlayAfterEnding : onLoadAfterEnding, name)}>{menuAction === "play" ? "Play" : "Load"} after ending/stopping current track</button>
+      <button type="button" role={itemRole} onClick={() => runAction(menuAction === "play" ? onPlayAfterStopping : onLoadAfterStopping, name)}>{menuAction === "play" ? "Play" : "Load"} after stopping current track</button>
+    </>;
+    return <>
+      <button type="button" role={itemRole} className="track-browser__menu-next" onPointerEnter={(event) => startMenuHover(event, "play")} onPointerLeave={() => clearTimeout(menuOpenTimerRef.current)} onClick={() => openMenuAction("play")}>Play <Icon name="chevronRight" size={14} /></button>
+      <button type="button" role={itemRole} className="track-browser__menu-next" onPointerEnter={(event) => startMenuHover(event, "load")} onPointerLeave={() => clearTimeout(menuOpenTimerRef.current)} onClick={() => openMenuAction("load")}>Load <Icon name="chevronRight" size={14} /></button>
+      <button type="button" role={itemRole} onClick={() => runAction(onAddToQueue, name, { navigate: false })}>Add to queue</button>
+    </>;
   };
 
   return (
@@ -358,7 +483,8 @@ export default function TrackList({
                     onPointerMove={(event) => updateLongPress(event, name)}
                     onPointerUp={(event) => finishPointer(event, name)}
                     onPointerCancel={cancelLongPress}
-                    onContextMenu={(event) => { if (heldTrack === name) event.preventDefault(); }}
+                    onContextMenu={(event) => onTrackContextMenu(event, name)}
+                    onSelectStart={(event) => { if (isMobile) event.preventDefault(); }}
                     onDoubleClick={() => runAction(onPlay, name)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -387,8 +513,12 @@ export default function TrackList({
                       type="button"
                       className="track-browser__kebab"
                       disabled={disabled}
-                      onClick={() => {
+                      onClick={(event) => {
                         clearMenuTimers();
+                        menuTriggerRef.current = event.currentTarget;
+                        sheetDraggedRef.current = false;
+                        setSheetOffset(0);
+                        setSheetInteracted(false);
                         setMenuTrack(current => current === name ? null : name);
                         setMenuAction(null);
                       }}
@@ -397,7 +527,7 @@ export default function TrackList({
                     >
                       <Icon name="moreVertical" size={18} />
                     </button>
-                    {menuTrack === name && (
+                    {menuTrack === name && !isMobile && (
                       <div className="track-browser__menu" role="menu" aria-label={`Actions for ${titleFor(name)}`}
                         onPointerEnter={(event) => { if (event.pointerType === "mouse") clearTimeout(menuCollapseTimerRef.current); }}
                         onPointerLeave={(event) => {
@@ -416,24 +546,7 @@ export default function TrackList({
                             else setMenuTrack(null);
                           }
                         }}>
-                        {!hasLoadedTrack ? (
-                          <>
-                            <button type="button" role="menuitem" onClick={() => runAction(onPlay, name)}>Play</button>
-                            <button type="button" role="menuitem" onClick={() => runAction(onAddToQueue, name, { navigate: false })}>Add to queue</button>
-                          </>
-                        ) : menuAction ? (
-                          <>
-                            <button type="button" role="menuitem" className="track-browser__menu-back" onClick={() => openMenuAction(null)}><Icon name="chevronLeft" size={14} /> Back</button>
-                            <button type="button" role="menuitem" onClick={() => runAction(menuAction === "play" ? onPlayAfterEnding : onLoadAfterEnding, name)}>{menuAction === "play" ? "Play" : "Load"} after ending/stopping current track</button>
-                            <button type="button" role="menuitem" onClick={() => runAction(menuAction === "play" ? onPlayAfterStopping : onLoadAfterStopping, name)}>{menuAction === "play" ? "Play" : "Load"} after stopping current track</button>
-                          </>
-                        ) : (
-                          <>
-                            <button type="button" role="menuitem" className="track-browser__menu-next" onPointerEnter={(event) => startMenuHover(event, "play")} onPointerLeave={() => clearTimeout(menuOpenTimerRef.current)} onClick={() => openMenuAction("play")}>Play <Icon name="chevronRight" size={14} /></button>
-                            <button type="button" role="menuitem" className="track-browser__menu-next" onPointerEnter={(event) => startMenuHover(event, "load")} onPointerLeave={() => clearTimeout(menuOpenTimerRef.current)} onClick={() => openMenuAction("load")}>Load <Icon name="chevronRight" size={14} /></button>
-                            <button type="button" role="menuitem" onClick={() => runAction(onAddToQueue, name, { navigate: false })}>Add to queue</button>
-                          </>
-                        )}
+                        {renderMenuItems(name)}
                       </div>
                     )}
                   </div>
@@ -447,6 +560,41 @@ export default function TrackList({
               );
             })}
           </div>
+      {menuTrack && isMobile && createPortal(
+        <div className="track-browser__sheet-layer" onContextMenu={(event) => event.preventDefault()}>
+          <div className="track-browser__sheet-backdrop" aria-hidden="true" onClick={dismissSheet} />
+          <div className={`track-browser__sheet ${sheetDragging ? "is-dragging" : ""} ${sheetInteracted ? "has-dragged" : ""}`} role="dialog" aria-modal="true" aria-label={`Actions for ${titleFor(menuTrack)}`}
+            ref={sheetRef}
+            style={sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : undefined}
+            onPointerDown={onSheetPointerDown}
+            onPointerMove={onSheetPointerMove}
+            onPointerUp={onSheetPointerUp}
+            onPointerCancel={onSheetPointerCancel}
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              const buttons = [...event.currentTarget.querySelectorAll("button")];
+              if (!buttons.length) return;
+              if (event.shiftKey && document.activeElement === buttons[0]) {
+                event.preventDefault();
+                buttons.at(-1).focus();
+              } else if (!event.shiftKey && document.activeElement === buttons.at(-1)) {
+                event.preventDefault();
+                buttons[0].focus();
+              }
+            }}
+            onClickCapture={(event) => {
+              if (!sheetDraggedRef.current) return;
+              event.preventDefault();
+              event.stopPropagation();
+            }}>
+            <div className="track-browser__sheet-handle" aria-hidden="true"><span /></div>
+            <div className="track-browser__sheet-heading">
+              <div><small>Track actions</small><strong>{titleFor(menuTrack)}</strong></div>
+            </div>
+            <div className="track-browser__sheet-actions">{renderMenuItems(menuTrack, true)}</div>
+          </div>
+        </div>, document.body
+      )}
     </section>
   );
 }

@@ -16,7 +16,7 @@ export function normalizeTrackFilters(value) {
   };
 }
 
-export function orderTracks(tracks, { sortMode, filters, pinned, names }) {
+export function orderTracks(tracks, { sortMode, filters, pinned, names, durations }) {
   const selected = normalizeTrackFilters(filters);
   return Object.entries(tracks || {})
     .filter(([, track]) => (
@@ -25,7 +25,16 @@ export function orderTracks(tracks, { sortMode, filters, pinned, names }) {
     ))
     .sort(([a, ta], [b, tb]) => {
       const pinOrder = Number(!!pinned?.has(b)) - Number(!!pinned?.has(a));
-      return pinOrder
-        || trackTitle(a, ta, names).localeCompare(trackTitle(b, tb, names)) * (sortMode === 'alpha-desc' ? -1 : 1);
+      const titleOrder = trackTitle(a, ta, names).localeCompare(trackTitle(b, tb, names));
+      if (pinOrder) return pinOrder;
+      if (sortMode === 'duration-asc' || sortMode === 'duration-desc') {
+        const aDuration = durations?.[a];
+        const bDuration = durations?.[b];
+        if (aDuration == null && bDuration != null) return 1;
+        if (bDuration == null && aDuration != null) return -1;
+        const durationOrder = (aDuration ?? 0) - (bDuration ?? 0);
+        return durationOrder * (sortMode === 'duration-desc' ? -1 : 1) || titleOrder;
+      }
+      return titleOrder * (sortMode === 'alpha-desc' ? -1 : 1);
     }).map(([name]) => name);
 }

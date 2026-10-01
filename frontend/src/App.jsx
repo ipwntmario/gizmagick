@@ -254,7 +254,10 @@ export default function App() {
   // App.jsx (top-level state)
   const [dbSort, setDbSort] = useState(() => localStorage.getItem("wizamp_dbSort") || "alpha-asc");
   const [librarySort, setLibrarySort] = useState(() => {
-    try { return localStorage.getItem("wizamp_librarySort") === "alpha-desc" ? "alpha-desc" : "alpha-asc"; }
+    try {
+      const saved = localStorage.getItem("wizamp_librarySort");
+      return ["alpha-asc", "alpha-desc", "duration-asc", "duration-desc"].includes(saved) ? saved : "alpha-asc";
+    }
     catch { return "alpha-asc"; }
   });
   const [libraryFilters, setLibraryFilters] = useState(() => {
@@ -1555,6 +1558,7 @@ export default function App() {
               disabled={!isActiveRole && room.onlineActive}
               sortMode={librarySort}
               onChangeSort={setLibrarySort}
+              getTrackAssets={getTrackAssets}
               filters={libraryFilters}
               onChangeFilters={setLibraryFilters}
               pinned={pinned}

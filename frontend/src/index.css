@@ -318,6 +318,12 @@ body {
 .track-browser__search input::placeholder { color: rgba(255,255,255,.52); opacity: 1; }
 .track-browser__search input::-webkit-search-cancel-button { display: none; }
 .track-browser__search:focus-within { outline: 2px solid var(--theme-accent, #b5a9ff); outline-offset: -2px; }
+.track-browser__columns { position: sticky; z-index: 1; top: 0; display: grid; grid-template-columns: minmax(0, 1fr) 60px 42px; align-items: center; margin-bottom: 5px; padding: 5px 8px 4px 12px; border-bottom: 1px solid var(--theme-line, rgba(255,255,255,.065)); color: var(--theme-muted, rgba(255,255,255,.55)); background: var(--theme-surface, #1b1c26); }
+.track-browser__columns button { display: inline-flex; min-width: 0; min-height: 25px; align-items: center; gap: 4px; padding: 2px 0; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; font-size: 10px; font-weight: 750; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
+.track-browser__columns button:nth-child(2) { justify-content: center; }
+.track-browser__columns button:is(:hover, .is-active) { color: var(--theme-accent, #b5a9ff); }
+.track-browser__columns button:focus-visible { outline: 2px solid var(--theme-accent, #b5a9ff); outline-offset: 2px; }
+.track-browser__sort-arrow { font-size: 8px; line-height: 1; }
 .track-sort { display: grid; flex: 0 0 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,.065); background: rgba(255,255,255,.018); }
 .track-sort button { display: flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 6px 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 8px; color: rgba(255,255,255,.7); background: rgba(255,255,255,.025); font: inherit; font-size: 11px; font-weight: 680; }
 .track-sort button:is(:hover, .is-active) { border-color: rgba(143,124,255,.45); color: #fff; background: rgba(143,124,255,.14); }
@@ -346,13 +352,15 @@ body {
 .track-browser__quick-action { display: none; }
 .track-browser__track { display: flex; min-width: 0; min-height: 52px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 12px; border: 0; border-radius: 10px 0 0 10px; color: inherit; background: transparent; text-align: left; touch-action: manipulation; }
 .track-browser__track:hover { border-color: transparent; }
-.track-browser__track-copy { display: grid; min-width: 0; gap: 2px; transition: transform .18s cubic-bezier(.2,.8,.2,1); }
+.track-browser__track-copy { display: grid; min-width: 0; flex: 1 1 auto; gap: 2px; transition: transform .18s cubic-bezier(.2,.8,.2,1); }
 .track-browser__title-viewport { display: block; min-width: 0; overflow: hidden; }
 .track-browser__track-copy strong { display: block; overflow: hidden; font-size: 13px; font-weight: 670; text-overflow: ellipsis; white-space: nowrap; }
 .track-browser__track-copy strong.is-marquee-active { width: max-content; min-width: 100%; overflow: visible; text-overflow: clip; }
 .track-browser__track-copy small { color: rgba(255,255,255,.34); font-size: 9px; font-weight: 600; letter-spacing: .025em; text-transform: uppercase; }
 .track-browser__state { display: flex; flex: 0 0 auto; gap: 5px; }
 .track-browser__state span { padding: 3px 6px; border-radius: 999px; color: #c9c0ff; background: rgba(143,124,255,.13); font-size: 8px; font-weight: 780; letter-spacing: .06em; text-transform: uppercase; }
+.track-browser__duration { width: 60px; flex: 0 0 60px; color: var(--theme-muted, rgba(255,255,255,.55)); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.track-browser__duration.is-dynamic { font-style: italic; }
 .track-browser__menu-wrap { position: relative; display: grid; place-items: center; }
 .track-browser__kebab { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 9px; color: rgba(255,255,255,.48); background: transparent; }
 .track-browser__kebab:hover { border-color: transparent; color: #fff; background: rgba(255,255,255,.08); }

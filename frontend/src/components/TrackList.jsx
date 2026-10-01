@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { activeTrackFilterCount, DEFAULT_TRACK_FILTERS, orderTracks, trackTitle } from "../data/trackOrdering";
+import { formatTrackDuration, trackDurationSeconds } from "../data/trackDuration";
 import { matchesTrackSearch } from "../data/trackSearch";
 import Icon from "./Icon";
 import TrackFilterControls from "./TrackFilterControls";
@@ -63,6 +64,7 @@ export default function TrackList({
   disabled,
   sortMode = "alpha-asc",
   onChangeSort,
+  getTrackAssets,
   filters,
   onChangeFilters,
   pinned,
@@ -81,11 +83,10 @@ export default function TrackList({
   const [hoveredTrack, setHoveredTrack] = useState(null);
   const [heldTrack, setHeldTrack] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [sortOpen, setSortOpen] = useState(false);
+  const [durations, setDurations] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [searchExpanded, setSearchExpanded] = useState(false);
   const filterButtonRef = useRef(null);
-  const sortButtonRef = useRef(null);
   const searchInputRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const pointerGestureRef = useRef(null);
@@ -108,8 +109,24 @@ export default function TrackList({
     menuOpenTimerRef.current = setTimeout(() => setMenuAction(action), 450);
   };
 
+  useEffect(() => {
+    if (!getTrackAssets) return undefined;
+    let active = true;
+    Promise.all(Object.entries(tracks || {}).map(async ([name, track]) => {
+      try {
+        const assets = await getTrackAssets(name);
+        return [name, trackDurationSeconds(track, assets.clips)];
+      } catch {
+        return [name, null];
+      }
+    })).then((entries) => {
+      if (active) setDurations(Object.fromEntries(entries));
+    });
+    return () => { active = false; };
+  }, [tracks, getTrackAssets]);
+
   const { orderedNames, visibleCount, filteredResultCount } = useMemo(() => {
-    const filteredNames = orderTracks(tracks, { sortMode, filters, pinned, names });
+    const filteredNames = orderTracks(tracks, { sortMode, filters, pinned, names, durations });
     if (!searchQuery.trim()) {
       return { orderedNames: filteredNames, visibleCount: filteredNames.length, filteredResultCount: 0 };
     }
@@ -118,7 +135,7 @@ export default function TrackList({
     const visibleNames = filteredNames.filter(matchesSearch);
     const visibleSet = new Set(filteredNames);
     const filteredResultNames = orderTracks(tracks, {
-      sortMode, filters: DEFAULT_TRACK_FILTERS, pinned, names,
+      sortMode, filters: DEFAULT_TRACK_FILTERS, pinned, names, durations,
     }).filter((name) => !visibleSet.has(name) && matchesSearch(name));
 
     return {
@@ -126,7 +143,7 @@ export default function TrackList({
       visibleCount: visibleNames.length,
       filteredResultCount: filteredResultNames.length,
     };
-  }, [tracks, sortMode, filters, pinned, names, searchQuery]);
+  }, [tracks, sortMode, filters, pinned, names, searchQuery, durations]);
 
   const titleFor = (name) => trackTitle(name, tracks[name], names);
 
@@ -242,7 +259,6 @@ export default function TrackList({
             enterKeyHint="search"
             onFocus={() => {
               setFiltersOpen(false);
-              setSortOpen(false);
               setSearchExpanded(true);
             }}
             onChange={(event) => setSearchQuery(event.target.value)}
@@ -268,27 +284,11 @@ export default function TrackList({
           aria-expanded={filtersOpen}
           aria-controls="library-filters"
           onClick={() => {
-            setSortOpen(false);
             setFiltersOpen(value => !value);
           }}
         >
           <Icon name="filter" size={16} />
           {activeTrackFilterCount(filters) > 0 && <span className="track-browser__filter-count">{activeTrackFilterCount(filters)}</span>}
-        </button>
-        <button
-          ref={sortButtonRef}
-          type="button"
-          className="track-browser__sort-button"
-          aria-label="Sort tracks"
-          title="Sort tracks"
-          aria-expanded={sortOpen}
-          aria-controls="library-sort"
-          onClick={() => {
-            setFiltersOpen(false);
-            setSortOpen(value => !value);
-          }}
-        >
-          <Icon name="sort" size={16} />
         </button>
       </div>
       {filtersOpen && <TrackFilterControls
@@ -299,39 +299,23 @@ export default function TrackList({
         totalCount={Object.keys(tracks || {}).length}
         onEscape={() => { setFiltersOpen(false); filterButtonRef.current?.focus(); }}
       />}
-      {sortOpen && (
-        <div
-          className="track-sort"
-          id="library-sort"
-          role="group"
-          aria-label="Sort tracks"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              setSortOpen(false);
-              sortButtonRef.current?.focus();
-            }
-          }}
-        >
-          {[["alpha-asc", "A to Z"], ["alpha-desc", "Z to A"]].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={sortMode === value ? "is-active" : ""}
-              aria-pressed={sortMode === value}
-              onClick={() => {
-                onChangeSort?.(value);
-                setSortOpen(false);
-                sortButtonRef.current?.focus();
-              }}
-            >
-              <Icon name="sort" size={15} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-          <div className="track-browser__list">
+      <div className="track-browser__list">
+      <div className="track-browser__columns" role="group" aria-label="Sort track library">
+        <button type="button" className={sortMode.startsWith("alpha-") ? "is-active" : ""}
+          aria-label={`Sort by title, ${sortMode === "alpha-asc" ? "Z to A" : "A to Z"}`}
+          aria-pressed={sortMode.startsWith("alpha-")}
+          onClick={() => onChangeSort?.(sortMode === "alpha-asc" ? "alpha-desc" : "alpha-asc")}>
+          Title {sortMode.startsWith("alpha-") && <span className="track-browser__sort-arrow" aria-hidden="true">{sortMode === "alpha-asc" ? "▼" : "▲"}</span>}
+        </button>
+        <button type="button" className={sortMode.startsWith("duration-") ? "is-active" : ""}
+          aria-label={`Sort by duration, ${sortMode === "duration-asc" ? "longest first" : "shortest first"}`}
+          aria-pressed={sortMode.startsWith("duration-")}
+          title="Duration"
+          onClick={() => onChangeSort?.(sortMode === "duration-asc" ? "duration-desc" : "duration-asc")}>
+          <Icon name="clock" size={15} />
+          {sortMode.startsWith("duration-") && <span className="track-browser__sort-arrow" aria-hidden="true">{sortMode === "duration-asc" ? "▼" : "▲"}</span>}
+        </button>
+      </div>
             {orderedNames.length === 0 && <p className="track-browser__empty" role="status">{searchQuery.trim() ? "No tracks match this search." : "No tracks match these filters. Change them in Library Filters."}</p>}
             {orderedNames.map((name, index) => {
               const track = tracks[name];
@@ -391,6 +375,10 @@ export default function TrackList({
                     <span className="track-browser__state">
                       {isPlaying && <span>Playing</span>}
                       {isQueued && <span>Queued</span>}
+                    </span>
+                    <span className={`track-browser__duration ${track?.simple === false ? "is-dynamic" : ""}`}
+                      title={track?.simple === false ? "Sum of each clip’s loop point; actual playback may vary" : "Track duration"}>
+                      {formatTrackDuration(durations[name])}
                     </span>
                   </button>
 

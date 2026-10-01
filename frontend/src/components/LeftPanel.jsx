@@ -21,6 +21,7 @@ export default function LeftPanel({
   roomState,
   showClockOffset = false,
   setRoomId,
+  onSessionSelect,
   currentRoomId,
   roomIdentities,
   setRoomIdentity,
@@ -138,6 +139,7 @@ export default function LeftPanel({
   const swipe = useDrawerSwipe("left", closePanel);
 
   function selectRoom(roomId) {
+    if (roomId !== currentRoomId) onSessionSelect?.(roomId);
     setRoomId(roomId);
     closePanel();
   }

@@ -202,11 +202,8 @@ export default function App() {
   const isReadOnlyRole = onlineEnabled && (role === "PASSIVE" || role === "PASSIVE_BTS");
   const effectiveMobileView = isReadOnlyRole ? "controls" : mobileView;
 
-  // Audio unlock for Chrome late-joiners
+  // Audio unlock for late joiners
   const [audioLocked, setAudioLocked] = useState(false);
-
-  // Track if a net "start" arrived while audio was locked, so we can resync after unlock
-  const [pendingNetStart, setPendingNetStart] = useState(null); // or useRef(null)
 
   // Modes
   const [currentModeName, setCurrentModeName] = useState("base");
@@ -440,18 +437,33 @@ export default function App() {
     setAudioLocked(st !== "running");
   }, [engine]);
 
-  const handleEnableAudio = async () => {
+  const unlockAudioFromGesture = async ({ sync = false } = {}) => {
+    const wasLocked = engine.getAudioState?.() !== "running";
     await engine.unlockAudio?.();
-    setAudioLocked(engine.getAudioState?.() !== "running" ? true : false);
+    const running = engine.getAudioState?.() === "running";
+    setAudioLocked(!running);
+    if (!running) return;
+    // A late join may have received its playback snapshot before audio could run.
+    if (sync && wasLocked) roomRef.current?.requestSync?.();
+  };
 
-    // If we deferred a net start while locked, ask the GM for a fresh snapshot now.
-    if (engine.getAudioState?.() === "running" && pendingNetStart) {
-      try { room?.requestSync?.(); } catch {}
-      setPendingNetStart(null);
-    }
+  const handleEnableAudio = () => { void unlockAudioFromGesture({ sync: true }); };
 
-    // If we arrived mid-session, re-request sync to jump in immediately
-    if (!pendingNetStart) room.requestSync();
+  const handleAboutClose = () => {
+    // Closing the splash is already a user gesture; use it to enable Web Audio.
+    if (engine.getAudioState?.() !== "running") void unlockAudioFromGesture({ sync: true });
+    setShowAbout(false);
+  };
+
+  const handleSessionSelect = (nextRoomId) => {
+    // Resume while the session selection gesture is still active. The new room's
+    // STATE message will provide its current playback position after connecting.
+    void unlockAudioFromGesture().then(() => {
+      // If the new socket is already connected, also request its latest position.
+      if (nextRoomId && roomRef.current?.roomId === nextRoomId && roomRef.current?.connected) {
+        roomRef.current.requestSync?.();
+      }
+    });
   };
 
   // Keep engine fade setting in sync
@@ -593,10 +605,10 @@ export default function App() {
     // If audio is locked, don't start or advance RNG. Defer until unlock, then re-sync.
     if (engine.getAudioState?.() !== "running") {
       setAudioLocked(true);           // show the banner if you have it
-      setPendingNetStart({ type: "PLAY", ts: Date.now() });
       // Do not call engine.play... here. Just wait for unlock.
       return;
     }
+    setAudioLocked(false);
 
     if (isLoadingTrack) return;  // <-- early bail
 
@@ -640,9 +652,9 @@ export default function App() {
     await engine.unlockAudio();
     if (engine.getAudioState?.() !== "running") {
       setAudioLocked(true);
-      setPendingNetStart({ type: "RESUME", ts: Date.now() });
       return;
     }
+    setAudioLocked(false);
 
     const simple = !!tracks[playingTrackName || selectedTrack]?.simple;
     if (room.onlineActive && isActiveRole) {
@@ -853,7 +865,6 @@ export default function App() {
     setPlayingTrackName(null);
     setPlayRequestedFor(null);
     setReleasedQueuedTrack(null);
-    setPendingNetStart(null);
     setIsLoadingTrack(false);
     setClips({});
     setSections({});
@@ -1294,7 +1305,6 @@ export default function App() {
     scheduleAtServerTime(serverMs, () => {
       if (engine.getAudioState() !== 'running') {
         setAudioLocked(true);
-        setPendingNetStart({ type: 'PLAY' });
         return;
       }
       engine.clearQueuedSection();
@@ -1416,6 +1426,7 @@ export default function App() {
   async function requestTrackPlayback(name, { alwaysStop = false, shouldPlay = true } = {}) {
     if (!name || (!isActiveRole && room.onlineActive)) return;
     await engine.unlockAudio?.();
+    if (engine.getAudioState?.() === "running") setAudioLocked(false);
     if (!isActive) {
       clearTrackQueue({ broadcast: true });
       selectTrackForRoom(name);
@@ -1522,7 +1533,7 @@ export default function App() {
 
       <AboutModal
         open={showAbout}
-        onClose={() => setShowAbout(false)}
+        onClose={handleAboutClose}
         iconSrc={useAlternateIcon ? icon2bUrl : icon1Url}
         section={aboutSection}
         onSectionChange={setAboutSection}
@@ -1532,6 +1543,7 @@ export default function App() {
         roomState={roomState}
         showClockOffset={showClockOffset}
         setRoomId={setRoomId}
+        onSessionSelect={handleSessionSelect}
         currentRoomId={roomId}
         role={role}
         setRole={setRole}
@@ -1621,7 +1633,7 @@ export default function App() {
         </>
       )}
 
-      {audioLocked && room.onlineActive && (
+      {audioLocked && room.onlineActive && !showAbout && engine.getAudioState?.() !== "running" && (
         <div
           className="audio-unlock-overlay"
           onClick={handleEnableAudio}

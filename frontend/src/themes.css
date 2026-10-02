@@ -22,10 +22,8 @@
   --theme-page: radial-gradient(ellipse at 50% 7%, rgba(255, 233, 178, .82), transparent 43%),
     radial-gradient(ellipse at 7% 63%, rgba(158, 76, 157, .34), transparent 48%),
     radial-gradient(ellipse at 97% 75%, rgba(42, 75, 172, .28), transparent 48%),
-    repeating-linear-gradient(29deg, rgba(100, 54, 50, .023) 0 1px, transparent 1px 5px),
     linear-gradient(145deg, #d89884, #ead3a9 40%, #ded3bb 70%, #9f8eb2);
-  --theme-surface: repeating-linear-gradient(29deg, rgba(105, 58, 45, .023) 0 1px, transparent 1px 5px),
-    linear-gradient(148deg, #fff1d1, #ead6b2 72%, #d9bf9b);
+  --theme-surface: linear-gradient(148deg, #fff1d1, #ead6b2 72%, #d9bf9b);
   --theme-raised: linear-gradient(130deg, #fff6df, #e5cda1);
   --theme-text: #34273b;
   --theme-muted: #654f59;
@@ -308,7 +306,7 @@
   box-shadow: inset 0 1px #fff, 0 6px 15px rgba(49, 57, 85, .17);
 }
 
-/* Signet borrows the cover's warm paper, painted violet, and raised gold. */
+/* Signet pairs warm gold with jewel-toned violet. */
 :root[data-theme="signet"] .app-shell { font-family: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif !important; }
 :root[data-theme="signet"] :is(.track-library-shell, .session-panel__drawer, .app-menu__drawer, .settings-modal, .about-panel, .database-modal, .rename-modal) {
   border: 2px ridge #aa774b;

@@ -5,7 +5,11 @@ export function trackDurationSeconds(track, clips) {
   if (track?.simple === false) {
     const seconds = entries.reduce((total, clip) => {
       const loopPoint = Number(clip?.loopPoint);
-      return total + (Number.isFinite(loopPoint) && loopPoint > 0 ? loopPoint : 0);
+      const files = clip?.file;
+      const variantCount = files && typeof files === "object"
+        ? Object.values(files).filter(Boolean).length
+        : 1;
+      return total + (Number.isFinite(loopPoint) && loopPoint > 0 ? loopPoint * variantCount : 0);
     }, 0);
     return seconds > 0 ? seconds : null;
   }

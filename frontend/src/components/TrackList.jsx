@@ -503,7 +503,8 @@ export default function TrackList({
                       {isQueued && <span>Queued</span>}
                     </span>
                     <span className={`track-browser__duration ${track?.simple === false ? "is-dynamic" : ""}`}
-                      title={track?.simple === false ? "Sum of each clip’s loop point; actual playback may vary" : "Track duration"}>
+                      title={track?.simple === false ? "Sum of each clip and mode variant’s loop point; actual playback may vary" : "Track duration"}>
+                      {track?.simple === false && durations[name] != null && <span className="track-browser__duration-sum" aria-hidden="true">∑</span>}
                       {formatTrackDuration(durations[name])}
                     </span>
                   </button>

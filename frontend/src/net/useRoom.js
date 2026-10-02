@@ -3,6 +3,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 const ONLINE_ENV = (import.meta.env?.VITE_ONLINE_MODE === 'true');
 const WS_URL = import.meta.env?.VITE_WS_URL || "";
+const resolvedWsUrl = WS_URL.startsWith("/")
+  ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${WS_URL}`
+  : WS_URL;
 const PING_INTERVAL_MS = 5000;
 
 export function useRoom({
@@ -95,7 +98,7 @@ export function useRoom({
       wsRef.current = null;
     }
 
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(resolvedWsUrl);
     wsRef.current = ws;
     const myId = ++connIdRef.current;
 

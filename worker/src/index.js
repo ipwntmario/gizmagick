@@ -114,6 +114,18 @@ export class RoomHub {
         break;
       }
 
+      case "UPDATE_IDENTITY": {
+        const u = this.clients.get(ws);
+        if (!u) return;
+        const name = data.name || "Anon";
+        const role = data.role || "Player";
+        if (u.name === name && u.role === role) break;
+        u.name = name;
+        u.role = role;
+        this.broadcastPresence(u.roomId);
+        break;
+      }
+
       case "SET_READY": {
         const u = this.clients.get(ws);
         if (!u) return;
@@ -206,8 +218,11 @@ export class RoomHub {
         }
         const roomId = u.roomId;
         const fade = !!data.fade;
+        const fadeSeconds = typeof data.fadeSeconds === "number" && Number.isFinite(data.fadeSeconds) && data.fadeSeconds >= 0 && data.fadeSeconds <= 30
+          ? data.fadeSeconds
+          : null;
         console.log("[RoomHub] STOP_REQUEST", { roomId, fade });
-        const payload = JSON.stringify({ type: "STOP", fade });
+        const payload = JSON.stringify({ type: "STOP", fade, ...(fadeSeconds == null ? {} : { fadeSeconds }) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         // clear playing snapshot for late joiners
         const rs = this.roomState.get(roomId) || {};

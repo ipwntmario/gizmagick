@@ -212,8 +212,8 @@ export default function SettingsModal({
               </label>
               <label className="settings-field settings-field--toggle">
                 <span className="settings-field__copy">
-                  <strong>Use alternate icon</strong>
-                  <small>Use the alternate Wizamp icon in the About panel.</small>
+                  <strong>Use monochrome logo</strong>
+                  <small>Use the monochrome Gizmagick logo in the About panel.</small>
                 </span>
                 <span className="toggle-switch">
                   <input
@@ -229,8 +229,8 @@ export default function SettingsModal({
           <button type="button" className="settings-about-link" onClick={onOpenAbout}>
             <span className="settings-group__icon"><Icon name="info" size={18} /></span>
             <span className="settings-about-link__copy">
-              <strong>About Wizamp</strong>
-              <small>How Wizamp works and what’s new in Version {LATEST_RELEASE.version}</small>
+              <strong>About Gizmagick</strong>
+              <small>How Gizmagick works and what’s new in Version {LATEST_RELEASE.version}</small>
             </span>
             <Icon name="chevronRight" size={18} />
           </button>

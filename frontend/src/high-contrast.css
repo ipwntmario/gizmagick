@@ -168,7 +168,7 @@
   .settings-group, .settings-about-link, .settings-field,
   .track-browser__row, .track-browser__filter-button, .track-browser__sort-button, .track-browser__search, .track-sort, .track-sort button, .track-filters, .database-row,
   .database-row--mode, .about-panel__concepts, .about-panel__flow li,
-  .about-panel__updates li, .about-panel__tutorial
+  .about-panel__updates > li, .about-panel__tutorial
 ) {
   border-color: var(--theme-line) !important;
   color: var(--theme-text);

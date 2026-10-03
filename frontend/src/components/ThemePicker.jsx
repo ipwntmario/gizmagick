@@ -10,7 +10,7 @@ function ThemePreview({ theme }) {
     <div className="theme-preview" data-theme={theme.id}>
       <div className="theme-preview__window-header">
         <span className="theme-preview__window-dots" aria-hidden="true"><i /><i /><i /></span>
-        <span>Wizamp / {theme.name}</span>
+        <span>Gizmagick / {theme.name}</span>
         <small>LIVE PREVIEW</small>
       </div>
       <div ref={screenRef} className="theme-preview__screen" role="img" aria-label={`${theme.name} theme preview with track library, playback controls, sections, modes, and progress`}>

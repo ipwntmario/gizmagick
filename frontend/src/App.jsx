@@ -1,5 +1,5 @@
 /**
- * Wizamp
+ * Gizmagick
  * A Dynamic Music Web Application
  *
  * Note: The majority of this code was written by ChatGPT (models 4o and 5), but the overall function and design was
@@ -42,8 +42,6 @@ import ClipProgress from "./components/ClipProgress";
 import DynamicClipPanel from "./components/DynamicClipPanel";
 import CursorEffect from "./components/CursorEffect";
 import { LATEST_RELEASE_SIGNATURE } from "./releaseNotes";
-import icon1Url from "./assets/icons/icon1.png";
-import icon2bUrl from "./assets/icons/icon2b.png";
 import { heldStopFadeSeconds } from "./audio/stopFade";
 
 export default function App() {
@@ -1591,7 +1589,7 @@ export default function App() {
       <AboutModal
         open={showAbout}
         onClose={handleAboutClose}
-        iconSrc={useAlternateIcon ? icon2bUrl : icon1Url}
+        iconSrc={useAlternateIcon ? "/branding/gizmagick-logo-white.svg" : "/branding/gizmagick-logo-color.png"}
         section={aboutSection}
         onSectionChange={setAboutSection}
       />
@@ -1719,7 +1717,7 @@ export default function App() {
       )}
 
       <main className={`app-main ${effectiveMobileView === "controls" ? "is-mobile-active" : ""}`} style={{ width: "100%", maxWidth: 760, margin: "0 auto", flexDirection: "column" }}>
-      <h1 className="visually-hidden">Wizamp</h1>
+      <h1 className="visually-hidden">Gizmagick</h1>
 
       <div className="playback-dock">
       {/* Simple tracks expose their linear timeline directly for seeking. */}

@@ -111,7 +111,9 @@ body {
 .about-panel__tip { display: flex; align-items: flex-start; gap: 7px; margin: 13px 2px 0; color: rgba(255,255,255,.42); font-size: 10px; line-height: 1.45; }
 .about-panel__tip svg { margin-top: 1px; color: #a99bea; }
 .about-panel__updates { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.about-panel__updates li { display: grid; gap: 3px; padding: 11px 13px; border: 1px solid rgba(255,255,255,.065); border-radius: 11px; background: rgba(255,255,255,.026); }
+.about-panel__updates > li { display: grid; gap: 5px; padding: 11px 13px; border: 1px solid rgba(255,255,255,.065); border-radius: 11px; background: rgba(255,255,255,.026); }
+.about-panel__update-bullets { display: grid; gap: 4px; margin: 0; padding-left: 16px; list-style: disc; }
+.about-panel__update-bullets > li { color: var(--theme-muted, rgba(255,255,255,.56)); font-size: 11px; line-height: 1.5; }
 .about-panel__updates strong { color: #e7e2ff; font-size: 12px; }
 .about-panel__updates span { color: rgba(255,255,255,.56); font-size: 11px; line-height: 1.5; }
 .about-panel__history { max-height: max(180px, min(440px, calc(100dvh - 280px))); overflow-y: auto; padding-right: 7px; scrollbar-color: rgba(143,124,255,.45) transparent; scrollbar-width: thin; }

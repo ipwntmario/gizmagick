@@ -1,8 +1,10 @@
-# Wizamp
+# Gizmagick
 
 A browser-based dynamic music player for tabletop sessions. Tracks can loop, transition between sections, switch musical modes, and synchronize playback across a room.
 
 Live app: [wizamp.app](https://wizamp.app).
+
+Gizmagick's logo assets are in `frontend/public/branding`: the full-color PNG is the main app logo, and the black and white SVG variants have transparent backgrounds for compact monochrome uses such as notification icons. The live domain and Cloudflare Worker name retain their existing names. Browser storage keys also retain the `wizamp` prefix so existing preferences are preserved.
 
 ## Local development
 

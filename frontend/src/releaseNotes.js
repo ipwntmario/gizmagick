@@ -9,7 +9,7 @@ export const RELEASE_NOTES = [
       { title: "Change your mind mid-fade", detail: "Stop can now be undone before the fade-out finishes, restoring playback instead of waiting for the track to end." },
       { title: "Make it yours", detail: "Choose Dark, Light, Signet, or Castle (Torchlit) for any session. The fantasy themes add richer textures and an optional wand-like cursor glow and sparkles." },
       { title: "Better on mobile", detail: "The Track Library and Auto-Play controls are more compact, and expanded volume makes room by temporarily collapsing the session name to its icon." },
-      { title: "Focused listening roles", detail: "BTS and Player stay on Play Controls on mobile with a display-only TRACK indicator. Their desktop view hides the library and centers the playback area." },
+      { title: "Focused listening roles", detail: "Observer-Member and Member stay on Play Controls on mobile with a display-only TRACK indicator. Their desktop view hides the library and centers the playback area." },
     ],
   },
   {

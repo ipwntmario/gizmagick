@@ -20,6 +20,7 @@ function readStr(key, fallback) { try { return localStorage.getItem(key) ?? fall
 export default function LeftPanel({
   roomState,
   showClockOffset = false,
+  showLatency = false,
   setRoomId,
   onSessionSelect,
   currentRoomId,
@@ -236,7 +237,7 @@ export default function LeftPanel({
         )}
         </div>
         <div id="session-indicator-users" className="session-panel__people" aria-hidden={!peopleExpanded} inert={!peopleExpanded}>
-          <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} headerCount={presenceCount} playbackActive={roomState?.playbackActive} />
+          <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} showLatency={showLatency} headerCount={presenceCount} playbackActive={roomState?.playbackActive} />
         </div>
       </div>
 
@@ -319,9 +320,9 @@ export default function LeftPanel({
                             value={roomIdentity.role}
                             onChange={(event) => setRoomIdentity(room.id, { role: event.target.value })}
                           >
-                            <option value="GM">Audio Manager</option>
-                            <option value="PASSIVE_BTS">BTS</option>
-                            <option value="PASSIVE">Player</option>
+                            <option value="GM">Director</option>
+                            <option value="PASSIVE_BTS">Observer-Member</option>
+                            <option value="PASSIVE">Member</option>
                           </select>
                         </label>
                       </>
@@ -340,7 +341,7 @@ export default function LeftPanel({
 
         {currentRoomId && (
           <div className="session-panel__presence">
-            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} playbackActive={roomState?.playbackActive} />
+            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} showLatency={showLatency} playbackActive={roomState?.playbackActive} />
           </div>
         )}
 

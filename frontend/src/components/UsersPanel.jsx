@@ -8,7 +8,7 @@ const roleIcon = (role) => {
   }
 };
 
-export default function UsersPanel({ users = [], latencyMs, offsetMs, showClockOffset = false, headerCount = null, playbackActive = false }) {
+export default function UsersPanel({ users = [], latencyMs, offsetMs, showClockOffset = false, showLatency = false, headerCount = null, playbackActive = false }) {
   return (
     <div className="users-panel">
       <div className="users-panel__heading">
@@ -35,9 +35,9 @@ export default function UsersPanel({ users = [], latencyMs, offsetMs, showClockO
         ))}
       </div>
 
-      {(latencyMs != null || (showClockOffset && offsetMs != null)) && (
+      {((showLatency && latencyMs != null) || (showClockOffset && offsetMs != null)) && (
         <div className="users-panel__timing">
-          {latencyMs != null && <div>Latency: {Math.round(latencyMs)} ms</div>}
+          {showLatency && latencyMs != null && <div>Latency: {Math.round(latencyMs)} ms</div>}
           {showClockOffset && offsetMs != null && <div>Clock offset: {Math.round(offsetMs)} ms</div>}
         </div>
       )}

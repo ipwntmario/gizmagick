@@ -9,6 +9,7 @@ export default function SettingsModal({
   pauseFadeSeconds, setPauseFadeSeconds,
   showStatus, setShowStatus,
   showClockOffset, setShowClockOffset,
+  showLatency, setShowLatency,
   cursorEffectEnabled, setCursorEffectEnabled,
   showPlayControlsButton, setShowPlayControlsButton,
   useAlternateIcon, setUseAlternateIcon,
@@ -143,13 +144,26 @@ export default function SettingsModal({
                 <span aria-hidden="true" />
               </span>
             </label>
+            <label className="settings-field settings-field--toggle">
+              <span className="settings-field__copy">
+                <strong>Show latency</strong>
+              </span>
+              <span className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={!!showLatency}
+                  onChange={(event) => setShowLatency?.(event.target.checked)}
+                />
+                <span aria-hidden="true" />
+              </span>
+            </label>
           </section>
           {developerUnlocked && (
             <section className="settings-group">
               <div className="settings-group__heading">
                 <span className="settings-group__icon"><Icon name="code" size={18} /></span>
                 <div>
-                  <h3>Developers</h3>
+                  <h3>Developer</h3>
                   <p>Experimental interface options.</p>
                 </div>
               </div>

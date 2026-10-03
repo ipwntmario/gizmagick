@@ -186,6 +186,12 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("wizamp_showClockOffset", showClockOffset ? "1" : "0"); } catch {}
   }, [showClockOffset]);
+  const [showLatency, setShowLatency] = useState(() => {
+    try { return localStorage.getItem("wizamp_showLatency") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_showLatency", showLatency ? "1" : "0"); } catch {}
+  }, [showLatency]);
   const [cursorEffectEnabled, setCursorEffectEnabled] = useState(() => {
     try { return localStorage.getItem("wizamp_cursorEffect") !== "0"; } catch { return true; }
   });
@@ -1593,6 +1599,7 @@ export default function App() {
       <LeftPanel
         roomState={roomState}
         showClockOffset={showClockOffset}
+        showLatency={showLatency}
         setRoomId={setRoomId}
         onSessionSelect={handleSessionSelect}
         currentRoomId={roomId}
@@ -1899,6 +1906,8 @@ export default function App() {
         setShowStatus={setShowStatus}
         showClockOffset={showClockOffset}
         setShowClockOffset={setShowClockOffset}
+        showLatency={showLatency}
+        setShowLatency={setShowLatency}
         showPlayControlsButton={showPlayControlsButton}
         setShowPlayControlsButton={setShowPlayControlsButton}
         useAlternateIcon={useAlternateIcon}

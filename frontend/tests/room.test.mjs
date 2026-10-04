@@ -29,6 +29,42 @@ test('Play respects role and readiness gates', () => {
   }
 });
 
+test('presence distinguishes idle, loading, and ready users', () => {
+  const hub = new RoomHub({}, {});
+  const messages = [];
+  const socket = { send: message => messages.push(JSON.parse(message)) };
+  const send = data => hub.webSocketMessage(socket, JSON.stringify(data));
+  const presence = () => messages.filter(message => message.type === 'PRESENCE').at(-1).users[0];
+
+  send({ type: 'HELLO', roomId: 'test', name: 'Listener' });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: false, loading: false });
+
+  send({ type: 'SET_READY', ready: false, loading: true });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: false, loading: true });
+
+  send({ type: 'SET_READY', ready: true });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: true, loading: false });
+
+  send({ type: 'SET_READY', ready: false });
+  assert.deepEqual({ ready: presence().ready, loading: presence().loading }, { ready: false, loading: false });
+});
+
+test('changing a display name updates presence without changing the connection ID', () => {
+  const hub = new RoomHub({}, {});
+  const messages = [];
+  const socket = { send: message => messages.push(JSON.parse(message)) };
+  const send = data => hub.webSocketMessage(socket, JSON.stringify(data));
+
+  send({ type: 'HELLO', roomId: 'test', name: 'Old name', role: 'GM' });
+  const before = messages.at(-1).users[0];
+  send({ type: 'UPDATE_IDENTITY', name: 'New name', role: 'GM' });
+  const after = messages.at(-1).users[0];
+
+  assert.equal(after.id, before.id);
+  assert.equal(after.name, 'New name');
+  assert.equal(hub.clients.size, 1);
+});
+
 test('commands remain isolated to their room', () => {
   const { hub, send } = fixture();
   const otherMessages = [];
@@ -48,6 +84,41 @@ test('queued tracks are broadcast, stored, and cleared for the room', () => {
   assert.equal(hub.roomState.get('test').queuedTrack, null);
 });
 
+test('explicit queued Play and Load choices survive room broadcasts', () => {
+  const { hub, send, messages } = fixture();
+  send({ type: 'QUEUE_TRACK_REQUEST', name: 'Next Track', playAfterRelease: true });
+  assert.deepEqual(messages.at(-1), { type: 'QUEUE_TRACK', name: 'Next Track', playAfterRelease: true });
+  assert.equal(hub.roomState.get('test').queuedTrackPlayAfterRelease, true);
+
+  send({ type: 'QUEUE_TRACK_REQUEST', name: 'Next Track', playAfterRelease: false });
+  assert.deepEqual(messages.at(-1), { type: 'QUEUE_TRACK', name: 'Next Track', playAfterRelease: false });
+  assert.equal(hub.roomState.get('test').queuedTrackPlayAfterRelease, false);
+
+  send({ type: 'CLEAR_TRACK_QUEUE_REQUEST' });
+  assert.equal(hub.roomState.get('test').queuedTrackPlayAfterRelease, null);
+});
+
+test('a joiner receives a queued track even before the first track is loaded', () => {
+  const { hub, send } = fixture();
+  send({ type: 'QUEUE_TRACK_REQUEST', name: 'First Track', playAfterRelease: false });
+
+  const messages = [];
+  const joiner = { send: message => messages.push(JSON.parse(message)) };
+  hub.webSocketMessage(joiner, JSON.stringify({ type: 'HELLO', roomId: 'test', role: 'Player', name: 'Joiner' }));
+
+  assert.deepEqual(messages.find(message => message.type === 'STATE'), {
+    type: 'STATE',
+    seed: null,
+    queuedSection: null,
+    queuedMode: null,
+    queuedTrack: 'First Track',
+    queuedTrackPlayAfterRelease: false,
+    trackVolume: null,
+    autoplay: true,
+    playing: null,
+  });
+});
+
 test('cancelling a stop restores the room playing snapshot', () => {
   const { hub, send, messages } = fixture();
   const playing = { trackName: 'Track', sectionName: 'Main', serverMs: 12345 };
@@ -59,6 +130,14 @@ test('cancelling a stop restores the room playing snapshot', () => {
 
   assert.deepEqual(messages.at(-1), { type: 'CANCEL_STOP' });
   assert.deepEqual(hub.roomState.get('test').playing, playing);
+});
+
+test('a held stop broadcasts its fade duration while a normal stop keeps per-user settings', () => {
+  const { send, messages } = fixture();
+  send({ type: 'STOP_REQUEST', fade: true, fadeSeconds: 0.5 });
+  assert.deepEqual(messages.at(-1), { type: 'STOP', fade: true, fadeSeconds: 0.5 });
+  send({ type: 'STOP_REQUEST', fade: true });
+  assert.deepEqual(messages.at(-1), { type: 'STOP', fade: true });
 });
 
 test('seek is synchronized within the room and restricted to the active user', () => {

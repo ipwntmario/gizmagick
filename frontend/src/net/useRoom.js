@@ -1,8 +1,11 @@
 // src/net/useRoom.js
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const ONLINE_ENV = (import.meta.env?.VITE_ONLINE_MODE === 'true');
 const WS_URL = import.meta.env?.VITE_WS_URL || "";
+const resolvedWsUrl = WS_URL.startsWith("/")
+  ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${WS_URL}`
+  : WS_URL;
 const PING_INTERVAL_MS = 5000;
 
 export function useRoom({
@@ -55,6 +58,7 @@ export function useRoom({
 
   const [connected, setConnected] = useState(false);
   const [users, setUsers] = useState([]);
+  const [presenceRoomId, setPresenceRoomId] = useState(null);
   const [lastError, setLastError] = useState(null);
   const [latencyMs, setLatencyMs] = useState(null);
   const [offsetMs, setOffsetMs] = useState(0); // serverNow ≈ Date.now() + offsetMs
@@ -63,8 +67,11 @@ export function useRoom({
   const reconnectTimer = useRef(null);
   const pingTimer = useRef(null);
   const lastReadyRef = useRef(null);
+  const lastLoadingRef = useRef(false);
   const connIdRef = useRef(0);
   const startedRef = useRef(false);
+  const identityRef = useRef({ displayName, role });
+  identityRef.current = { displayName, role };
 
   // NTP-ish smoothing
   const updateOffset = useCallback((rtt, serverTimeMs) => {
@@ -81,6 +88,7 @@ export function useRoom({
 
   const connect = useCallback(() => {
     if (!shouldOnline || !roomId) return;
+    setPresenceRoomId(null);
 
     if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
     if (pingTimer.current) { clearInterval(pingTimer.current); pingTimer.current = null; }
@@ -90,7 +98,7 @@ export function useRoom({
       wsRef.current = null;
     }
 
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(resolvedWsUrl);
     wsRef.current = ws;
     const myId = ++connIdRef.current;
 
@@ -99,18 +107,20 @@ export function useRoom({
       setConnected(true);
       console.log("[room] OPEN");
       // HELLO (seed ready)
+      const { displayName: currentName, role: currentRole } = identityRef.current;
       ws.send(JSON.stringify({
         type: "HELLO",
         roomId,
-        name: displayName || "Anon",
-        role: role || "Player",
+        name: currentName || "Anon",
+        role: currentRole || "Player",
         clientVersion: "phase2",
         ready: lastReadyRef.current === null ? false : !!lastReadyRef.current,
+        loading: lastLoadingRef.current,
       }));
-      console.log("[room] → HELLO", { roomId, name: displayName || "Anon", role, ready: lastReadyRef.current });
+      console.log("[room] → HELLO", { roomId, name: currentName || "Anon", role: currentRole, ready: lastReadyRef.current });
 
       if (lastReadyRef.current !== null) {
-        ws.send(JSON.stringify({ type: "SET_READY", ready: !!lastReadyRef.current }));
+        ws.send(JSON.stringify({ type: "SET_READY", ready: !!lastReadyRef.current, loading: lastLoadingRef.current }));
         console.log("[room] → SET_READY", lastReadyRef.current);
       }
       // start ping loop
@@ -130,6 +140,7 @@ export function useRoom({
       console.log("[room] ←", data.type, data);
       if (data.type === "PRESENCE" && Array.isArray(data.users)) {
         setUsers(data.users);
+        setPresenceRoomId(roomId);
       } else if (data.type === "PONG") {
         const recv = Date.now();
         const clientSend = Number(data.echoClientMs) || recv;
@@ -148,7 +159,7 @@ export function useRoom({
         // hydrate queued UI from snapshot (optional)
         if (data.queuedSection != null) onQueueSectionRef.current?.(String(data.queuedSection));
         if (data.queuedMode != null) onQueueModeRef.current?.(String(data.queuedMode));
-        if (data.queuedTrack != null) onQueueTrackRef.current?.(String(data.queuedTrack));
+        if (data.queuedTrack != null) onQueueTrackRef.current?.(String(data.queuedTrack), data.queuedTrackPlayAfterRelease);
         if (typeof data.trackVolume === "number") {
           onSetTrackVolumeRef.current?.(data.trackVolume);
         }
@@ -169,7 +180,7 @@ export function useRoom({
       } else if (data.type === "PAUSE") {
         onPauseRef.current?.();
       } else if (data.type === "STOP") {
-        onStopRef.current?.(!!data.fade);
+        onStopRef.current?.(!!data.fade, Number.isFinite(data.fadeSeconds) ? data.fadeSeconds : null);
       } else if (data.type === "CANCEL_STOP") {
         onCancelStopRef.current?.();
       } else if (data.type === "RESUME") {
@@ -185,7 +196,7 @@ export function useRoom({
       } else if (data.type === "CLEAR_MODE_QUEUE") {
         onClearModeQueueRef.current?.();
       } else if (data.type === "QUEUE_TRACK") {
-        onQueueTrackRef.current?.(String(data.name || ""));
+        onQueueTrackRef.current?.(String(data.name || ""), data.playAfterRelease);
       } else if (data.type === "CLEAR_TRACK_QUEUE") {
         onClearTrackQueueRef.current?.();
       } else if (data.type === "SET_TRACK_VOLUME") {
@@ -206,6 +217,7 @@ export function useRoom({
     ws.onclose = (evt) => {
       if (connIdRef.current !== myId) return;
       setConnected(false);
+      setPresenceRoomId(null);
       console.log("[room] socket closed; will retry in 2000ms");
       console.log("[room] CLOSE", { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
       if (pingTimer.current) { clearInterval(pingTimer.current); pingTimer.current = null; }
@@ -215,9 +227,15 @@ export function useRoom({
     };
 
     ws.onerror = () => { /* rely on onclose */ };
-  }, [shouldOnline, roomId, displayName, role, updateOffset]);
+  }, [shouldOnline, roomId, updateOffset]);
 
   useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "UPDATE_IDENTITY", name: displayName || "Anon", role: role || "Player" }));
+  }, [displayName, role]);
+
+  useLayoutEffect(() => {
     if (!shouldOnline || !roomId) return;
     if (startedRef.current) return;
     startedRef.current = true;
@@ -231,16 +249,18 @@ export function useRoom({
       wsRef.current = null;
       setConnected(false);
       setUsers([]);
+      setPresenceRoomId(null);
       if (ws) { try { ws.close(); } catch {} }
       startedRef.current = false;
     };
   }, [shouldOnline, roomId, connect]);
 
-  const setReady = useCallback((ready) => {
+  const setReady = useCallback((ready, { loading = false } = {}) => {
     lastReadyRef.current = !!ready;
+    lastLoadingRef.current = !ready && !!loading;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "SET_READY", ready: !!ready }));
+    ws.send(JSON.stringify({ type: "SET_READY", ready: !!ready, loading: lastLoadingRef.current }));
   }, []);
 
   const requestPlay = useCallback(({ trackName, sectionName, delayMs = 2000, override = false }) => {
@@ -255,9 +275,9 @@ export function useRoom({
     ws.send(JSON.stringify({ type: "PAUSE_REQUEST" }));
   }, []);
 
-  const requestStop = useCallback((fade = true) => {
+  const requestStop = useCallback((fade = true, fadeSecondsOverride = null) => {
     const ws = wsRef.current; if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "STOP_REQUEST", fade }));
+    ws.send(JSON.stringify({ type: "STOP_REQUEST", fade, ...(fadeSecondsOverride == null ? {} : { fadeSeconds: fadeSecondsOverride }) }));
   }, []);
 
   const requestCancelStop = useCallback(() => {
@@ -304,9 +324,9 @@ export function useRoom({
     ws.send(JSON.stringify({ type: "CLEAR_MODE_QUEUE_REQUEST" }));
   }, []);
 
-  const requestQueueTrack = useCallback((name) => {
+  const requestQueueTrack = useCallback((name, { playAfterRelease = null } = {}) => {
     const ws = wsRef.current; if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "QUEUE_TRACK_REQUEST", name }));
+    ws.send(JSON.stringify({ type: "QUEUE_TRACK_REQUEST", name, ...(typeof playAfterRelease === "boolean" ? { playAfterRelease } : {}) }));
   }, []);
 
   const requestClearTrackQueue = useCallback(() => {
@@ -343,6 +363,7 @@ export function useRoom({
     onlineActive: shouldOnline && !!roomId,
     connected,
     users,
+    presenceReady: connected && !!roomId && presenceRoomId === roomId,
     roomId,
     setReady,
     requestPlay,

@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import TerminalCursorEffect from "./TerminalCursorEffect";
 
 const POINTER_QUERY = "(hover: hover) and (pointer: fine)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
-export default function CursorEffect({ enabled, effect, themeId }) {
+export default function CursorEffect({ enabled, effect, themeId, containerRef }) {
   const canvasRef = useRef(null);
   const [motionAllowed, setMotionAllowed] = useState(() =>
     typeof window !== "undefined"
-      && window.matchMedia(POINTER_QUERY).matches
+      && (containerRef || window.matchMedia(POINTER_QUERY).matches)
       && !window.matchMedia(REDUCED_MOTION_QUERY).matches
   );
 
   useEffect(() => {
     const pointer = window.matchMedia(POINTER_QUERY);
     const reducedMotion = window.matchMedia(REDUCED_MOTION_QUERY);
-    const update = () => setMotionAllowed(pointer.matches && !reducedMotion.matches);
+    const update = () => setMotionAllowed(!!(containerRef || pointer.matches) && !reducedMotion.matches);
     pointer.addEventListener("change", update);
     reducedMotion.addEventListener("change", update);
     update();
@@ -22,7 +23,7 @@ export default function CursorEffect({ enabled, effect, themeId }) {
       pointer.removeEventListener("change", update);
       reducedMotion.removeEventListener("change", update);
     };
-  }, []);
+  }, [containerRef]);
 
   const active = enabled && effect === "wand" && motionAllowed;
 
@@ -31,6 +32,9 @@ export default function CursorEffect({ enabled, effect, themeId }) {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d", { alpha: true });
     if (!context) return undefined;
+    const surface = containerRef?.current;
+    const target = surface || window;
+    const size = () => ({ width: surface?.clientWidth || window.innerWidth, height: surface?.clientHeight || window.innerHeight });
 
     const castle = themeId === "castle-torchlit";
     const particles = [];
@@ -39,8 +43,8 @@ export default function CursorEffect({ enabled, effect, themeId }) {
 
     const resize = () => {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(window.innerWidth * ratio);
-      canvas.height = Math.round(window.innerHeight * ratio);
+      canvas.width = Math.round(size().width * ratio);
+      canvas.height = Math.round(size().height * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       if (position.visible) requestFrame();
     };
@@ -60,7 +64,7 @@ export default function CursorEffect({ enabled, effect, themeId }) {
 
     const draw = (now) => {
       frame = 0;
-      context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      context.clearRect(0, 0, size().width, size().height);
       if (!position.visible) return;
 
       // The ordinary system cursor remains on top of this non-interactive canvas.
@@ -105,8 +109,10 @@ export default function CursorEffect({ enabled, effect, themeId }) {
     }
 
     const onPointerMove = (event) => {
-      if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-      const { clientX: x, clientY: y } = event;
+      if (!surface && event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+      const bounds = surface?.getBoundingClientRect();
+      const x = event.clientX - (bounds?.left || 0);
+      const y = event.clientY - (bounds?.top || 0);
       if (position.visible) {
         const dx = x - position.x;
         const dy = y - position.y;
@@ -140,26 +146,36 @@ export default function CursorEffect({ enabled, effect, themeId }) {
       particles.length = 0;
       if (frame) window.cancelAnimationFrame(frame);
       frame = 0;
-      context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      context.clearRect(0, 0, size().width, size().height);
     };
     const onPointerOut = (event) => { if (!event.relatedTarget) hide(); };
     const onVisibilityChange = () => { if (document.hidden) hide(); };
 
     resize();
+    const observer = surface ? new ResizeObserver(resize) : null;
+    if (surface) observer.observe(surface);
     window.addEventListener("resize", resize);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerout", onPointerOut);
+    target.addEventListener("pointermove", onPointerMove);
+    if (surface) {
+      target.addEventListener("pointerdown", onPointerMove);
+      target.addEventListener("pointerleave", hide);
+    } else target.addEventListener("pointerout", onPointerOut);
     window.addEventListener("blur", hide);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
+      observer?.disconnect();
       window.removeEventListener("resize", resize);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerout", onPointerOut);
+      target.removeEventListener("pointermove", onPointerMove);
+      if (surface) {
+        target.removeEventListener("pointerdown", onPointerMove);
+        target.removeEventListener("pointerleave", hide);
+      } else target.removeEventListener("pointerout", onPointerOut);
       window.removeEventListener("blur", hide);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [active, themeId]);
+  }, [active, themeId, containerRef]);
 
-  return active ? <canvas ref={canvasRef} className="cursor-effect" aria-hidden="true" /> : null;
+  if (enabled && effect === "terminal" && motionAllowed) return <TerminalCursorEffect containerRef={containerRef} />;
+  return active ? <canvas ref={canvasRef} className={`cursor-effect ${containerRef ? "cursor-effect--preview" : ""}`} aria-hidden="true" /> : null;
 }

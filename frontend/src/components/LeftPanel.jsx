@@ -1,73 +1,146 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import UsersPanel from "./UsersPanel";
 import Icon from "./Icon";
-import { availableThemes, resolveTheme, themeStorageKey } from "../themes";
+import ThemePicker from "./ThemePicker";
+import useDrawerSwipe from "./useDrawerSwipe";
+import { getPresenceChanges } from "../data/presence";
+import { resolveTheme, themeStorageKey } from "../themes";
 
-const LS_PANEL_OPEN = "ui.panelOpen";
 const LONG_PRESS_MS = 550;
-const rooms = [
-  { id: "", name: "Private Session", detail: "Offline", icon: "door", private: true },
+const EMPTY_USERS = [];
+const onlineRooms = [
   { id: "awc", name: "A Wizard's Chronicle", detail: "Online room", icon: "wand" },
+  { id: "cyberspace-club", name: "Cyberspace Club", detail: "Online room", icon: "code" },
 ];
+const privateRoom = { id: "", name: "Private Session", detail: "Offline", icon: "door", private: true };
+const rooms = [...onlineRooms, privateRoom];
 
-function persist(key, val) { try { localStorage.setItem(key, val); } catch {} }
 function readStr(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } }
 
 export default function LeftPanel({
   roomState,
+  showClockOffset = false,
+  showLatency = false,
   setRoomId,
+  onSessionSelect,
   currentRoomId,
   roomIdentities,
   setRoomIdentity,
   themeChoices = {},
   onChooseTheme,
-  libraryDocked = false,
-  volumeExpanded = false,
-  canAccessDatabase = false,
-  onOpenDatabase,
-  onOpenSettings,
+  open,
+  onOpenChange,
+  onPinnedPeopleBottomChange,
 }) {
-  const [open, setOpen] = useState(() => readStr(LS_PANEL_OPEN, "true") === "true");
   const [editingRoomId, setEditingRoomId] = useState(null);
+  const [themePickerRoom, setThemePickerRoom] = useState(null);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peoplePinned, setPeoplePinned] = useState(false);
   const gesture = useRef(null);
+  const menuButtonRef = useRef(null);
+  const peopleButtonRef = useRef(null);
+  const indicatorRef = useRef(null);
   const longPressTimer = useRef(null);
   const suppressClick = useRef(false);
-  const barRef = useRef(null);
-  const roomNameMeasureRef = useRef(null);
-  const [compactHeader, setCompactHeader] = useState(false);
-
-  useEffect(() => persist(LS_PANEL_OPEN, String(open)), [open]);
+  const previousPresence = useRef({ roomId: currentRoomId, users: null });
+  const [presenceNotices, setPresenceNotices] = useState([]);
   useEffect(() => () => clearTimeout(longPressTimer.current), []);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      onOpenChange(false);
+      menuButtonRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onOpenChange]);
 
-  const activeRoom = rooms.find((room) => room.id === currentRoomId) || rooms[0];
-  const users = roomState?.users || [];
+  const activeRoom = rooms.find((room) => room.id === currentRoomId) || privateRoom;
+  const users = roomState?.users ?? EMPTY_USERS;
+  const presenceReady = !!roomState?.presenceReady;
   const latencyMs = roomState?.latencyMs ?? null;
   const offsetMs = roomState?.serverOffsetMs ?? null;
-  const awcIdentity = roomIdentities?.awc || { role: "GM", displayName: "" };
+  const currentNotice = presenceNotices[0] ?? null;
+  const presenceCount = presenceReady ? users.length : 0;
+  const peopleExpanded = peopleOpen && !!currentRoomId && !open;
+  const pinnedExpanded = peopleExpanded && peoplePinned;
 
-  useLayoutEffect(() => {
-    const update = () => {
-      if (!volumeExpanded || open || !window.matchMedia("(max-width: 760px)").matches) {
-        setCompactHeader(false);
-        return;
-      }
-      const barLeft = barRef.current?.getBoundingClientRect().left ?? 8;
-      const nameWidth = roomNameMeasureRef.current?.getBoundingClientRect().width ?? 0;
-      const fullBarRight = barLeft + 44 + 28 + 9 + nameWidth + 14 + 2;
-      const expandedVolumeLeft = window.innerWidth - 8 - Math.min(270, window.innerWidth - 118) - 2;
-      setCompactHeader(fullBarRight + 8 > expandedVolumeLeft);
+  useEffect(() => {
+    setPeopleOpen(false);
+    setPeoplePinned(false);
+  }, [currentRoomId]);
+
+  useEffect(() => {
+    if (!pinnedExpanded) {
+      onPinnedPeopleBottomChange?.(0);
+      return undefined;
+    }
+    const indicator = indicatorRef.current;
+    if (!indicator) return undefined;
+    const updateBottom = () => onPinnedPeopleBottomChange?.(Math.ceil(indicator.getBoundingClientRect().bottom));
+    updateBottom();
+    const observer = new ResizeObserver(updateBottom);
+    observer.observe(indicator);
+    return () => observer.disconnect();
+  }, [pinnedExpanded, onPinnedPeopleBottomChange]);
+
+  useEffect(() => {
+    if (!peopleExpanded || peoplePinned) return undefined;
+    const onPointerDown = (event) => {
+      if (!indicatorRef.current?.contains(event.target)) setPeopleOpen(false);
     };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, [volumeExpanded, open, activeRoom.name]);
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setPeopleOpen(false);
+      peopleButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [peopleExpanded, peoplePinned]);
+
+  useEffect(() => {
+    const previous = previousPresence.current;
+    if (previous.roomId !== currentRoomId) {
+      previousPresence.current = { roomId: currentRoomId, users: null };
+      setPresenceNotices([]);
+      return;
+    }
+    if (!presenceReady) {
+      previousPresence.current = { roomId: currentRoomId, users: null };
+      return;
+    }
+
+    const nextUsers = new Map(users.map((user) => [String(user.id), user.name || "Unknown"]));
+    if (previous.users) {
+      const changes = getPresenceChanges(previous.users, nextUsers);
+      if (changes.length) setPresenceNotices((queue) => [...queue, ...changes]);
+    }
+    previousPresence.current = { roomId: currentRoomId, users: nextUsers };
+  }, [currentRoomId, presenceReady, users]);
+
+  useEffect(() => {
+    if (!currentNotice) return undefined;
+    const timer = setTimeout(() => setPresenceNotices((queue) => queue.slice(1)), 3000);
+    return () => clearTimeout(timer);
+  }, [currentNotice]);
 
   function closePanel() {
-    setOpen(false);
+    onOpenChange(false);
+    if (!peoplePinned) setPeopleOpen(false);
     setEditingRoomId(null);
+    menuButtonRef.current?.focus();
   }
 
+  const swipe = useDrawerSwipe("left", closePanel);
+
   function selectRoom(roomId) {
+    if (roomId !== currentRoomId) onSessionSelect?.(roomId);
     setRoomId(roomId);
     closePanel();
   }
@@ -107,36 +180,78 @@ export default function LeftPanel({
 
   return (
     <aside
-      className={`session-panel ${open ? "is-open" : "is-closed"} ${libraryDocked ? "is-library-docked" : ""} ${compactHeader ? "is-header-compact" : ""}`}
+      className={`session-panel ${open ? "is-open" : "is-closed"} ${peopleExpanded ? "is-people-open" : ""} ${pinnedExpanded ? "is-people-pinned" : ""}`}
       aria-label="Session rooms"
       onPointerMove={cancelHoldOnMove}
       onPointerCancel={endTouch}
     >
-      <div ref={barRef} className="session-panel__bar">
+      <button type="button" className="side-drawer__backdrop" aria-label="Close sessions" tabIndex={open ? 0 : -1} onClick={closePanel} />
+      <div ref={indicatorRef} className={`session-panel__bar ${currentNotice ? "has-notice" : ""} ${peopleExpanded ? "is-people-open" : ""}`}>
+        <div className="session-panel__indicator">
         <button
+          ref={menuButtonRef}
           className="session-panel__menu"
           type="button"
-          aria-label={open ? "Close rooms" : "Open rooms"}
+          aria-label={open ? "Close sessions" : "Open sessions"}
           aria-expanded={open}
+          aria-controls="sessions-drawer"
           onClick={() => {
-            setOpen((value) => !value);
+            if (!peoplePinned) setPeopleOpen(false);
+            onOpenChange(!open);
             if (open) setEditingRoomId(null);
           }}
         >
           <Icon name="menu" size={22} />
         </button>
-        <div className="session-panel__current" aria-hidden={open}>
+        <div className="session-panel__current" aria-hidden={open} inert={open}>
           <span className={`session-room__icon session-room__icon--${activeRoom.private ? "private" : "online"}`}>
             <Icon name={activeRoom.icon} size={19} />
           </span>
-          <span className="session-panel__current-name" aria-hidden={compactHeader}>{activeRoom.name}</span>
-          <span ref={roomNameMeasureRef} className="session-panel__current-measure" aria-hidden="true">{activeRoom.name}</span>
+          <span className="session-panel__current-name">{activeRoom.name}</span>
+          {currentRoomId && !peopleExpanded && (
+            <button
+              type="button"
+              className="session-panel__count session-panel__count-button"
+              aria-label={`Show ${presenceCount} ${presenceCount === 1 ? "person" : "people"} in session`}
+              aria-expanded={false}
+              aria-controls="session-indicator-users"
+              title="Show users"
+              onClick={() => setPeopleOpen(true)}
+            >
+              <Icon name="user" size={13} />{presenceCount}
+            </button>
+          )}
+        </div>
+        <span className={`session-panel__notice ${currentNotice ? `is-${currentNotice.kind}` : ""}`} aria-live="polite" aria-atomic="true" title={currentNotice ? `${currentNotice.kind === "join" ? "+" : "−"} ${currentNotice.name}` : undefined}>
+          {currentNotice && `${currentNotice.kind === "join" ? "+" : "−"} ${currentNotice.name}`}
+        </span>
+        {peopleExpanded && (
+          <div className="session-panel__people-actions">
+            <button type="button" className={`session-panel__people-action ${peoplePinned ? "is-active" : ""}`} aria-label={peoplePinned ? "Unpin users" : "Pin users"} aria-pressed={peoplePinned} title={peoplePinned ? "Unpin users" : "Pin users"} onClick={() => setPeoplePinned((value) => !value)}>
+              <Icon name="pin" size={16} />
+            </button>
+            <button ref={peopleButtonRef} type="button" className="session-panel__people-action" aria-label="Collapse users" aria-expanded={true} aria-controls="session-indicator-users" title="Collapse users" onClick={() => { setPeopleOpen(false); setPeoplePinned(false); }}>
+              <Icon name="chevronUp" size={18} />
+            </button>
+          </div>
+        )}
+        </div>
+        <div id="session-indicator-users" className="session-panel__people" aria-hidden={!peopleExpanded} inert={!peopleExpanded}>
+          <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} showLatency={showLatency} headerCount={presenceCount} playbackActive={roomState?.playbackActive} />
         </div>
       </div>
 
       <div
-        className="session-panel__drawer"
+        id="sessions-drawer"
+        className={`session-panel__drawer ${swipe.dragging ? "is-dragging" : ""}`}
         aria-hidden={!open}
+        inert={!open}
+        style={swipe.style}
+        onPointerDown={swipe.onPointerDown}
+        onPointerMove={swipe.onPointerMove}
+        onPointerUp={swipe.onPointerUp}
+        onPointerCancel={swipe.onPointerCancel}
+        onClickCapture={swipe.onClickCapture}
       >
         <div className="session-panel__heading">
           <span>Sessions</span>
@@ -145,10 +260,11 @@ export default function LeftPanel({
         <div className="session-panel__rooms">
           {rooms.map((room) => {
             const selected = room.id === currentRoomId;
+            const roomIdentity = roomIdentities?.[room.id] || { role: "GM", displayName: "" };
             const themeChoice = themeChoices[room.id || "private"] ?? readStr(themeStorageKey(room.id), null);
-            const themes = availableThemes();
+            const currentTheme = resolveTheme(room.id, themeChoice);
             return (
-              <div className="session-room-wrap" key={room.private ? "private" : room.id}>
+              <div className={`session-room-wrap ${room.private ? "is-private" : ""}`} key={room.private ? "private" : room.id}>
                 <button
                   type="button"
                   className={`session-room ${selected ? "is-selected" : ""}`}
@@ -192,7 +308,7 @@ export default function LeftPanel({
                         <label>
                           <span>Display name</span>
                           <input
-                            value={awcIdentity.displayName}
+                            value={roomIdentity.displayName}
                             onChange={(event) => setRoomIdentity(room.id, { displayName: event.target.value })}
                             placeholder="Your name"
                             spellCheck="false"
@@ -201,39 +317,22 @@ export default function LeftPanel({
                         <label>
                           <span>Role</span>
                           <select
-                            value={awcIdentity.role}
+                            value={roomIdentity.role}
                             onChange={(event) => setRoomIdentity(room.id, { role: event.target.value })}
                           >
-                            <option value="GM">Audio Manager</option>
-                            <option value="PASSIVE_BTS">BTS</option>
-                            <option value="PASSIVE">Player</option>
+                            <option value="GM">Director</option>
+                            <option value="PASSIVE_BTS">Observer-Member</option>
+                            <option value="PASSIVE">Member</option>
                           </select>
                         </label>
                       </>
                     )}
-                    <fieldset className="session-theme-picker">
-                      <legend>Theme</legend>
-                      {[...new Set(themes.map(({ group }) => group))].map((group) => (
-                        <div className="session-theme-picker__group" key={group}>
-                          <h4 className="session-theme-picker__group-title">{group}</h4>
-                          <div className="session-theme-picker__choices">
-                            {themes.filter((theme) => theme.group === group).map((theme) => (
-                              <label className="session-theme-picker__choice" key={theme.id}>
-                                <input
-                                  type="radio"
-                                  name={`theme-${room.id || "private"}`}
-                                  value={theme.id}
-                                  checked={resolveTheme(room.id, themeChoice).id === theme.id}
-                                  onChange={() => onChooseTheme?.(room.id, theme.id)}
-                                />
-                                <span className={`session-theme-picker__swatch session-theme-picker__swatch--${theme.id}`} aria-hidden="true" />
-                                <span>{theme.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </fieldset>
+                    <button type="button" className="session-theme-launch" onClick={() => setThemePickerRoom(room)}>
+                      <span className="session-theme-launch__label">Theme</span>
+                      <span className={`session-theme-picker__swatch session-theme-picker__swatch--${currentTheme.id}`} aria-hidden="true" />
+                      <strong>{currentTheme.name}</strong>
+                      <Icon name="chevronRight" size={16} />
+                    </button>
                   </div>
               </div>
             );
@@ -242,46 +341,26 @@ export default function LeftPanel({
 
         {currentRoomId && (
           <div className="session-panel__presence">
-            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} />
+            <UsersPanel users={users} latencyMs={latencyMs} offsetMs={offsetMs} showClockOffset={showClockOffset} showLatency={showLatency} playbackActive={roomState?.playbackActive} />
           </div>
         )}
 
-        <div className="session-panel__actions" aria-label="Main menu">
-          {canAccessDatabase && (
-            <button
-              type="button"
-              className="session-panel__action"
-              onClick={() => {
-                closePanel();
-                onOpenDatabase?.();
-              }}
-            >
-              <span className="session-panel__action-icon"><Icon name="archive" size={19} /></span>
-              <span className="session-panel__action-copy">
-                <strong>Database</strong>
-                <small>Manage tracks and display names</small>
-              </span>
-              <Icon name="chevronRight" size={17} />
-            </button>
-          )}
-
-          <button
-            type="button"
-            className="session-panel__action"
-            onClick={() => {
-              closePanel();
-              onOpenSettings?.();
-            }}
-          >
-            <span className="session-panel__action-icon"><Icon name="settings" size={19} /></span>
-            <span className="session-panel__action-copy">
-              <strong>Settings</strong>
-              <small>Playback and interface options</small>
-            </span>
-            <Icon name="chevronRight" size={17} />
-          </button>
-        </div>
       </div>
+      {themePickerRoom && (
+        <ThemePicker
+          key={themePickerRoom.id || "private"}
+          room={themePickerRoom}
+          initialThemeId={resolveTheme(
+            themePickerRoom.id,
+            themeChoices[themePickerRoom.id || "private"] ?? readStr(themeStorageKey(themePickerRoom.id), null),
+          ).id}
+          onCancel={() => setThemePickerRoom(null)}
+          onApply={(themeId) => {
+            onChooseTheme?.(themePickerRoom.id, themeId);
+            setThemePickerRoom(null);
+          }}
+        />
+      )}
     </aside>
   );
 }

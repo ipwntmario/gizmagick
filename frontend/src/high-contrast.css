@@ -1,0 +1,321 @@
+/* The two high-contrast themes share flat surfaces and visible states. */
+:root[data-theme="high-contrast"], .theme-preview[data-theme="high-contrast"] {
+  color-scheme: dark;
+  --app-background: #090c0f;
+  --app-foreground: #fff;
+  --theme-page: #090c0f;
+  --theme-surface: #151b20;
+  --theme-raised: #202930;
+  --theme-text: #fff;
+  --theme-muted: #d6e0e6;
+  --theme-faint: #b5c4cd;
+  --theme-border: #8195a2;
+  --theme-line: #667b88;
+  --theme-accent: #78dcff;
+  --theme-tint: #1d4758;
+  --theme-button: #26323a;
+  --theme-button-text: #fff;
+  --theme-input: #090c0f;
+  --theme-shadow: none;
+  --contrast-on-accent: #06131a;
+  --contrast-danger-border: #ffb1ad;
+  --contrast-danger-bg: #713236;
+  --contrast-disabled-bg: #20272c;
+  --contrast-progress-bg: #090c0f;
+  --contrast-thumb-border: #fff;
+  --contrast-switch-on: #176078;
+  --contrast-focus: #ffe177;
+  color: var(--theme-text);
+  background: var(--theme-page);
+}
+
+:root[data-theme="high-contrast-light"], .theme-preview[data-theme="high-contrast-light"] {
+  color-scheme: light;
+  --app-background: #f3f6f7;
+  --app-foreground: #111b22;
+  --theme-page: #f3f6f7;
+  --theme-surface: #fff;
+  --theme-raised: #e8eef1;
+  --theme-text: #111b22;
+  --theme-muted: #2e3c45;
+  --theme-faint: #465862;
+  --theme-border: #4e6470;
+  --theme-line: #647580;
+  --theme-accent: #005a73;
+  --theme-tint: #d2edf5;
+  --theme-button: #e8eef1;
+  --theme-button-text: #111b22;
+  --theme-input: #fff;
+  --theme-shadow: none;
+  --contrast-on-accent: #fff;
+  --contrast-danger-border: #8d2329;
+  --contrast-danger-bg: #8d2329;
+  --contrast-disabled-bg: #d9e1e5;
+  --contrast-progress-bg: #fff;
+  --contrast-thumb-border: #111b22;
+  --contrast-switch-on: #005a73;
+  --contrast-focus: #a14300;
+  color: var(--theme-text);
+  background: var(--theme-page);
+}
+
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(body, #root) { background: var(--theme-page) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) a { color: var(--theme-accent); text-decoration: underline; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) a:hover { color: var(--theme-text); }
+:root[data-theme="high-contrast"] .session-panel { --session-join-color: #a4f5b9; --session-leave-color: #ffb1ad; }
+:root[data-theme="high-contrast-light"] .session-panel { --session-join-color: #075d36; --session-leave-color: #8d2329; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__sheet { border-color: var(--theme-border); box-shadow: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__sheet-backdrop { background: rgba(0,0,0,.8); backdrop-filter: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__sheet-actions button { border-color: var(--theme-border); }
+
+/* A visible outline takes the place of depth, glow, and translucent glass. */
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-library-shell, .track-library-restore, .track-browser__header,
+  .track-browser__drawer, .track-browser__menu, .track-volume-control__popover,
+  .session-panel__bar, .session-panel__drawer, .app-menu__trigger,
+  .app-menu__drawer, .app-menu__volume, .app-menu__volume .volume-control, .utility-dock,
+  .mobile-tab-bar, .mobile-playlists-view,
+  .status-history, .queue-indicator,
+  .queue-indicator__items, .settings-modal, .about-panel,
+  .database-modal, .rename-modal, .database-track-menu,
+  .section-controls__region, .dynamic-clips
+) {
+  border: 1px solid var(--theme-border) !important;
+  color: var(--theme-text) !important;
+  background: var(--theme-surface) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.about-overlay, .settings-overlay, .database-overlay, .rename-overlay) {
+  background: rgba(0, 0, 0, .88) !important;
+  backdrop-filter: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .audio-unlock-overlay { background: rgba(0, 0, 0, .88); backdrop-filter: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .audio-unlock-panel { border: 2px solid var(--theme-border); border-radius: 8px; box-shadow: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .audio-unlock-panel__button { border: 2px solid var(--theme-accent); color: var(--contrast-on-accent); background: var(--theme-accent); }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .side-drawer__backdrop { background: rgba(0, 0, 0, .88) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .settings-modal__header, .database-modal__header, .database-toolbar,
+  .database-list-heading, .about-panel__header, .about-panel__tabs,
+  .track-browser__drawer-heading, .track-library__heading,
+  .queue-indicator__items, .status-history__header, .status-history__list li.is-current,
+  .settings-group__heading, .section-controls__heading, .dynamic-clips__heading
+) {
+  border-color: var(--theme-line) !important;
+  background: var(--theme-raised) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-library-shell, .track-browser__drawer, .session-panel__drawer, .app-menu__drawer,
+  .settings-modal, .about-panel, .database-modal, .rename-modal
+) { border-radius: 8px !important; }
+
+/* Keep secondary information readable, even where the default dark CSS uses faint text. */
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-library__heading-copy small, .track-browser__header-label,
+  .track-browser__drawer-heading small, .track-browser__track-copy small,
+  .track-browser__hint,
+  .session-room__copy small, .session-panel__action-copy small,
+  .session-theme-picker legend, .session-theme-picker__group-title,
+  .status-bar__label, .status-history__header small, .status-history__list li,
+  .status-history__list time, .volume-control__value,
+  .track-volume-control__label, .track-volume-control__slider span,
+  .clip-progress__time, .section-controls__heading, .dynamic-clips__heading,
+  .queue-indicator__label, .queue-indicator__item small,
+  .about-panel__intro, .about-panel__concept p, .about-panel__flow p,
+  .about-panel__tip, .about-panel__updates span, .settings-modal__header p,
+  .settings-group__heading p, .settings-field__copy small,
+  .settings-about-link__copy small, .database-modal__subtitle,
+  .database-toolbar label, .database-list-heading, .rename-modal__form label,
+  .about-panel__tutorial span
+) { color: var(--theme-muted) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-library__collapse, .track-library-restore, .track-browser__kebab,
+  .track-browser__header svg, .status-bar__toggle, .volume-control__button,
+  .now-playing__volume, .database-icon-button, .database-expand,
+  .database-edit-button, .database-track-menu-button,
+  .dynamic-clips__heading button, .dynamic-clips-restore,
+  .queue-indicator__peek-controls button
+) { color: var(--theme-text) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-library__heading-copy small, .track-browser__header-label,
+  .track-browser__drawer-heading small, .track-browser__track-copy small,
+  .track-browser__hint, .session-room__copy small,
+  .session-panel__action-copy small, .session-theme-picker legend,
+  .session-theme-picker__group-title, .status-bar__label,
+  .clip-progress__time, .section-controls__heading,
+  .dynamic-clips__heading, .queue-indicator__label,
+  .settings-field__copy small, .settings-about-link__copy small,
+  .database-list-heading, .track-browser__state span,
+  .queue-indicator__item small, .about-panel__eyebrow,
+  .about-panel__concept-number, .about-panel__flow-title,
+  .about-panel__tutorial span
+) { font-size: 11px; letter-spacing: .02em; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .about-panel__intro, .about-panel__concept p, .about-panel__flow p,
+  .about-panel__tip, .about-panel__updates span
+) { font-size: 12px; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .session-room__icon--private, .session-room__icon--online,
+  .settings-group__icon, .session-panel__action-icon,
+  .track-browser__state span, .about-panel__flow li > span,
+  .about-panel__concept > svg, .track-library__heading-copy small
+) { color: var(--theme-accent) !important; background: var(--theme-raised) !important; box-shadow: none !important; }
+
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .session-room, .session-panel__action, .session-theme-picker__choice,
+  .settings-group, .settings-about-link, .settings-field,
+  .track-browser__row, .track-browser__filter-button, .track-browser__sort-button, .track-browser__search, .track-sort, .track-sort button, .track-filters, .database-row,
+  .database-row--mode, .about-panel__concepts, .about-panel__flow li,
+  .about-panel__updates > li, .about-panel__tutorial
+) {
+  border-color: var(--theme-line) !important;
+  color: var(--theme-text);
+  background: var(--theme-surface) !important;
+  box-shadow: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.track-browser__filter-button, .track-browser__sort-button) { border: 1px solid var(--theme-line) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.track-browser__filter-button, .track-browser__sort-button):is(:hover, [aria-expanded="true"]) { border-color: var(--theme-accent) !important; color: var(--theme-accent) !important; background: var(--theme-tint) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__search { border: 1px solid var(--theme-line) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-browser__search:focus-within { border-color: var(--theme-accent) !important; background: var(--theme-tint) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .track-sort button:is(:hover, .is-active) { border-color: var(--theme-accent) !important; color: var(--theme-accent) !important; background: var(--theme-tint) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .session-room:hover, .session-panel__action:hover,
+  .track-browser__row:hover, .track-browser__menu button:hover,
+  .database-row:hover, .database-track-menu button:hover,
+  .settings-about-link:hover
+) { background: var(--theme-raised) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .session-room.is-selected, .track-browser__row.is-selected,
+  .track-browser__row.is-playing, .session-theme-picker__choice:has(input:checked)
+) {
+  border: 2px solid var(--theme-accent) !important;
+  color: var(--theme-text);
+  background: var(--theme-tint) !important;
+  box-shadow: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.track-browser__row.is-queued, .section-control-button.is-queued) {
+  border-color: var(--theme-accent) !important;
+  animation: none !important;
+  box-shadow: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .session-theme-picker__choice {
+  min-height: 44px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .session-theme-picker__swatch { box-shadow: none; }
+
+/* Controls use solid fills and distinct borders in every state. */
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-browser__header, .queue-indicator__toggle,
+  .queue-indicator.is-open .queue-indicator__toggle,
+  .section-control-button, .transport-undo, .transport-stop,
+  .primary-playback-button, .database-button--quiet,
+  .rename-modal__form button, .session-room__more,
+  .track-browser__quick-action
+) {
+  border: 2px solid var(--theme-border) !important;
+  color: var(--theme-text) !important;
+  background: var(--theme-button) !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-browser__header:hover, .queue-indicator__toggle:hover,
+  .queue-indicator.is-open .queue-indicator__toggle:hover,
+  .section-control-button:not(:disabled):hover,
+  .transport-undo:not(:disabled):hover, .transport-stop:not(:disabled):hover,
+  .primary-playback-button:not(:disabled):hover,
+  .track-browser__quick-action:hover:not(:disabled)
+) { border-color: var(--theme-accent) !important; background: var(--theme-tint) !important; transform: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .primary-playback-button:not(.is-compact), .database-button--primary
+) {
+  border: 2px solid var(--theme-accent) !important;
+  color: var(--contrast-on-accent) !important;
+  background: var(--theme-accent) !important;
+  box-shadow: none !important;
+}
+/* Match the specificity of the shared control rule so the active mode keeps its solid fill. */
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .section-control-button.section-control-button--mode.is-active {
+  border-color: var(--theme-accent) !important;
+  color: var(--contrast-on-accent) !important;
+  background: var(--theme-accent) !important;
+  box-shadow: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .primary-playback-button.is-playing, .primary-playback-button.is-loading
+) { border-color: var(--theme-accent) !important; color: var(--theme-text) !important; background: var(--theme-tint) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .section-control-button--section.is-end, .transport-stop.is-highlighted
+) { border-color: var(--contrast-danger-border) !important; color: #fff !important; background: var(--contrast-danger-bg) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .primary-playback-button.is-compact {
+  border: 0 !important;
+  color: var(--theme-accent) !important;
+  background: transparent !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .section-control-button.is-auto-locked, .section-controls.is-replacement-locked .section-control-button,
+  .primary-playback-button:disabled:not(.is-loading), .transport-stop:disabled,
+  .transport-undo:disabled, .track-browser__quick-action:disabled
+) { color: var(--theme-faint) !important; background: var(--contrast-disabled-bg) !important; opacity: .72 !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.queue-indicator__label, .queue-indicator__toggle svg) { color: var(--theme-accent) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.queue-indicator__toggle, .track-browser__header) { border-radius: 6px !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.queue-indicator__item, .queue-indicator__top-row) { background: var(--theme-surface) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.autoplay-switch {
+  --autoplay-track-off: var(--theme-button);
+  --autoplay-border-off: var(--theme-border);
+  --autoplay-thumb-off: var(--theme-text);
+  --autoplay-icon-off: var(--theme-page);
+  --autoplay-track-on: var(--theme-accent);
+  --autoplay-border-on: var(--theme-accent);
+  --autoplay-thumb-on: var(--contrast-on-accent);
+  --autoplay-icon-on: var(--theme-accent);
+  border-width: 2px;
+  box-shadow: none;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.autoplay-switch:not(:disabled):hover { border-color: var(--theme-accent); filter: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.now-playing__volume { border: 2px solid var(--theme-border) !important; color: var(--theme-text) !important; background: var(--theme-button) !important; box-shadow: none !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) button.now-playing__volume:disabled { color: var(--theme-faint) !important; background: var(--contrast-disabled-bg) !important; opacity: .72; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.track-browser__queue-progress, .section-control-button__queue-progress, .queue-indicator__queue-progress, .clip-progress) {
+  border: 1px solid var(--theme-border);
+  background: var(--contrast-progress-bg) !important;
+  box-shadow: none !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .track-browser__queue-progress > span, .section-control-button__queue-progress > span,
+  .queue-indicator__queue-progress > span,
+  .clip-progress__fill
+) { background: var(--theme-accent) !important; box-shadow: none !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .clip-progress__thumb { border-color: var(--contrast-thumb-border); background: var(--theme-accent); box-shadow: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .status-bar__pulse { background: var(--theme-accent); box-shadow: none; }
+
+/* Inputs, switches, keyboard focus, and selected tabs remain obvious. */
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
+  .session-identity > label input, .session-identity > label select,
+  .database-toolbar select, .rename-modal__form input,
+  .settings-number, .settings-number input
+) { border-color: var(--theme-border) !important; color: var(--theme-text) !important; background: var(--theme-input) !important; box-shadow: none !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .toggle-switch > span { border: 2px solid var(--theme-border); background: var(--theme-input); }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .toggle-switch > span::after { background: #fff; box-shadow: none; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .toggle-switch input:checked + span { border-color: var(--theme-accent); background: var(--contrast-switch-on); }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.volume-control input[type="range"], .track-volume-control__slider input) { accent-color: var(--theme-accent); }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.about-panel__tabs button.is-active, .mobile-tab-bar button.is-active) {
+  color: var(--theme-accent) !important;
+  background: var(--theme-tint) !important;
+}
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(.about-panel__tabs button, .mobile-tab-bar button, .track-browser__menu button, .database-track-menu button) { color: var(--theme-text) !important; }
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(button, a, input, select, [role="button"], [tabindex]):focus-visible,
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .toggle-switch input:focus-visible + span,
+:root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .session-theme-picker__choice:has(input:focus-visible) {
+  outline: 3px solid var(--contrast-focus) !important;
+  outline-offset: 3px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) *,
+  :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) *::before,
+  :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

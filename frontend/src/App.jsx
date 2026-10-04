@@ -1,5 +1,5 @@
 /**
- * Wizamp
+ * Gizmagick
  * A Dynamic Music Web Application
  *
  * Note: The majority of this code was written by ChatGPT (models 4o and 5), but the overall function and design was
@@ -18,12 +18,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback  } from "react";
 import { AudioEngine } from "./audio/audioEngine";
 import { useMusicData } from "./data/useMusicData";
+import { normalizeTrackFilters } from "./data/trackOrdering";
 import { findSelectableEndSection, getAutoLockedTargets } from "./data/sectionTransitions";
 import { replacementRemainingSeconds } from "./data/replacementTiming";
 import { useSession } from "./net/useSession";
 import { resolveTheme, themeSessionKey, themeStorageKey } from "./themes";
 import { useRoom } from "./net/useRoom";
 import LeftPanel from "./components/LeftPanel";
+import AppMenu from "./components/AppMenu";
 import DatabaseModal from "./components/DatabaseModal";
 import SettingsModal from "./components/SettingsModal";
 import AboutModal from "./components/AboutModal";
@@ -33,27 +35,39 @@ import QueueIndicator from "./components/QueueIndicator";
 import SectionPanel from "./components/SectionPanel";
 import Transport from "./components/Transport";
 import StatusBar from "./components/StatusBar";
-import VolumeControl from "./components/VolumeControl";
 import TrackVolumeControl from "./components/TrackVolumeControl";
+import AutoplayButton from "./components/AutoplayButton";
 import PrimaryPlaybackButton from "./components/PrimaryPlaybackButton";
 import ClipProgress from "./components/ClipProgress";
 import DynamicClipPanel from "./components/DynamicClipPanel";
 import CursorEffect from "./components/CursorEffect";
-import icon1Url from "./assets/icons/icon1.png";
-import icon2bUrl from "./assets/icons/icon2b.png";
+import { LATEST_RELEASE_SIGNATURE } from "./releaseNotes";
+import { heldStopFadeSeconds } from "./audio/stopFade";
+import { resolveLogo } from "./logos";
 
 export default function App() {
   const { tracks, loading, error: dataError } = useMusicData();  // <- only rely on tracks here
   const [clips, setClips] = useState({});
   const [sections, setSections] = useState({});
 
-  const [useAlternateIcon, setUseAlternateIcon] = useState(() => {
-    try { return localStorage.getItem("wizamp_useAlternateIcon") === "1"; } catch { return false; }
+  const [logoVariant, setLogoVariant] = useState(() => {
+    try {
+      const saved = localStorage.getItem("wizamp_logoVariant");
+      return resolveLogo(saved ?? (localStorage.getItem("wizamp_useAlternateIcon") === "1" ? "white" : undefined)).id;
+    } catch { return resolveLogo().id; }
   });
+  const selectedLogo = resolveLogo(logoVariant);
   useEffect(() => {
-    try { localStorage.setItem("wizamp_useAlternateIcon", useAlternateIcon ? "1" : "0"); } catch {}
-  }, [useAlternateIcon]);
-  const [showAbout, setShowAbout] = useState(true);
+    try { localStorage.setItem("wizamp_logoVariant", logoVariant); } catch {}
+    for (const link of document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')) {
+      link.href = selectedLogo.src;
+      link.type = selectedLogo.src.endsWith(".svg") ? "image/svg+xml" : "image/png";
+    }
+  }, [logoVariant, selectedLogo.src]);
+  const [showAbout, setShowAbout] = useState(() => {
+    try { return localStorage.getItem("wizamp_seenLatestUpdate") !== LATEST_RELEASE_SIGNATURE; }
+    catch { return true; }
+  });
   const [aboutSection, setAboutSection] = useState(() => {
     try {
       const hasSeenGuide = localStorage.getItem("wizamp_hasSeenGuide") === "1";
@@ -63,13 +77,18 @@ export default function App() {
       return "guide";
     }
   });
+  useEffect(() => {
+    if (!showAbout || aboutSection !== "updates") return;
+    try { localStorage.setItem("wizamp_seenLatestUpdate", LATEST_RELEASE_SIGNATURE); } catch {}
+  }, [showAbout, aboutSection]);
   const [libraryExpanded, setLibraryExpanded] = useState(true);
+  const [pinnedPeopleBottom, setPinnedPeopleBottom] = useState(0);
   const [libraryWidth, setLibraryWidth] = useState(300);
   const [resizingLibrary, setResizingLibrary] = useState(false);
   const libraryResizePointer = useRef(null);
   const [mobileView, setMobileView] = useState("library");
   const [dynamicClipsExpanded, setDynamicClipsExpanded] = useState(() => {
-    try { return localStorage.getItem("wizamp_dynamicClipsExpanded") !== "0"; } catch { return true; }
+    try { return localStorage.getItem("wizamp_dynamicClipsExpanded") === "1"; } catch { return false; }
   });
   useEffect(() => {
     try { localStorage.setItem("wizamp_dynamicClipsExpanded", dynamicClipsExpanded ? "1" : "0"); } catch {}
@@ -98,6 +117,7 @@ export default function App() {
   const isActiveRoleRef = useRef(true);
   const roomRef = useRef(null);
   const loadBusyRef = useRef(false);
+  const playbackGenerationRef = useRef(0);
   const failedLoadRef = useRef(null);
 
   // Mirrors of state for net callbacks
@@ -118,14 +138,10 @@ export default function App() {
     try { localStorage.setItem("wizamp_autoplay", autoplay ? "1" : "0"); } catch {}
   }, [autoplay]);
 
-  // Keep track of the last ended track for correct Autoplay functionality
-  const lastEndedTrackRef = useRef(null);
-
-  // Requested autoplay target, consumed after assets and room clients are ready.
-  const [autoStartRequestedFor, setAutoStartRequestedFor] = useState(null);
   const [playRequestedFor, setPlayRequestedFor] = useState(null);
-  const playRequestedForRef = useRef(null);
   const [queuedTrack, setQueuedTrack] = useState(null);
+  // null follows Auto-Play; a boolean records an explicit library Play or Load choice.
+  const queuedTrackPlayAfterReleaseRef = useRef(null);
   const [queuedTrackProgress, setQueuedTrackProgress] = useState(null);
   const queuedTrackTimingRef = useRef(null);
   const [queuedChoiceProgress, setQueuedChoiceProgress] = useState({ section: null, mode: null });
@@ -133,6 +149,24 @@ export default function App() {
   const queuedTrackRef = useRef(null);
   const [replacementPending, setReplacementPending] = useState(false);
   const replacementPendingRef = useRef(false);
+  const [stopFadePhase, setStopFadePhase] = useState(null);
+  const stopFadePhaseRef = useRef(null);
+  const setCurrentStopFadePhase = useCallback((phase) => {
+    stopFadePhaseRef.current = phase;
+    setStopFadePhase(phase);
+  }, []);
+  const [autoplayFlashing, setAutoplayFlashing] = useState(false);
+  const [autoplayFlashId, setAutoplayFlashId] = useState(0);
+  const autoplayFlashTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(autoplayFlashTimerRef.current), []);
+  const [autoplaySuspended, setAutoplaySuspended] = useState(false);
+  const autoplaySuspendedRef = useRef(false);
+  const flashAutoplay = () => {
+    setAutoplayFlashId((id) => id + 1);
+    setAutoplayFlashing(true);
+    clearTimeout(autoplayFlashTimerRef.current);
+    autoplayFlashTimerRef.current = setTimeout(() => setAutoplayFlashing(false), 700);
+  };
   const setReplacementInProgress = useCallback((pending) => {
     replacementPendingRef.current = pending;
     setReplacementPending(pending);
@@ -153,6 +187,18 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("wizamp_showStatus", showStatus ? "1" : "0"); } catch {}
   }, [showStatus]);
+  const [showClockOffset, setShowClockOffset] = useState(() => {
+    try { return localStorage.getItem("wizamp_showClockOffset") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_showClockOffset", showClockOffset ? "1" : "0"); } catch {}
+  }, [showClockOffset]);
+  const [showLatency, setShowLatency] = useState(() => {
+    try { return localStorage.getItem("wizamp_showLatency") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_showLatency", showLatency ? "1" : "0"); } catch {}
+  }, [showLatency]);
   const [cursorEffectEnabled, setCursorEffectEnabled] = useState(() => {
     try { return localStorage.getItem("wizamp_cursorEffect") !== "0"; } catch { return true; }
   });
@@ -188,11 +234,8 @@ export default function App() {
   const isReadOnlyRole = onlineEnabled && (role === "PASSIVE" || role === "PASSIVE_BTS");
   const effectiveMobileView = isReadOnlyRole ? "controls" : mobileView;
 
-  // Audio unlock for Chrome late-joiners
+  // Audio unlock for late joiners
   const [audioLocked, setAudioLocked] = useState(false);
-
-  // Track if a net "start" arrived while audio was locked, so we can resync after unlock
-  const [pendingNetStart, setPendingNetStart] = useState(null); // or useRef(null)
 
   // Modes
   const [currentModeName, setCurrentModeName] = useState("base");
@@ -203,6 +246,7 @@ export default function App() {
   // Session-only undo history for pending queue changes.
   const [undoHistory, setUndoHistory] = useState([]);
   const undoHistoryRef = useRef([]);
+  const undoShortcutRef = useRef(null);
   const [undoEffect, setUndoEffect] = useState(null);
   const undoEffectTimerRef = useRef(null);
   const updateUndoHistory = useCallback((updater) => {
@@ -228,11 +272,30 @@ export default function App() {
 
   // Database modal
   const [dbOpen, setDbOpen] = useState(false);
+  const [activeDrawer, setActiveDrawer] = useState(() => {
+    try { return localStorage.getItem("ui.panelOpen") === "true" ? "sessions" : null; }
+    catch { return null; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("ui.panelOpen", String(activeDrawer === "sessions")); }
+    catch { /* Storage may be disabled. */ }
+  }, [activeDrawer]);
 
   // App.jsx (top-level state)
   const [dbSort, setDbSort] = useState(() => localStorage.getItem("wizamp_dbSort") || "alpha-asc");
-  const [dbDynamicFirst, setDbDynamicFirst] = useState(() => localStorage.getItem("wizamp_dbDynamicFirst") !== "false"); // default true
-  const [dbHideTests, setDbHideTests] = useState(() => localStorage.getItem("wizamp_dbHideTests") !== "false");
+  const [librarySort, setLibrarySort] = useState(() => {
+    try {
+      const saved = localStorage.getItem("wizamp_librarySort");
+      return ["alpha-asc", "alpha-desc", "duration-asc", "duration-desc"].includes(saved) ? saved : "alpha-asc";
+    }
+    catch { return "alpha-asc"; }
+  });
+  const [libraryFilters, setLibraryFilters] = useState(() => {
+    try {
+      const saved = localStorage.getItem("wizamp_libraryFilters");
+      return normalizeTrackFilters(saved ? JSON.parse(saved) : undefined);
+    } catch { return normalizeTrackFilters(); }
+  });
 
   // Pinned tracks (persisted as array of names)
   const [pinned, setPinned] = useState(() => {
@@ -264,7 +327,14 @@ export default function App() {
   const [trackVolume, setTrackVolume] = useState(1); // 0..1
   const [userVolume, setUserVolume] = useState(1);   // 0..1 (local)
   const [userMuted, setUserMuted] = useState(false);
-  const [userVolumeOpen, setUserVolumeOpen] = useState(false);
+  const [userVolumeOpen, setUserVolumeOpen] = useState(() => {
+    try { return localStorage.getItem("wizamp_menuVolumeExpanded") !== "false"; }
+    catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_menuVolumeExpanded", String(userVolumeOpen)); }
+    catch { /* Storage may be disabled. */ }
+  }, [userVolumeOpen]);
 
   const displayedStatus = loading ? "Loading data…" : dataError || status;
   useEffect(() => {
@@ -339,39 +409,34 @@ export default function App() {
         console.log("[STATUS]", s);
         setStatus(s);
         if (s === "Stopped") {
+          const skipNextAutoplay = autoplaySuspendedRef.current;
+          if (skipNextAutoplay) {
+            autoplaySuspendedRef.current = false;
+            setAutoplaySuspended(false);
+            if (autoplayRef.current) flashAutoplay();
+          }
+          setCurrentStopFadePhase(null);
           dropUndoActions("stop");
           setReplacementInProgress(false);
           setClipProgress(0);
 
           const playing = playingTrackNameRef.current;
-          const sel = selectedTrackRef.current;
-          console.log("[STOP] was playing:", playing, "selected:", sel);
-          lastEndedTrackRef.current = playing || null;
+          console.log("[STOP] was playing:", playing);
           setPlayingTrackName(null);
+          setPlayRequestedFor(null);
 
           const queued = queuedTrackRef.current;
           if (queued) {
+            const playAfterRelease = skipNextAutoplay ? false : (queuedTrackPlayAfterReleaseRef.current ?? autoplayRef.current);
             queuedTrackRef.current = null;
+            queuedTrackPlayAfterReleaseRef.current = null;
             setQueuedTrack(null);
             dropUndoActions("track");
             if (roomRef.current?.onlineActive && isActiveRoleRef.current) {
               roomRef.current.requestClearTrackQueue?.();
             }
-            setAutoStartRequestedFor(null);
-            setReleasedQueuedTrack({ name: queued, shouldPlay: autoplayRef.current, id: Date.now() });
+            setReleasedQueuedTrack({ name: queued, shouldPlay: playAfterRelease, id: Date.now() });
             return;
-          }
-
-          // If Auto-Play is ON, and dropdown points to a *different* track,
-          // request auto-start for that track (we will start AFTER preload completes).
-          if (autoplayRef.current && sel && sel !== lastEndedTrackRef.current
-              && playRequestedForRef.current !== sel) {
-            setAutoStartRequestedFor(sel);
-            console.log("[AUTOPLAY] requested for", sel);
-          } else {
-            console.log("[AUTOPLAY] not requested (autoplay:", autoplayRef.current,
-                        "selected:", sel, "lastEnded:", lastEndedTrackRef.current, ")");
-            setAutoStartRequestedFor(null);
           }
         }
       },
@@ -411,18 +476,33 @@ export default function App() {
     setAudioLocked(st !== "running");
   }, [engine]);
 
-  const handleEnableAudio = async () => {
+  const unlockAudioFromGesture = async ({ sync = false } = {}) => {
+    const wasLocked = engine.getAudioState?.() !== "running";
     await engine.unlockAudio?.();
-    setAudioLocked(engine.getAudioState?.() !== "running" ? true : false);
+    const running = engine.getAudioState?.() === "running";
+    setAudioLocked(!running);
+    if (!running) return;
+    // A late join may have received its playback snapshot before audio could run.
+    if (sync && wasLocked) roomRef.current?.requestSync?.();
+  };
 
-    // If we deferred a net start while locked, ask the GM for a fresh snapshot now.
-    if (engine.getAudioState?.() === "running" && pendingNetStart) {
-      try { room?.requestSync?.(); } catch {}
-      setPendingNetStart(null);
-    }
+  const handleEnableAudio = () => { void unlockAudioFromGesture({ sync: true }); };
 
-    // If we arrived mid-session, re-request sync to jump in immediately
-    if (!pendingNetStart) room.requestSync();
+  const handleAboutClose = () => {
+    // Closing the splash is already a user gesture; use it to enable Web Audio.
+    if (engine.getAudioState?.() !== "running") void unlockAudioFromGesture({ sync: true });
+    setShowAbout(false);
+  };
+
+  const handleSessionSelect = (nextRoomId) => {
+    // Resume while the session selection gesture is still active. The new room's
+    // STATE message will provide its current playback position after connecting.
+    void unlockAudioFromGesture().then(() => {
+      // If the new socket is already connected, also request its latest position.
+      if (nextRoomId && roomRef.current?.roomId === nextRoomId && roomRef.current?.connected) {
+        roomRef.current.requestSync?.();
+      }
+    });
   };
 
   // Keep engine fade setting in sync
@@ -446,8 +526,12 @@ export default function App() {
 
   // Track select menu persist (optional)
   useEffect(() => { localStorage.setItem("wizamp_dbSort", dbSort); }, [dbSort]);
-  useEffect(() => { localStorage.setItem("wizamp_dbDynamicFirst", String(dbDynamicFirst)); }, [dbDynamicFirst]);
-  useEffect(() => { localStorage.setItem("wizamp_dbHideTests", String(dbHideTests)); }, [dbHideTests]);
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_librarySort", librarySort); } catch { /* Storage may be disabled. */ }
+  }, [librarySort]);
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_libraryFilters", JSON.stringify(libraryFilters)); } catch { /* Storage may be disabled. */ }
+  }, [libraryFilters]);
 
   // Pinned effect
   useEffect(() => {
@@ -560,12 +644,17 @@ export default function App() {
     // If audio is locked, don't start or advance RNG. Defer until unlock, then re-sync.
     if (engine.getAudioState?.() !== "running") {
       setAudioLocked(true);           // show the banner if you have it
-      setPendingNetStart({ type: "PLAY", ts: Date.now() });
       // Do not call engine.play... here. Just wait for unlock.
       return;
     }
+    setAudioLocked(false);
 
     if (isLoadingTrack) return;  // <-- early bail
+
+    if (!playingTrackName && queuedTrackRef.current) {
+      await requestTrackPlayback(queuedTrackRef.current, { shouldPlay: true });
+      return;
+    }
 
     if (!engine.isPreloaded || playingTrackName !== selectedTrack) return;
 
@@ -602,9 +691,9 @@ export default function App() {
     await engine.unlockAudio();
     if (engine.getAudioState?.() !== "running") {
       setAudioLocked(true);
-      setPendingNetStart({ type: "RESUME", ts: Date.now() });
       return;
     }
+    setAudioLocked(false);
 
     const simple = !!tracks[playingTrackName || selectedTrack]?.simple;
     if (room.onlineActive && isActiveRole) {
@@ -614,17 +703,28 @@ export default function App() {
     }
   };
 
-  const handleStop = async ({ recordUndo = true } = {}) => {
-    if (recordUndo && isActive && Number(fadeOutSeconds) > 0) {
+  const handleStop = ({ recordUndo = true, quick = false } = {}) => {
+    if (stopFadePhaseRef.current === "quick") {
+      if (autoplaySuspendedRef.current) return;
+      autoplaySuspendedRef.current = true;
+      setAutoplaySuspended(true);
+      if (autoplayRef.current) flashAutoplay();
+      return;
+    }
+    const useQuickFade = quick || stopFadePhaseRef.current === "normal";
+    const fadeSecondsOverride = useQuickFade ? heldStopFadeSeconds(fadeOutSeconds) : null;
+    const stopFadeSeconds = fadeSecondsOverride ?? Number(fadeOutSeconds);
+    setCurrentStopFadePhase(stopFadeSeconds > 0 ? (useQuickFade ? "quick" : "normal") : null);
+    if (recordUndo && isActive && stopFadeSeconds > 0) {
       dropUndoActions("stop");
       pushUndoAction({ kind: "stop", previous: "playing", next: "stopping" });
     }
     if (room.onlineActive && isActiveRole) {
       // Tell everyone to stop (with fade)
-      room.requestStop(true);
+      room.requestStop(true, fadeSecondsOverride);
     } else {
       // Local stop only
-      engine.stopTrack(true);
+      engine.stopTrack(true, fadeSecondsOverride);
     }
   };
 
@@ -657,7 +757,6 @@ export default function App() {
   }, [loadSavedTrackVolume]);
 
   const requestPlaybackAfterLoad = useCallback((name) => {
-    playRequestedForRef.current = name;
     setPlayRequestedFor(name);
   }, []);
 
@@ -666,7 +765,7 @@ export default function App() {
     const { name, shouldPlay } = releasedQueuedTrack;
     handleSelectTrack(name);
     if (roomRef.current?.onlineActive && isActiveRole) roomRef.current.requestSetTrack?.(name);
-    if (shouldPlay) requestPlaybackAfterLoad(name);
+    if (shouldPlay && (!roomRef.current?.onlineActive || isActiveRole)) requestPlaybackAfterLoad(name);
     setReleasedQueuedTrack(null);
   }, [releasedQueuedTrack, handleSelectTrack, requestPlaybackAfterLoad, isActiveRole]);
 
@@ -728,12 +827,14 @@ export default function App() {
 
   const loadTrackAssets = useCallback(async (name) => {
     if (!name || engine.isPlaying || loadBusyRef.current) return;
+    const generation = playbackGenerationRef.current;
     loadBusyRef.current = true;
     setIsLoadingTrack(true);
-    roomRef.current?.setReady(false);
+    roomRef.current?.setReady(false, { loading: true });
+    let loaded = false;
     try {
       const assets = await getTrackAssets(name);
-      if (selectedTrackRef.current !== name) return;
+      if (generation !== playbackGenerationRef.current || selectedTrackRef.current !== name) return;
       const { clips: nextClips, sections: nextSections, basePath } = assets;
       engine.setData({ clips: nextClips, sections: nextSections, tracks });
       await engine.preloadTrack(name, {
@@ -741,6 +842,7 @@ export default function App() {
         basePath,
         preserveCache: assets.buffersReady,
       });
+      if (generation !== playbackGenerationRef.current) return;
       assets.buffersReady = false;
       if (selectedTrackRef.current !== name) {
         setPlayingTrackName(null);
@@ -751,17 +853,22 @@ export default function App() {
       setPlayingTrackName(name);
       setClipProgress(0);
       failedLoadRef.current = null;
+      loaded = true;
       roomRef.current?.setReady(true);
       if (pendingPlayRef.current?.trackName === name) {
         pendingPlayRef.current = null;
         roomRef.current?.requestSync();
       }
     } catch (err) {
+      if (generation !== playbackGenerationRef.current) return;
       failedLoadRef.current = name;
       setStatus(`Failed to load ${name}: ${err.message}. Select the track again to retry.`);
     } finally {
-      loadBusyRef.current = false;
-      setIsLoadingTrack(false);
+      if (generation === playbackGenerationRef.current) {
+        if (!loaded) roomRef.current?.setReady(false);
+        loadBusyRef.current = false;
+        setIsLoadingTrack(false);
+      }
     }
   }, [engine, tracks, loadSavedTrackVolume, getTrackAssets]);
 
@@ -777,6 +884,60 @@ export default function App() {
   }, []);
   useEffect(() => cancelScheduledCommands, [cancelScheduledCommands, roomId, onlineEnabled]);
 
+  const playbackRoomIdRef = useRef(roomId);
+  useLayoutEffect(() => {
+    if (playbackRoomIdRef.current === roomId) return;
+    playbackRoomIdRef.current = roomId;
+    playbackGenerationRef.current += 1;
+    engine.resetForSession();
+    setCurrentStopFadePhase(null);
+    autoplaySuspendedRef.current = false;
+    setAutoplaySuspended(false);
+    clearTimeout(autoplayFlashTimerRef.current);
+    setAutoplayFlashing(false);
+    cancelScheduledCommands();
+    if (verifyTimer1Ref.current) clearTimeout(verifyTimer1Ref.current);
+    if (verifyTimer2Ref.current) clearTimeout(verifyTimer2Ref.current);
+    verifyTimer1Ref.current = null;
+    verifyTimer2Ref.current = null;
+    verifyingRef.current = false;
+    pendingPlayRef.current = null;
+    selectedTrackRef.current = null;
+    playingTrackNameRef.current = null;
+    queuedTrackRef.current = null;
+    queuedTrackPlayAfterReleaseRef.current = null;
+    queuedSectionRef.current = null;
+    queuedModeRef.current = null;
+    queuedTrackTimingRef.current = null;
+    queuedChoiceTimingRef.current = { section: null, mode: null };
+    ignoreQueueUntilMsRef.current = 0;
+    loadBusyRef.current = false;
+    failedLoadRef.current = null;
+    clearTimeout(undoEffectTimerRef.current);
+    updateUndoHistory([]);
+    setUndoEffect(null);
+    setSelectedTrack(null);
+    setPlayingTrackName(null);
+    setPlayRequestedFor(null);
+    setReleasedQueuedTrack(null);
+    setIsLoadingTrack(false);
+    setClips({});
+    setSections({});
+    setCurrentSectionName(null);
+    setCurrentModeName("base");
+    setQueuedSectionName(null);
+    setQueuedModeName(null);
+    setQueuedTrack(null);
+    setQueuedTrackProgress(null);
+    setQueuedChoiceProgress({ section: null, mode: null });
+    setReplacementInProgress(false);
+    setTrackVolume(1);
+    setClipProgress(0);
+    setClipPositionSeconds(0);
+    setClipDurationSeconds(0);
+    setStatus("Idle");
+  }, [roomId, engine, cancelScheduledCommands, updateUndoHistory, setReplacementInProgress, setCurrentStopFadePhase]);
+
   const onPauseMsg = useCallback(() => {
     cancelScheduledCommands();
     const simple = !!tracks[playingTrackName || selectedTrack]?.simple;
@@ -784,18 +945,25 @@ export default function App() {
     engine.pause(simple);
   }, [tracks, playingTrackName, selectedTrack, engine, cancelScheduledCommands]);
 
-  const onStopMsg = useCallback((fade = true) => {
+  const onStopMsg = useCallback((fade = true, fadeSecondsOverride = null) => {
     cancelScheduledCommands();
     pendingPlayRef.current = null;
     if (queuedTrackRef.current) setReplacementInProgress(true);
-    engine.stopTrack(fade);
-  }, [engine, cancelScheduledCommands, setReplacementInProgress]);
+    const fadeSeconds = fade ? (fadeSecondsOverride ?? engine.fadeOutSeconds) : 0;
+    const incomingPhase = fadeSeconds > 0 ? (fadeSecondsOverride == null ? "normal" : "quick") : null;
+    // The manager may have requested a quick stop before the first STOP echo arrives.
+    if (!(isActiveRoleRef.current && stopFadePhaseRef.current === "quick" && incomingPhase === "normal")) {
+      setCurrentStopFadePhase(incomingPhase);
+    }
+    engine.stopTrack(fade, fadeSecondsOverride);
+  }, [engine, cancelScheduledCommands, setReplacementInProgress, setCurrentStopFadePhase]);
 
   const onCancelStopMsg = useCallback(() => {
     engine.cancelStopFade?.();
+    setCurrentStopFadePhase(null);
     dropUndoActions("stop");
     setReplacementInProgress(false);
-  }, [engine, dropUndoActions, setReplacementInProgress]);
+  }, [engine, dropUndoActions, setReplacementInProgress, setCurrentStopFadePhase]);
 
   const onResumeMsg = useCallback((serverMs) => {
     const simple = !!tracks[playingTrackName || selectedTrack]?.simple;
@@ -851,10 +1019,11 @@ export default function App() {
     dropUndoActions("mode");
   }, [engine, dropUndoActions]);
 
-  const onQueueTrackMsg = useCallback((name) => {
+  const onQueueTrackMsg = useCallback((name, playAfterRelease = null) => {
     if (!name) return;
     const alreadyQueued = queuedTrackRef.current === name;
     queuedTrackRef.current = name;
+    queuedTrackPlayAfterReleaseRef.current = typeof playAfterRelease === "boolean" ? playAfterRelease : null;
     setQueuedTrack(name);
     if (sections[queuedSectionRef.current]?.type === "end") setReplacementInProgress(true);
     if (alreadyQueued) return;
@@ -871,6 +1040,7 @@ export default function App() {
 
   const onClearTrackQueueMsg = useCallback(() => {
     queuedTrackRef.current = null;
+    queuedTrackPlayAfterReleaseRef.current = null;
     setQueuedTrack(null);
     dropUndoActions("track");
   }, [dropUndoActions]);
@@ -1082,7 +1252,6 @@ export default function App() {
     role,
     onSetTrack,
     onPlay: ({ trackName, sectionName, serverMs }) => {
-      setAutoStartRequestedFor(null);
       // Late-join friendliness:
       // 1) If assets not ready, ensure selection + preload first.
       // 2) After preload, schedule at max(serverMs, serverNow + 1500ms) so everyone lines up.
@@ -1128,7 +1297,9 @@ export default function App() {
 
   const roomState = {
     isOnline: onlineEnabled,
+    playbackActive: isActive,
     users: room?.users ?? [],
+    presenceReady: room?.presenceReady ?? false,
     latencyMs: room?.latencyMs ?? null,
     serverOffsetMs: room?.offsetMs ?? null,
   };
@@ -1152,25 +1323,6 @@ export default function App() {
     }
   }, [isActive, isLoadingTrack, selectedTrack, playingTrackName, loadTrackAssets, loadAttempt]);
 
-  // One autoplay decision, after preload and (online) the room readiness barrier.
-  useEffect(() => {
-    const name = autoStartRequestedFor;
-    if (name && (!autoplay || name !== selectedTrack)) {
-      setAutoStartRequestedFor(null);
-      return;
-    }
-    if (!name || name !== selectedTrack || name !== playingTrackName || isLoadingTrack || isActive) return;
-    const sectionName = tracks[name]?.firstSection;
-    if (!sectionName) return;
-    if (room.onlineActive) {
-      if (!isActiveRole || !room.connected || !room.allReady) return;
-      room.requestPlay({ trackName: name, sectionName });
-    } else {
-      engine.playSection(sectionName);
-    }
-    setAutoStartRequestedFor(null);
-  }, [autoplay, autoStartRequestedFor, selectedTrack, playingTrackName, isLoadingTrack, isActive, tracks, room, isActiveRole, engine]);
-
   // Explicit Play actions are honored after selection/preloading, regardless of Auto-Play.
   useEffect(() => {
     const name = playRequestedFor;
@@ -1183,9 +1335,7 @@ export default function App() {
     } else {
       engine.playSection(sectionName);
     }
-    playRequestedForRef.current = null;
     setPlayRequestedFor(null);
-    setAutoStartRequestedFor(null);
   }, [playRequestedFor, selectedTrack, playingTrackName, isLoadingTrack, isActive, tracks, room, isActiveRole, engine]);
 
   // Set user volume
@@ -1218,7 +1368,6 @@ export default function App() {
     scheduleAtServerTime(serverMs, () => {
       if (engine.getAudioState() !== 'running') {
         setAudioLocked(true);
-        setPendingNetStart({ type: 'PLAY' });
         return;
       }
       engine.clearQueuedSection();
@@ -1235,7 +1384,7 @@ export default function App() {
   }
 
   function pushUndoAction(action) {
-    if (action.previous === action.next && !action.sectionNext) return;
+    if (action.previous === action.next && action.previousPlayAfterRelease === action.nextPlayAfterRelease && !action.sectionNext) return;
     updateUndoHistory(previous => [...previous, { ...action, id: `${Date.now()}-${previous.length}` }]);
   }
 
@@ -1289,6 +1438,7 @@ export default function App() {
 
   function clearTrackQueue({ broadcast = false, pruneHistory = true } = {}) {
     queuedTrackRef.current = null;
+    queuedTrackPlayAfterReleaseRef.current = null;
     setQueuedTrack(null);
     if (pruneHistory) dropUndoActions("track");
     if (broadcast && room.onlineActive && isActiveRole) room.requestClearTrackQueue?.();
@@ -1302,14 +1452,14 @@ export default function App() {
 
     if (action.kind === "stop") {
       if (room.onlineActive && isActiveRole) room.requestCancelStop?.();
-      else engine.cancelStopFade?.();
+      else { engine.cancelStopFade?.(); setCurrentStopFadePhase(null); }
     } else if (action.kind === "track") {
       if (action.stopPending || action.sectionNext) setReplacementInProgress(false);
       if (action.stopPending) {
         if (room.onlineActive && isActiveRole) room.requestCancelStop?.();
-        else engine.cancelStopFade?.();
+        else { engine.cancelStopFade?.(); setCurrentStopFadePhase(null); }
       }
-      if (action.previous) void addTrackToQueue(action.previous, { recordUndo: false });
+      if (action.previous) void addTrackToQueue(action.previous, { recordUndo: false, playAfterRelease: action.previousPlayAfterRelease ?? null });
       else clearTrackQueue({ broadcast: true, pruneHistory: false });
       if (action.sectionNext && queuedSectionRef.current === action.sectionNext) {
         applySectionQueue(action.sectionPrevious || null);
@@ -1321,30 +1471,47 @@ export default function App() {
     }
   }
 
-  async function requestTrackPlayback(name, { alwaysStop = false } = {}) {
+  useLayoutEffect(() => { undoShortcutRef.current = undoLastQueuedChange; });
+
+  useEffect(() => {
+    if (!isActiveRole || undoHistory.length === 0) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key.toLowerCase() !== "z" || (!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey || event.defaultPrevented) return;
+      if (event.target?.closest?.("input, textarea, select, [contenteditable], [role='textbox']")) return;
+      if (document.querySelector('[aria-modal="true"]') || undoHistoryRef.current.length === 0) return;
+      event.preventDefault();
+      undoShortcutRef.current?.();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isActiveRole, undoHistory.length]);
+
+  async function requestTrackPlayback(name, { alwaysStop = false, shouldPlay = true } = {}) {
     if (!name || (!isActiveRole && room.onlineActive)) return;
     await engine.unlockAudio?.();
+    if (engine.getAudioState?.() === "running") setAudioLocked(false);
     if (!isActive) {
       clearTrackQueue({ broadcast: true });
       selectTrackForRoom(name);
-      requestPlaybackAfterLoad(name);
+      if (shouldPlay) requestPlaybackAfterLoad(name);
+      else setPlayRequestedFor(null);
       return;
     }
 
     if (replacementPendingRef.current) {
-      void addTrackToQueue(name);
+      void addTrackToQueue(name, { playAfterRelease: shouldPlay });
       return;
     }
 
     // While another track is active, prepare the requested track without
-    // disturbing live playback. The Stop callback consumes this queue and
-    // applies the user's Auto-Play preference.
+    // disturbing live playback. The explicit Play or Load choice follows the queue.
     const previousTrack = queuedTrackRef.current;
+    const previousPlayAfterRelease = queuedTrackPlayAfterReleaseRef.current;
     const previousSection = queuedSectionRef.current;
     setReplacementInProgress(true);
-    void addTrackToQueue(name, { recordUndo: false });
+    void addTrackToQueue(name, { recordUndo: false, playAfterRelease: shouldPlay });
     if (alwaysStop || isPaused) {
-      pushUndoAction({ kind: "track", previous: previousTrack, next: name, stopPending: true });
+      pushUndoAction({ kind: "track", previous: previousTrack, next: name, previousPlayAfterRelease, nextPlayAfterRelease: shouldPlay, stopPending: true });
       handleStop({ recordUndo: false });
       return;
     }
@@ -1361,23 +1528,28 @@ export default function App() {
         kind: "track",
         previous: previousTrack,
         next: name,
+        previousPlayAfterRelease,
+        nextPlayAfterRelease: shouldPlay,
         sectionPrevious: previousSection,
         sectionNext: endSection,
       });
     } else {
-      pushUndoAction({ kind: "track", previous: previousTrack, next: name, stopPending: true });
+      pushUndoAction({ kind: "track", previous: previousTrack, next: name, previousPlayAfterRelease, nextPlayAfterRelease: shouldPlay, stopPending: true });
       handleStop({ recordUndo: false });
     }
   }
 
-  async function addTrackToQueue(name, { recordUndo = true, broadcast = true } = {}) {
+  async function addTrackToQueue(name, { recordUndo = true, broadcast = true, playAfterRelease = null } = {}) {
     if (!name || (!isActiveRole && room.onlineActive)) return;
     const previous = queuedTrackRef.current;
-    if (previous === name) return;
-    if (recordUndo) pushUndoAction({ kind: "track", previous, next: name });
+    const previousPlayAfterRelease = queuedTrackPlayAfterReleaseRef.current;
+    if (previous === name && previousPlayAfterRelease === playAfterRelease) return;
+    if (recordUndo) pushUndoAction({ kind: "track", previous, next: name, previousPlayAfterRelease, nextPlayAfterRelease: playAfterRelease });
     queuedTrackRef.current = name;
+    queuedTrackPlayAfterReleaseRef.current = playAfterRelease;
     setQueuedTrack(name);
-    if (broadcast && room.onlineActive && isActiveRole) room.requestQueueTrack?.(name);
+    if (broadcast && room.onlineActive && isActiveRole) room.requestQueueTrack?.(name, { playAfterRelease });
+    if (previous === name) return;
     try {
       const assets = await getTrackAssets(name);
       await engine.cacheTrackBuffers(name, assets.clips, { basePath: assets.basePath });
@@ -1409,25 +1581,34 @@ export default function App() {
     Object.keys(sections).length > 0 &&
     !Object.values(sections).some((section) => section?.type === "end")
   );
+  const changeAutoplay = (next) => {
+    if (autoplaySuspendedRef.current) return;
+    setAutoplay(!!next);
+    if (room.onlineActive && isActiveRole) room.requestSetAutoplay?.(!!next);
+  };
 
   return (
-    <div className={`app-shell ${libraryExpanded ? "is-library-expanded" : "is-library-collapsed"} ${resizingLibrary ? "is-library-resizing" : ""} ${showStatus ? "" : "is-status-hidden"} ${isReadOnlyRole ? "is-role-read-only" : ""}`} style={{
+    <div className={`app-shell ${libraryExpanded ? "is-library-expanded" : "is-library-collapsed"} ${resizingLibrary ? "is-library-resizing" : ""} ${showStatus ? "" : "is-status-hidden"} ${isReadOnlyRole ? "is-role-read-only" : ""} ${pinnedPeopleBottom > 0 ? "is-people-pinned" : ""}`} style={{
       fontFamily: "sans-serif",
       padding: 20,
-      "--library-width": `${libraryWidth}px`
+      "--library-width": `${libraryWidth}px`,
+      "--pinned-people-bottom": `${pinnedPeopleBottom}px`,
       }}>
 
       <AboutModal
         open={showAbout}
-        onClose={() => setShowAbout(false)}
-        iconSrc={useAlternateIcon ? icon2bUrl : icon1Url}
+        onClose={handleAboutClose}
+        iconSrc={selectedLogo.src}
         section={aboutSection}
         onSectionChange={setAboutSection}
       />
 
       <LeftPanel
         roomState={roomState}
+        showClockOffset={showClockOffset}
+        showLatency={showLatency}
         setRoomId={setRoomId}
+        onSessionSelect={handleSessionSelect}
         currentRoomId={roomId}
         role={role}
         setRole={setRole}
@@ -1438,11 +1619,22 @@ export default function App() {
         themeChoices={themeChoices}
         onChooseTheme={chooseTheme}
         room={room}
-        libraryDocked={libraryExpanded && !isReadOnlyRole}
-        volumeExpanded={userVolumeOpen}
+        open={activeDrawer === "sessions"}
+        onOpenChange={(open) => setActiveDrawer(open ? "sessions" : null)}
+        onPinnedPeopleBottomChange={setPinnedPeopleBottom}
+      />
+      <AppMenu
+        open={activeDrawer === "menu"}
+        onOpenChange={(open) => setActiveDrawer(open ? "menu" : null)}
         canAccessDatabase={isActiveRole}
         onOpenDatabase={() => setDbOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        volumeExpanded={userVolumeOpen}
+        onVolumeExpandedChange={setUserVolumeOpen}
+        volume={userVolume}
+        onVolumeChange={setUserVolume}
+        muted={userMuted}
+        onMutedChange={setUserMuted}
       />
 
       {!isReadOnlyRole && (
@@ -1452,25 +1644,26 @@ export default function App() {
               tracks={tracks}
               selectedTrack={selectedTrack}
               playingTrack={isActive ? playingTrackName : null}
+              hasLoadedTrack={!!playingTrackName}
               queuedTrack={queuedTrack}
               queuedTrackProgress={queuedTrackProgress}
-              autoplay={autoplay}
               undoEffect={undoEffect}
               disabled={!isActiveRole && room.onlineActive}
-              sortMode={dbSort}
-              dynamicFirst={dbDynamicFirst}
-              hideTests={dbHideTests}
+              sortMode={librarySort}
+              onChangeSort={setLibrarySort}
+              getTrackAssets={getTrackAssets}
+              filters={libraryFilters}
+              onChangeFilters={setLibraryFilters}
               pinned={pinned}
               names={names}
               onPlay={(name) => requestTrackPlayback(name)}
-              onStopThenPlay={(name) => requestTrackPlayback(name, { alwaysStop: true })}
+              onPlayAfterEnding={(name) => requestTrackPlayback(name, { shouldPlay: true })}
+              onPlayAfterStopping={(name) => requestTrackPlayback(name, { alwaysStop: true, shouldPlay: true })}
+              onLoadAfterEnding={(name) => requestTrackPlayback(name, { shouldPlay: false })}
+              onLoadAfterStopping={(name) => requestTrackPlayback(name, { alwaysStop: true, shouldPlay: false })}
               onAddToQueue={addTrackToQueue}
               onCollapse={() => setLibraryExpanded(false)}
               onNavigateToControls={() => setMobileView("controls")}
-              onAutoplayChange={(next) => {
-                setAutoplay(!!next);
-                if (room.onlineActive && isActiveRole) room.requestSetAutoplay?.(!!next);
-              }}
             />
             <button
               type="button"
@@ -1505,55 +1698,35 @@ export default function App() {
         </>
       )}
 
-      {audioLocked && room.onlineActive && (
+      {audioLocked && room.onlineActive && !showAbout && engine.getAudioState?.() !== "running" && (
         <div
-          style={{
-            position: "fixed",
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(0,0,0,0.5)",   // dark backdrop
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            zIndex: 9999
-          }}
-          onClick={handleEnableAudio} // optional: close modal when clicking backdrop
+          className="audio-unlock-overlay"
+          onClick={handleEnableAudio}
         >
           <div
-            style={{
-              background: "rgba(20,20,20,0.95)",
-              color: "#fff",
-              padding: "20px 24px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.15)",
-              maxWidth: 400,
-              width: "100%",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.3)"
-            }}
-            onClick={(e) => e.stopPropagation()} // prevent closing when clicking inside
+            className="audio-unlock-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="audio-unlock-title"
+            aria-describedby="audio-unlock-description"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div style={{ fontWeight: 600, marginBottom: 12 }}>
-              Audio is paused by the browser
-            </div>
-            <button
-              onClick={handleEnableAudio}
-              style={{
-                cursor: "pointer",
-                padding: "8px 14px",
-                borderRadius: 6,
-                border: "1px solid #aaa",
-                background: "#1e90ff",
-                color: "#fff",
-              }}
-            >
-              Enable audio
+            <div className="audio-unlock-panel__icon"><Icon name="headphones" size={25} /></div>
+            <div className="audio-unlock-panel__eyebrow">AUDIO PAUSED</div>
+            <h2 id="audio-unlock-title">Enable audio</h2>
+            <p id="audio-unlock-description">
+              Your browser has paused sound for this session. Enable it to hear the music and stay in sync.
+            </p>
+            <button type="button" className="audio-unlock-panel__button" onClick={handleEnableAudio} autoFocus>
+              <Icon name="play" size={17} />
+              <span>Enable audio</span>
             </button>
           </div>
         </div>
       )}
 
       <main className={`app-main ${effectiveMobileView === "controls" ? "is-mobile-active" : ""}`} style={{ width: "100%", maxWidth: 760, margin: "0 auto", flexDirection: "column" }}>
-      <h1 className="visually-hidden">Wizamp</h1>
+      <h1 className="visually-hidden">Gizmagick</h1>
 
       <div className="playback-dock">
       {/* Simple tracks expose their linear timeline directly for seeking. */}
@@ -1614,8 +1787,9 @@ export default function App() {
       {!isPassiveRole && (
         <Transport
           disabled={!isActiveRole && room.onlineActive}
-          primaryDisabled={!playingTrackName || replacementPending}
-          stopDisabled={replacementPending}
+          primaryDisabled={(!playingTrackName && !queuedTrack) || replacementPending}
+          stopDisabled={replacementPending && !stopFadePhase}
+          stopFadePhase={stopFadePhase}
           isLoadingTrack={isLoadingTrack}
           isPlaying={isPlaying}
           isPaused={isPaused}
@@ -1628,6 +1802,7 @@ export default function App() {
           undoLabel={undoHistory.at(-1)?.kind === "stop" ? "Undo stop" : undefined}
           isStopHighlighted={isStopHighlighted}
           unlockAudio={() => engine.unlockAudio?.()}
+          leftControl={<AutoplayButton key={autoplayFlashId} enabled={autoplay && !autoplaySuspended} onToggle={changeAutoplay} disabled={autoplaySuspended || (!isActiveRole && room.onlineActive)} flashing={autoplayFlashing} suspended={autoplaySuspended} />}
           rightControl={selectedTrack ? (
             <TrackVolumeControl
               open={trackVolUIOpen}
@@ -1646,16 +1821,17 @@ export default function App() {
         />
       )}
 
-      {/* Playback queue and shared track-volume control */}
+      {/* Playback queue with mirrored Auto-Play and track-volume controls */}
         <div className={`now-playing desktop-now-playing ${undoEffect?.kind === "track" ? "is-undoing" : ""}`}>
+          {!isPassiveRole && <div className="now-playing__side"><AutoplayButton key={autoplayFlashId} enabled={autoplay && !autoplaySuspended} onToggle={changeAutoplay} disabled={autoplaySuspended || (!isActiveRole && room.onlineActive)} flashing={autoplayFlashing} suspended={autoplaySuspended} /></div>}
           <QueueIndicator currentTrack={playingTrackName} queuedTrack={queuedTrack} queuedTrackProgress={queuedTrackProgress} titleFor={getTrackTitle} />
 
-          {selectedTrack && !isPassiveRole && (
+          {!isPassiveRole && <div className="now-playing__side">
             <TrackVolumeControl
               open={trackVolUIOpen}
               onOpenChange={setTrackVolUIOpen}
               volume={trackVolume}
-              disabled={!isActiveRole}
+              disabled={!playingTrackName || !isActiveRole}
               onVolumeChange={(volume) => {
                 setTrackVolume(volume);
                 engine.setTrackVolume?.(volume);
@@ -1664,7 +1840,7 @@ export default function App() {
                 }
               }}
             />
-          )}
+          </div>}
         </div>
       </div>
       </main>
@@ -1677,36 +1853,7 @@ export default function App() {
         </section>
       )}
 
-      {autoStartRequestedFor && (
-        <div className="autoplay-pending">
-          Autoplay pending… <span style={{ opacity: 0.8 }}>{autoStartRequestedFor}</span>
-        </div>
-      )}
-
-      <div className={`utility-dock ${showStatus ? "" : "status-hidden"}`}>
-        {showStatus && <StatusBar text={displayedStatus} history={statusHistory} />}
-        <div className="utility-dock__volume">
-          <VolumeControl
-            expanded={userVolumeOpen}
-            onExpandedChange={setUserVolumeOpen}
-            volume={userVolume}
-            onVolumeChange={setUserVolume}
-            muted={userMuted}
-            onMutedChange={setUserMuted}
-          />
-        </div>
-      </div>
-
-      <div className="mobile-main-volume">
-        <VolumeControl
-          expanded={userVolumeOpen}
-          onExpandedChange={setUserVolumeOpen}
-          volume={userVolume}
-          onVolumeChange={setUserVolume}
-          muted={userMuted}
-          onMutedChange={setUserMuted}
-        />
-      </div>
+      {showStatus && <div className="utility-dock"><StatusBar text={displayedStatus} history={statusHistory} /></div>}
 
       <div className="mobile-queue-shortcut">
         <QueueIndicator
@@ -1720,7 +1867,7 @@ export default function App() {
           navigationControl={!isReadOnlyRole ? (
             <PrimaryPlaybackButton
               compact
-              disabled={!playingTrackName || replacementPending || (!isActiveRole && room.onlineActive)}
+              disabled={(!playingTrackName && !queuedTrack) || replacementPending || (!isActiveRole && room.onlineActive)}
               isLoadingTrack={isLoadingTrack}
               isPlaying={isPlaying}
               isPaused={isPaused}
@@ -1764,24 +1911,24 @@ export default function App() {
         setPauseFadeSeconds={setPauseFadeSeconds}
         showStatus={showStatus}
         setShowStatus={setShowStatus}
+        showClockOffset={showClockOffset}
+        setShowClockOffset={setShowClockOffset}
+        showLatency={showLatency}
+        setShowLatency={setShowLatency}
         showPlayControlsButton={showPlayControlsButton}
         setShowPlayControlsButton={setShowPlayControlsButton}
-        useAlternateIcon={useAlternateIcon}
-        setUseAlternateIcon={setUseAlternateIcon}
+        logoVariant={logoVariant}
+        setLogoVariant={setLogoVariant}
         onOpenAbout={() => { setSettingsOpen(false); setAboutSection("updates"); setShowAbout(true); }}
       />
 
       {/* Database modal */}
-      <DatabaseModal
+      {dbOpen && <DatabaseModal
         open={dbOpen}
         onClose={() => setDbOpen(false)}
         tracks={tracks}
         sortMode={dbSort}
-        dynamicFirst={dbDynamicFirst}
-        hideTests={dbHideTests}
         onChangeSort={setDbSort}
-        onChangeDynamicFirst={setDbDynamicFirst}
-        onChangeHideTests={setDbHideTests}
         pinned={pinned}
         onTogglePin={togglePin}
         names={names}                 // NEW
@@ -1845,7 +1992,7 @@ export default function App() {
             return next;
           });
         }}
-      />
+      />}
 
       <CursorEffect enabled={cursorEffectEnabled} themeId={activeTheme.id} effect={activeTheme.cursorEffect} />
     </div>

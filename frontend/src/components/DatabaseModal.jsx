@@ -1,6 +1,8 @@
-import { orderTracks, trackTitle } from "../data/trackOrdering";
+import { activeTrackFilterCount, DEFAULT_TRACK_FILTERS, orderTracks, trackTitle } from "../data/trackOrdering";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Icon from "./Icon";
+import TrackFilterControls from "./TrackFilterControls";
 
 /** Helper: consider a track "dynamic" when simple === false */
 const isDynamic = (t) => t?.simple === false;
@@ -13,11 +15,7 @@ export default function DatabaseModal({
   tracks, // { [trackName]: { defaultDisplayName, basePath, simple, test?, ... } }
   // Controlled prefs
   sortMode = "alpha-asc",     // "alpha-asc" | "alpha-desc"
-  dynamicFirst = true,
-  hideTests = false,
   onChangeSort,
-  onChangeDynamicFirst,
-  onChangeHideTests,
   pinned,                     // Set<string>
   onTogglePin,                // (name) => void
   onApplyRename,
@@ -28,15 +26,123 @@ export default function DatabaseModal({
   const [sectionsByTrack, setSectionsByTrack] = useState({});               // cache: { trackName: { sections } }
   const [loadingTrack, setLoadingTrack] = useState(null);
   const [trackMenuOpen, setTrackMenuOpen] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 760px)").matches);
+  const [sheetOffset, setSheetOffset] = useState(0);
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const [sheetInteracted, setSheetInteracted] = useState(false);
+  const menuTriggerRef = useRef(null);
+  const sheetRef = useRef(null);
+  const sheetGestureRef = useRef(null);
+  const sheetDraggedRef = useRef(false);
+  const trackHoldRef = useRef(null);
+  const suppressTrackClickRef = useRef(false);
+  const [filters, setFilters] = useState(() => ({ ...DEFAULT_TRACK_FILTERS }));
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const filterButtonRef = useRef(null);
+  const sortButtonRef = useRef(null);
+  const activeFilterCount = activeTrackFilterCount(filters);
 
   useEffect(() => {
-    if (!trackMenuOpen) return;
+    const query = window.matchMedia("(max-width: 760px)");
+    const update = () => setIsMobile(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!trackMenuOpen || isMobile) return;
     const closeMenu = (event) => {
       if (!event.target.closest(".database-track-actions")) setTrackMenuOpen(null);
     };
     document.addEventListener("pointerdown", closeMenu);
     return () => document.removeEventListener("pointerdown", closeMenu);
-  }, [trackMenuOpen]);
+  }, [trackMenuOpen, isMobile]);
+
+  useEffect(() => {
+    if (!trackMenuOpen || !isMobile) return undefined;
+    sheetRef.current?.querySelector(".track-browser__sheet-actions button")?.focus();
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setTrackMenuOpen(null);
+      menuTriggerRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [trackMenuOpen, isMobile]);
+
+  const dismissSheet = () => {
+    setTrackMenuOpen(null);
+    setSheetOffset(0);
+    setSheetDragging(false);
+    setSheetInteracted(false);
+    menuTriggerRef.current?.focus();
+  };
+
+  const onSheetPointerDown = (event) => {
+    if (event.pointerType === "mouse" && !event.target.closest(".track-browser__sheet-handle")) return;
+    sheetGestureRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+  };
+
+  const onSheetPointerMove = (event) => {
+    const gesture = sheetGestureRef.current;
+    if (gesture?.pointerId !== event.pointerId) return;
+    const deltaY = event.clientY - gesture.y;
+    if (!gesture.dragging && (deltaY < 8 || deltaY < Math.abs(event.clientX - gesture.x))) return;
+    if (!gesture.dragging) {
+      gesture.dragging = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    setSheetDragging(true);
+    setSheetInteracted(true);
+    gesture.offset = Math.max(0, deltaY);
+    setSheetOffset(gesture.offset);
+  };
+
+  const onSheetPointerUp = () => {
+    const gesture = sheetGestureRef.current;
+    sheetGestureRef.current = null;
+    if (!gesture?.dragging) return;
+    sheetDraggedRef.current = true;
+    window.setTimeout(() => { sheetDraggedRef.current = false; }, 300);
+    if (gesture.offset > 90) dismissSheet();
+    else { setSheetOffset(0); setSheetDragging(false); }
+  };
+
+  const onSheetPointerCancel = () => {
+    sheetGestureRef.current = null;
+    setSheetOffset(0);
+    setSheetDragging(false);
+  };
+
+  const cancelTrackHold = () => {
+    if (trackHoldRef.current?.timer) window.clearTimeout(trackHoldRef.current.timer);
+    trackHoldRef.current = null;
+  };
+
+  const onTrackPointerDown = (event, trackName) => {
+    if (!isMobile || event.pointerType === "mouse" || event.target.closest("button")) return;
+    cancelTrackHold();
+    const row = event.currentTarget;
+    const hold = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    hold.timer = window.setTimeout(() => {
+      if (trackHoldRef.current !== hold) return;
+      suppressTrackClickRef.current = true;
+      menuTriggerRef.current = row.querySelector(".database-track-menu-button");
+      setSheetOffset(0);
+      setSheetInteracted(false);
+      setTrackMenuOpen(trackName);
+      navigator.vibrate?.(12);
+      window.setTimeout(() => { suppressTrackClickRef.current = false; }, 800);
+    }, 500);
+    trackHoldRef.current = hold;
+  };
+
+  const onTrackPointerMove = (event) => {
+    const hold = trackHoldRef.current;
+    if (hold?.pointerId === event.pointerId && Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > 10) cancelTrackHold();
+  };
 
   // Rename modal state
   const [renameOpen, setRenameOpen] = useState(false);
@@ -65,8 +171,8 @@ export default function DatabaseModal({
   };
 
   const sortedTrackNames = useMemo(() => orderTracks(tracks, {
-    sortMode, dynamicFirst, hideTests, pinned, names,
-  }), [tracks, sortMode, dynamicFirst, hideTests, pinned, names]);
+    sortMode, filters, pinned, names,
+  }), [tracks, sortMode, filters, pinned, names]);
 
   const fetchSectionsIfNeeded = async (trackName) => {
     if (sectionsByTrack[trackName]) return sectionsByTrack[trackName];
@@ -230,42 +336,35 @@ export default function DatabaseModal({
           borderBottom: "1px solid #444", padding: "8px 12px",
           display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap"
         }}>
-          <label className="database-toolbar__sort" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: "#bbb" }}>Sort:</span>
-            <select
-              value={sortMode}
-              onChange={(e) => onChangeSort?.(e.target.value)}
-              style={{ padding: "4px 6px", borderRadius: 6, background: "#222", color: "white", border: "1px solid #555" }}
-            >
-              <option value="alpha-asc">alphabetical (ascending)</option>
-              <option value="alpha-desc">alphabetical (descending)</option>
-            </select>
-          </label>
-
-          <label className="database-check">
-            <span>Keep dynamic on top</span>
-            <span className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={dynamicFirst}
-                onChange={(e) => onChangeDynamicFirst?.(e.target.checked)}
-                disabled={!(sortMode === "alpha-asc" || sortMode === "alpha-desc")}
-              />
-              <span aria-hidden="true" />
-            </span>
-          </label>
-
-          <label className="database-check">
-            <span>Hide test tracks</span>
-            <span className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={hideTests}
-                onChange={(e) => onChangeHideTests?.(e.target.checked)}
-              />
-              <span aria-hidden="true" />
-            </span>
-          </label>
+          <button
+            ref={filterButtonRef}
+            type="button"
+            className="track-browser__filter-button database-toolbar__control"
+            aria-expanded={filtersOpen}
+            aria-controls="database-filters"
+            onClick={() => {
+              setSortOpen(false);
+              setFiltersOpen(value => !value);
+            }}
+          >
+            <Icon name="filter" size={16} />
+            <span>Filters</span>
+            {activeFilterCount > 0 && <span className="database-filter-count">{activeFilterCount}</span>}
+          </button>
+          <button
+            ref={sortButtonRef}
+            type="button"
+            className="track-browser__sort-button database-toolbar__control"
+            aria-expanded={sortOpen}
+            aria-controls="database-sort"
+            onClick={() => {
+              setFiltersOpen(false);
+              setSortOpen(value => !value);
+            }}
+          >
+            <Icon name="sort" size={16} />
+            <span>Sort</span>
+          </button>
 
           <div className="database-toolbar__actions" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button
@@ -283,6 +382,47 @@ export default function DatabaseModal({
               collapse all
             </button>
           </div>
+          {filtersOpen && <TrackFilterControls
+            id="database-filters"
+            filters={filters}
+            onChange={setFilters}
+            shownCount={sortedTrackNames.length}
+            totalCount={Object.keys(tracks || {}).length}
+            onEscape={() => {
+                setFiltersOpen(false);
+                filterButtonRef.current?.focus();
+            }}
+          />}
+          {sortOpen && <div
+            className="track-sort database-toolbar__sort-menu"
+            id="database-sort"
+            role="group"
+            aria-label="Sort tracks"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                setSortOpen(false);
+                sortButtonRef.current?.focus();
+              }
+            }}
+          >
+            {[["alpha-asc", "A to Z"], ["alpha-desc", "Z to A"]].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={sortMode === value ? "is-active" : ""}
+                aria-pressed={sortMode === value}
+                onClick={() => {
+                  onChangeSort?.(value);
+                  setSortOpen(false);
+                  sortButtonRef.current?.focus();
+                }}
+              >
+                <Icon name="sort" size={15} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>}
         </div>
 
         {/* Scrollable body */}
@@ -295,6 +435,12 @@ export default function DatabaseModal({
 
           {/* Tracks */}
           <div>
+            {sortedTrackNames.length === 0 && (
+              <div className="database-empty" role="status">
+                <p>No tracks match these filters.</p>
+                <button type="button" className="database-button database-button--quiet" onClick={() => setFilters({ ...DEFAULT_TRACK_FILTERS })}>Show all tracks</button>
+              </div>
+            )}
             {sortedTrackNames.map((trackName) => {
               const t = tracks[trackName];
               const expanded = expandedTracks.has(trackName);
@@ -307,6 +453,18 @@ export default function DatabaseModal({
                   {/* Track row */}
                   <div
                     className={`database-row database-row--track ${expanded ? "is-expanded" : ""} ${trackMenuOpen === trackName ? "is-menu-open" : ""}`}
+                    onPointerDown={(event) => onTrackPointerDown(event, trackName)}
+                    onPointerMove={onTrackPointerMove}
+                    onPointerUp={cancelTrackHold}
+                    onPointerCancel={cancelTrackHold}
+                    onContextMenu={(event) => { if (isMobile) event.preventDefault(); }}
+                    onSelectStart={(event) => { if (isMobile) event.preventDefault(); }}
+                    onClickCapture={(event) => {
+                      if (!suppressTrackClickRef.current) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      suppressTrackClickRef.current = false;
+                    }}
                     style={{
                       display: "grid",
                       gridTemplateColumns: "24px 1fr 32px", // expand, label, actions
@@ -356,11 +514,17 @@ export default function DatabaseModal({
                           className="database-track-menu-button"
                           aria-label={`Actions for ${titleForTrack(trackName, t)}`}
                           aria-expanded={trackMenuOpen === trackName}
-                          onClick={() => setTrackMenuOpen((current) => current === trackName ? null : trackName)}
+                          onClick={(event) => {
+                            menuTriggerRef.current = event.currentTarget;
+                            sheetDraggedRef.current = false;
+                            setSheetOffset(0);
+                            setSheetInteracted(false);
+                            setTrackMenuOpen((current) => current === trackName ? null : trackName);
+                          }}
                         >
                           <Icon name="moreVertical" size={19} />
                         </button>
-                        {trackMenuOpen === trackName && (
+                        {trackMenuOpen === trackName && !isMobile && (
                           <div className="database-track-menu" role="menu">
                             <button
                               type="button"
@@ -490,6 +654,54 @@ export default function DatabaseModal({
           </div>
         </div>
       </div>
+
+      {trackMenuOpen && isMobile && createPortal(
+        <div className="track-browser__sheet-layer database-track-sheet-layer" onContextMenu={(event) => event.preventDefault()}>
+          <div className="track-browser__sheet-backdrop" aria-hidden="true" onClick={dismissSheet} />
+          <div
+            className={`track-browser__sheet ${sheetDragging ? "is-dragging" : ""} ${sheetInteracted ? "has-dragged" : ""}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Actions for ${titleForTrack(trackMenuOpen, tracks[trackMenuOpen])}`}
+            ref={sheetRef}
+            style={sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : undefined}
+            onPointerDown={onSheetPointerDown}
+            onPointerMove={onSheetPointerMove}
+            onPointerUp={onSheetPointerUp}
+            onPointerCancel={onSheetPointerCancel}
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              const buttons = [...event.currentTarget.querySelectorAll("button")];
+              if (!buttons.length) return;
+              if (event.shiftKey && document.activeElement === buttons[0]) {
+                event.preventDefault();
+                buttons.at(-1).focus();
+              } else if (!event.shiftKey && document.activeElement === buttons.at(-1)) {
+                event.preventDefault();
+                buttons[0].focus();
+              }
+            }}
+            onClickCapture={(event) => {
+              if (!sheetDraggedRef.current) return;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <div className="track-browser__sheet-handle" aria-hidden="true"><span /></div>
+            <div className="track-browser__sheet-heading">
+              <div><small>Track actions</small><strong>{titleForTrack(trackMenuOpen, tracks[trackMenuOpen])}</strong></div>
+            </div>
+            <div className="track-browser__sheet-actions">
+              <button type="button" onClick={() => { onTogglePin?.(trackMenuOpen); dismissSheet(); }}>
+                <Icon name="pin" size={17} />{pinned?.has(trackMenuOpen) ? "Unpin" : "Pin"}
+              </button>
+              <button type="button" onClick={() => { const name = trackMenuOpen; setTrackMenuOpen(null); openRenameForTrack(name); }}>
+                <Icon name="pencil" size={17} />Rename
+              </button>
+            </div>
+          </div>
+        </div>, document.body
+      )}
 
       {/* Rename modal */}
       {renameOpen && (
@@ -642,6 +854,40 @@ function RenameableLabel({ children, className = "", onPrimaryClick, onRename, t
 function RenameModal({ target, fields, defaults, onChangeFields, onResetField, onClose, onSave }) {
   const overlayRef = useRef(null);
   const overlayMouseDownRef = useRef(false);
+  const dragRef = useRef(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [hasDragged, setHasDragged] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") { event.stopPropagation(); onClose?.(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+  const onDragPointerDown = (event) => {
+    if (!window.matchMedia("(max-width: 760px)").matches || event.target.closest("input, button") || (event.pointerType === "mouse" && !event.target.closest(".rename-modal__handle"))) return;
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+  };
+  const onDragPointerMove = (event) => {
+    const drag = dragRef.current;
+    if (drag?.pointerId !== event.pointerId) return;
+    const deltaY = event.clientY - drag.y;
+    if (!drag.dragging && (deltaY < 8 || deltaY < Math.abs(event.clientX - drag.x))) return;
+    if (!drag.dragging) { drag.dragging = true; event.currentTarget.setPointerCapture(event.pointerId); }
+    setIsDragging(true);
+    setHasDragged(true);
+    drag.offset = Math.max(0, deltaY);
+    setDragOffset(drag.offset);
+  };
+  const onDragPointerUp = () => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag?.dragging) return;
+    if (drag.offset > 90) onClose?.();
+    else { setDragOffset(0); setIsDragging(false); }
+  };
+  const onDragPointerCancel = () => { dragRef.current = null; setDragOffset(0); setIsDragging(false); };
   const handleOverlayMouseDown = (e) => { overlayMouseDownRef.current = (e.target === overlayRef.current); };
   const handleOverlayMouseUp   = (e) => {
     if (e.target === overlayRef.current && overlayMouseDownRef.current) onClose?.();
@@ -773,22 +1019,19 @@ function RenameModal({ target, fields, defaults, onChangeFields, onResetField, o
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="rename-modal"
-        style={{
-          width: 520, background: "#2b2b2b", color: "white",
-          borderRadius: 12, padding: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.35)"
-        }}
+        className={`rename-modal ${isDragging ? "is-dragging" : ""} ${hasDragged ? "has-dragged" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onPointerDown={onDragPointerDown}
+        onPointerMove={onDragPointerMove}
+        onPointerUp={onDragPointerUp}
+        onPointerCancel={onDragPointerCancel}
+        style={{ transform: dragOffset ? `translateY(${dragOffset}px)` : undefined }}
       >
-        <div className="rename-modal__header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="rename-modal__handle" aria-hidden="true"><span /></div>
+        <div className="rename-modal__header">
           <h3 style={{ margin: 0, fontSize: 16 }}>{title}</h3>
-          <button
-            onClick={onClose}
-            className="database-icon-button"
-            style={{ background: "transparent", border: "none", color: "white", fontSize: 18, cursor: "pointer" }}
-            aria-label="Close"
-          >
-            <Icon name="close" size={18} />
-          </button>
         </div>
 
         {/* FORM */}

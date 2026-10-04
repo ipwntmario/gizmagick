@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AudioEngine } from '../src/audio/audioEngine.js';
+import { heldStopFadeSeconds } from '../src/audio/stopFade.js';
 import { orderTracks } from '../src/data/trackOrdering.js';
 import { findSelectableEndSection } from '../src/data/sectionTransitions.js';
 
@@ -96,6 +97,78 @@ test('stop cancels scheduled-position transitions', () => withTimers(timers => {
   assert.equal(timers.has(boundaryId), false);
   assert.equal(engine.isPlaying, false);
 }));
+
+test('held stop uses half of short fades, caps long fades, and keeps zero immediate', () => {
+  assert.equal(heldStopFadeSeconds(6), 0.5);
+  assert.equal(heldStopFadeSeconds(1.1), 0.5);
+  assert.equal(heldStopFadeSeconds(1), 0.5);
+  assert.equal(heldStopFadeSeconds(0.75), 0.375);
+  assert.equal(heldStopFadeSeconds(0.5), 0.25);
+  assert.equal(heldStopFadeSeconds(0.2), 0.1);
+  assert.equal(heldStopFadeSeconds(0), 0);
+});
+
+test('a held stop overrides only that stop without changing the saved engine fade', () => withTimers(() => {
+  const engine = fixture();
+  engine.setFadeOutSeconds(6);
+  engine.stopTrack(true, heldStopFadeSeconds(engine.fadeOutSeconds));
+  assert.equal(engine._stopFadeDuration, 0.5);
+  assert.equal(engine.fadeOutSeconds, 6);
+}));
+
+test('a second stop shortens an active fade from its current volume', () => withTimers(() => {
+  const engine = fixture();
+  engine.setFadeOutSeconds(6);
+  engine.stopTrack(true);
+  engine.audioCtx.currentTime = 3;
+  engine.stopTrack(true, 0.5);
+  assert.equal(engine._stopFadeDuration, 0.5);
+  assert.equal(engine._stopPendingUntil, 3.5);
+  assert.ok(Math.abs(engine._stopFadeStartGain - 2 / 3) < 0.001);
+}));
+
+test('switching sessions silences playback without reporting a stop', () => withTimers(timers => {
+  const engine = fixture();
+  const statuses = [];
+  let stopped = 0;
+  engine.onStatus = status => statuses.push(status);
+  engine.activeClips.A.source = { stop() { stopped += 1; } };
+  engine.lastPlayingClipName = 'A';
+  engine.currentTrackName = 'Old room track';
+  engine._isPreloaded = true;
+  engine.queuedNextSectionName = 'Next';
+  engine.stopTrack(true);
+  const stopTimer = engine._stopFinishTimer;
+
+  engine.resetForSession();
+
+  assert.equal(stopped, 1);
+  assert.equal(timers.has(stopTimer), false);
+  assert.equal(engine.currentTrackName, null);
+  assert.equal(engine.isPlaying, false);
+  assert.equal(engine.isPreloaded, false);
+  assert.equal(engine.queuedNextSectionName, null);
+  assert.deepEqual(statuses, []);
+}));
+
+test('a preload from the old session cannot restore its track', async () => {
+  const engine = fixture();
+  const statuses = [];
+  engine.onStatus = status => statuses.push(status);
+  engine.setData({ clips: { A: { file: 'a.ogg' } }, sections: {}, tracks: {} });
+  let finishDecode;
+  engine._loadBufferWithCache = () => new Promise(resolve => { finishDecode = resolve; });
+
+  const preload = engine.preloadTrack('Old room track');
+  engine.resetForSession();
+  finishDecode({ duration: 10 });
+  await preload;
+
+  assert.equal(engine.currentTrackName, null);
+  assert.equal(engine.isPreloaded, false);
+  assert.deepEqual(engine.activeClips, {});
+  assert.deepEqual(statuses, []);
+});
 
 test('a pending stop fade can be reversed before it completes', () => withTimers(timers => {
   const engine = fixture();
@@ -196,8 +269,18 @@ test('simple tracks expose a timeline and can seek while playing or paused', () 
   assert.equal(engine.getPlaybackInfo().positionSeconds, 4);
 }));
 
-test('catalog ordering keeps pinned tests and honors renamed titles', () => {
+test('catalog ordering respects filters even for pinned tracks and honors renamed titles', () => {
   const tracks = { A: { simple: true }, B: { simple: false }, C: { simple: false, test: true }, D: { test: true } };
-  assert.deepEqual(orderTracks(tracks, { pinned: new Set(['C']), hideTests: true, dynamicFirst: true, sortMode: 'alpha-asc' }), ['C', 'B', 'A']);
+  assert.deepEqual(orderTracks(tracks, { pinned: new Set(['C']), filters: { tests: 'exclude' }, sortMode: 'alpha-asc' }), ['A', 'B']);
+  assert.deepEqual(orderTracks(tracks, { pinned: new Set(['C']), sortMode: 'alpha-desc' }), ['C', 'D', 'B', 'A']);
   assert.deepEqual(orderTracks({ A: {}, B: {} }, { names: { tracks: { A: { displayName: 'Z' } } }, sortMode: 'alpha-asc' }), ['B', 'A']);
+});
+
+test('track type and test status filters intersect independently', () => {
+  const tracks = { dynamic: { simple: false }, dynamicTest: { simple: false, test: true }, simple: { simple: true }, simpleTest: { simple: true, test: true } };
+  assert.deepEqual(orderTracks(tracks, { filters: { simple: false, tests: 'only' } }), ['dynamicTest']);
+  assert.deepEqual(orderTracks(tracks, { filters: { dynamic: false, tests: 'only' } }), ['simpleTest']);
+  assert.deepEqual(orderTracks(tracks, { filters: { tests: 'exclude' } }), ['dynamic', 'simple']);
+  assert.deepEqual(orderTracks(tracks, { filters: { dynamic: false, simple: false } }), []);
+  assert.equal(orderTracks(tracks, { filters: {} }).length, 4);
 });

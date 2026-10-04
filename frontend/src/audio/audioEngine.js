@@ -39,6 +39,7 @@ export class AudioEngine {
     this.scheduledTimeouts = []; // [timeoutId]
     this._playbackToken = 0; // increments each new playClip; stale timers check this
     this._isPreloaded = false;
+    this._preloadToken = 0;
 
     // section & mode state
     this.currentSectionName = null;
@@ -58,6 +59,7 @@ export class AudioEngine {
     this._stopFinishTimer = null;   // timeout id for finishing stop
     this._stopFadeStartedAt = 0;
     this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
 
     // RNG/debug
     this._seed = null;
@@ -180,14 +182,12 @@ export class AudioEngine {
 
     // After the new node ramps in, nuke any other sources so nothing can loop under it.
     const sweepAt = when + 0.03; // 30ms after start
-    const ms = Math.max(0, (sweepAt - this.audioCtx.currentTime) * 1000);
-    setTimeout(() => this._stopAllExcept(fClip), ms);
+    this.schedule(() => this._stopAllExcept(fClip), sweepAt);
 
     // Stop the warm node right after we’ve ramped in the real one
     try {
       const killAt = when + 0.02; // small margin after ramp
-      const killDelayMs = Math.max(0, (killAt - ctx.currentTime) * 1000);
-      setTimeout(() => this._clearWarmStart(), killDelayMs);
+      this.schedule(() => this._clearWarmStart(), killAt);
     } catch {}
 
   }
@@ -428,6 +428,42 @@ export class AudioEngine {
     this._isPreloaded = false;
   }
 
+  // Leaving a session only changes this client's playback. Do not emit a stop
+  // status, since that can release a queued track or affect the room state.
+  resetForSession() {
+    this._preloadToken += 1;
+    this._playbackToken += 1;
+    if (this._stopFinishTimer) clearTimeout(this._stopFinishTimer);
+    this._stopFinishTimer = null;
+    if (this._pauseFinishTimer) clearTimeout(this._pauseFinishTimer);
+    this._pauseFinishTimer = null;
+    this._clearWarmStart();
+    this.clearScheduled();
+    this._clearActiveClipsSilently();
+    this._stopPendingUntil = 0;
+    this._stopFadeStartedAt = 0;
+    this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
+    this.isPaused = false;
+    this.pausedInfo = null;
+    this.lastPlayingClipName = null;
+    this.lastTrackName = null;
+    this.currentTrackName = null;
+    this.currentSectionName = null;
+    this.currentModeName = "base";
+    this.queuedNextSectionName = null;
+    this.queuedNextModeName = null;
+    this._defaultStartSection = null;
+    this.clipData = {};
+    this.sectionData = {};
+    this.sectionModes = new Map();
+    if (this.audioCtx && this.masterGain) {
+      const now = this.audioCtx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(this.userGain, now);
+    }
+  }
+
   /**
    * Hard stop used at a track's true end (end-section, last clip).
    * - No fade
@@ -446,6 +482,7 @@ export class AudioEngine {
     this._stopPendingUntil = 0;
     this._stopFadeStartedAt = 0;
     this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
 
     // Stop all clip sources immediately
     try {
@@ -524,6 +561,7 @@ export class AudioEngine {
 
   async preloadTrack(trackName, opts = {}) {
     const ctx = this.ensureContext();
+    const preloadToken = ++this._preloadToken;
 
     this.lastTrackName = trackName;
 
@@ -570,6 +608,7 @@ export class AudioEngine {
           clipName,
           mode: modeKey
         });
+        if (preloadToken !== this._preloadToken) return;
         buffersByMode[modeKey] = buf;
       }
 
@@ -619,12 +658,12 @@ export class AudioEngine {
   }
 
   // ----- stop -----
-  stopTrack(withFade = true) {
+  stopTrack(withFade = true, fadeSecondsOverride = null) {
     if (!this.audioCtx) return;
 
     const ctx = this.audioCtx;
     const now = ctx.currentTime;
-    const fade = withFade ? Math.max(0, Number(this.fadeOutSeconds ?? 0)) : 0;
+    const fade = withFade ? Math.max(0, Number(fadeSecondsOverride ?? this.fadeOutSeconds) || 0) : 0;
 
     // If a stop is already pending, extend or keep the earliest finish
     if (this._stopFinishTimer) {
@@ -636,10 +675,15 @@ export class AudioEngine {
       // Let all existing transitions continue. Just fade the MASTER to 0.
       try {
         const g = this.masterGain.gain;
+        const previousFadeActive = this._stopPendingUntil > now && this._stopFadeDuration > 0;
+        const previousFadeFraction = previousFadeActive
+          ? Math.max(0, 1 - (now - this._stopFadeStartedAt) / this._stopFadeDuration)
+          : 1;
+        const startGain = previousFadeActive ? this._stopFadeStartGain * previousFadeFraction : g.value;
         g.cancelScheduledValues(now);
-        // start from current master value (likely == userGain)
-        g.setValueAtTime(g.value, now);
+        g.setValueAtTime(startGain, now);
         g.linearRampToValueAtTime(0, now + fade);
+        this._stopFadeStartGain = startGain;
       } catch {}
 
       this._stopPendingUntil = now + fade;
@@ -669,6 +713,7 @@ export class AudioEngine {
         this._stopPendingUntil = 0;
         this._stopFadeStartedAt = 0;
         this._stopFadeDuration = 0;
+        this._stopFadeStartGain = 0;
         this._stopFinishTimer = null;
         this.onStatus?.("Stopped");
       }, fade * 1000 + 50);
@@ -690,6 +735,7 @@ export class AudioEngine {
       this._stopPendingUntil = 0;
       this._stopFadeStartedAt = 0;
       this._stopFadeDuration = 0;
+      this._stopFadeStartGain = 0;
       this._stopFinishTimer = null;
       this.onStatus?.("Stopped");
     }
@@ -711,7 +757,7 @@ export class AudioEngine {
         gain.cancelAndHoldAtTime(now);
       } else {
         const total = Math.max(0.001, this._stopFadeDuration || 0.001);
-        const estimated = (this.userGain ?? 1) * Math.max(0, 1 - (elapsed / total));
+        const estimated = this._stopFadeStartGain * Math.max(0, 1 - (elapsed / total));
         gain.cancelScheduledValues(now);
         gain.setValueAtTime(estimated, now);
       }
@@ -721,6 +767,7 @@ export class AudioEngine {
     this._stopPendingUntil = 0;
     this._stopFadeStartedAt = 0;
     this._stopFadeDuration = 0;
+    this._stopFadeStartGain = 0;
     return true;
   }
 
@@ -1012,9 +1059,10 @@ export class AudioEngine {
     // time remaining from our scheduled start to clipEnd:
     const spanToEnd = Math.max(0, clipEnd - entry.offsetAtStart);
     const msUntilEnd = Math.max(0, (leadSec + spanToEnd) * 1000);
-    setTimeout(() => {
+    const stopId = setTimeout(() => {
       try { src.stop(); } catch {}
     }, msUntilEnd + 10);
+    this.scheduledTimeouts.push(stopId);
 
     // Update current pointers & status
     this.lastPlayingClipName = clipName;
@@ -1073,7 +1121,8 @@ export class AudioEngine {
       g.linearRampToValueAtTime(0, now + fade);
     } catch {}
 
-    setTimeout(() => {
+    this._pauseFinishTimer = setTimeout(() => {
+      this._pauseFinishTimer = null;
       // Compute offset at fade end (simple only)
       let offsetSeconds = null;
       if (simpleTrack) {

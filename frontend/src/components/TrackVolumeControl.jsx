@@ -8,7 +8,7 @@ export default function TrackVolumeControl({ open, onOpenChange, volume, onVolum
       <button
         type="button"
         aria-label="Track volume"
-        aria-expanded={open}
+        aria-expanded={open && !disabled}
         onClick={() => onOpenChange?.(!open)}
         disabled={disabled}
         className="now-playing__volume"
@@ -17,7 +17,7 @@ export default function TrackVolumeControl({ open, onOpenChange, volume, onVolum
         <Icon name={volume === 1 ? "volume" : "volumeLow"} size={19} />
       </button>
 
-      {open && (
+      {open && !disabled && (
         <div className="track-volume-control__popover">
           <div className="track-volume-control__label">Track volume (set for all players)</div>
           <div className="track-volume-control__slider">

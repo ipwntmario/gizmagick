@@ -43,18 +43,27 @@ import DynamicClipPanel from "./components/DynamicClipPanel";
 import CursorEffect from "./components/CursorEffect";
 import { LATEST_RELEASE_SIGNATURE } from "./releaseNotes";
 import { heldStopFadeSeconds } from "./audio/stopFade";
+import { resolveLogo } from "./logos";
 
 export default function App() {
   const { tracks, loading, error: dataError } = useMusicData();  // <- only rely on tracks here
   const [clips, setClips] = useState({});
   const [sections, setSections] = useState({});
 
-  const [useAlternateIcon, setUseAlternateIcon] = useState(() => {
-    try { return localStorage.getItem("wizamp_useAlternateIcon") === "1"; } catch { return false; }
+  const [logoVariant, setLogoVariant] = useState(() => {
+    try {
+      const saved = localStorage.getItem("wizamp_logoVariant");
+      return resolveLogo(saved ?? (localStorage.getItem("wizamp_useAlternateIcon") === "1" ? "white" : undefined)).id;
+    } catch { return resolveLogo().id; }
   });
+  const selectedLogo = resolveLogo(logoVariant);
   useEffect(() => {
-    try { localStorage.setItem("wizamp_useAlternateIcon", useAlternateIcon ? "1" : "0"); } catch {}
-  }, [useAlternateIcon]);
+    try { localStorage.setItem("wizamp_logoVariant", logoVariant); } catch {}
+    for (const link of document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')) {
+      link.href = selectedLogo.src;
+      link.type = selectedLogo.src.endsWith(".svg") ? "image/svg+xml" : "image/png";
+    }
+  }, [logoVariant, selectedLogo.src]);
   const [showAbout, setShowAbout] = useState(() => {
     try { return localStorage.getItem("wizamp_seenLatestUpdate") !== LATEST_RELEASE_SIGNATURE; }
     catch { return true; }
@@ -1589,7 +1598,7 @@ export default function App() {
       <AboutModal
         open={showAbout}
         onClose={handleAboutClose}
-        iconSrc={useAlternateIcon ? "/branding/gizmagick-logo-white.svg" : "/branding/gizmagick-logo-color.png"}
+        iconSrc={selectedLogo.src}
         section={aboutSection}
         onSectionChange={setAboutSection}
       />
@@ -1908,8 +1917,8 @@ export default function App() {
         setShowLatency={setShowLatency}
         showPlayControlsButton={showPlayControlsButton}
         setShowPlayControlsButton={setShowPlayControlsButton}
-        useAlternateIcon={useAlternateIcon}
-        setUseAlternateIcon={setUseAlternateIcon}
+        logoVariant={logoVariant}
+        setLogoVariant={setLogoVariant}
         onOpenAbout={() => { setSettingsOpen(false); setAboutSection("updates"); setShowAbout(true); }}
       />
 

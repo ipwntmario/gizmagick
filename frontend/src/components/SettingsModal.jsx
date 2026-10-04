@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 import { LATEST_RELEASE } from "../releaseNotes";
+import { LOGO_VARIANTS, resolveLogo } from "../logos";
 
 export default function SettingsModal({
   open,
@@ -12,7 +13,7 @@ export default function SettingsModal({
   showLatency, setShowLatency,
   cursorEffectEnabled, setCursorEffectEnabled,
   showPlayControlsButton, setShowPlayControlsButton,
-  useAlternateIcon, setUseAlternateIcon,
+  logoVariant, setLogoVariant,
   onOpenAbout,
 }) {
   const overlayRef = useRef(null);
@@ -210,18 +211,20 @@ export default function SettingsModal({
                   <span aria-hidden="true" />
                 </span>
               </label>
-              <label className="settings-field settings-field--toggle">
+              <label className="settings-field settings-field--logo">
                 <span className="settings-field__copy">
-                  <strong>Use monochrome logo</strong>
-                  <small>Use the monochrome Gizmagick logo in the About panel.</small>
+                  <strong>App logo</strong>
+                  <small>Preview a logo for About and the browser icons. Saved on this device.</small>
                 </span>
-                <span className="toggle-switch">
-                  <input
-                    type="checkbox"
-                    checked={!!useAlternateIcon}
-                    onChange={(event) => setUseAlternateIcon?.(event.target.checked)}
+                <span className="settings-logo-picker">
+                  <img
+                    src={resolveLogo(logoVariant).src}
+                    alt="Selected logo preview"
+                    className={logoVariant === "black" ? "settings-logo-picker__preview is-black" : "settings-logo-picker__preview"}
                   />
-                  <span aria-hidden="true" />
+                  <select aria-label="App logo" value={logoVariant} onChange={(event) => setLogoVariant?.(event.target.value)}>
+                    {LOGO_VARIANTS.map((logo) => <option key={logo.id} value={logo.id}>{logo.label}</option>)}
+                  </select>
                 </span>
               </label>
             </section>

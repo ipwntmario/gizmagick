@@ -130,7 +130,7 @@ export default function AboutModal({ open, onClose, iconSrc, section = "guide", 
           <Icon name="close" size={20} />
         </button>
         <header className="about-panel__header">
-          <img src={iconSrc} alt="" className={iconSrc?.endsWith("-white.svg") ? "about-panel__logo--monochrome" : undefined} />
+          <img src={iconSrc} alt="" className={iconSrc?.endsWith("-white.svg") ? "about-panel__logo--monochrome" : iconSrc?.endsWith("-black.svg") ? "about-panel__logo--black" : undefined} />
           <div>
             <p className="about-panel__eyebrow">About the app</p>
             <h2 id="about-title">Gizmagick</h2>

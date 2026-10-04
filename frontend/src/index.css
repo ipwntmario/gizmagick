@@ -1171,6 +1171,12 @@ body {
 .settings-field:last-child { border-bottom: 0; }
 .settings-field__copy { display: grid; min-width: 0; gap: 2px; }
 .settings-field__copy strong { font-size: 13px; font-weight: 650; }
+.settings-field--logo { display: grid; gap: 10px; }
+.settings-logo-picker { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.settings-logo-picker__preview { width: 56px; height: 56px; flex: 0 0 56px; object-fit: contain; border-radius: 9px; background: #242531; }
+.settings-logo-picker__preview.is-black, .about-panel__logo--black { background: #f3f3f8; }
+.settings-logo-picker select { flex: 1; min-width: 0; width: 100%; padding: 10px; border: 1px solid var(--theme-border, rgba(255,255,255,.18)); border-radius: 9px; color: inherit; background: var(--theme-input, #242531); font: inherit; font-size: 12px; }
+.settings-logo-picker select:focus-visible { outline: 2px solid var(--theme-accent, #8f7cff); outline-offset: 2px; }
 .settings-field__copy small { color: rgba(255,255,255,.4); font-size: 10px; }
 .settings-number { display: flex; flex: 0 0 auto; align-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.11); border-radius: 9px; color: rgba(255,255,255,.42); background: rgba(6,8,14,.6); font-size: 10px; }
 .settings-number:focus-within { border-color: #8f7cff; box-shadow: 0 0 0 3px rgba(143,124,255,.14); }

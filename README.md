@@ -2,11 +2,15 @@
 
 A browser-based dynamic music player for tabletop sessions. Tracks can loop, transition between sections, switch musical modes, and synchronize playback across a room.
 
-Live app: [wizamp.app](https://wizamp.app).
+Live app: [gizmagick.com](https://gizmagick.com).
 
-Gizmagick's logo assets are in `frontend/public/branding`: the full-color PNG is the main app logo, and the black and white SVG variants have transparent backgrounds for compact monochrome uses such as notification icons. The live domain and Cloudflare Worker name retain their existing names. Browser storage keys also retain the `wizamp` prefix so existing preferences are preserved.
+New to Gizmagick? Read the [user guide and feature wiki](https://github.com/ipwntmario/gizmagick/wiki) for help with playback, sessions, the music library, settings, and more.
+
+Gizmagick's logo assets are in `frontend/public/branding`: `gizmagick-logo-color.png` uses the Dark theme's plum, lavender, indigo (`#725ce0` to `#4939a8`), charcoal, and gold palette and is the main app logo, favicon, and touch icon. The previous full-color logo is preserved as `gizmagick-logo-color-original.png`; the plain indigo and gold-ribbon experiments are also kept as selectable Developer logo variants. The black and white SVG variants have transparent backgrounds for compact monochrome uses such as notification icons. The live domain and Cloudflare Worker name retain their existing names. Browser storage keys also retain the `wizamp` prefix so existing preferences are preserved.
 
 ## Local development
+
+To try the logo variations, open Settings and tap the Settings title five times to reveal Developer options. Use **App logo** to choose the original full-color logo, Dark indigo, Dark gold ribbon, Dark indigo with a gold ring, or either monochrome version. The selection is saved in your browser and updates About, the favicon, and the touch icon.
 
 Use Node.js 22.12+ and npm. From `frontend`:
 

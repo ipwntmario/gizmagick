@@ -6,7 +6,7 @@ Live app: [gizmagick.com](https://gizmagick.com).
 
 New to Gizmagick? Read the [user guide and feature wiki](https://github.com/ipwntmario/gizmagick/wiki) for help with playback, sessions, the music library, settings, and more.
 
-Gizmagick's logo assets are in `frontend/public/branding`: `gizmagick-logo-color.png` uses the Dark theme's plum, lavender, indigo (`#725ce0` to `#4939a8`), charcoal, and gold palette and is the main app logo, favicon, and touch icon. The previous full-color logo is preserved as `gizmagick-logo-color-original.png`; the plain indigo and gold-ribbon experiments are also kept as selectable Developer logo variants. The black and white SVG variants have transparent backgrounds for compact monochrome uses such as notification icons. The live domain and Cloudflare Worker name retain their existing names. Browser storage keys also retain the `wizamp` prefix so existing preferences are preserved.
+Gizmagick's logo assets are in `frontend/public/branding`: `gizmagick-logo-color.png` uses the Dark theme's plum, lavender, indigo (`#725ce0` to `#4939a8`), charcoal, and gold palette with strong rim lighting to improve legibility at small sizes; it is the main app logo, favicon, and touch icon. The previous full-color logo is preserved as `gizmagick-logo-color-original.png`; the earlier Dark theme variants are also kept as selectable Developer logo options. The black and white SVG variants have transparent backgrounds for compact monochrome uses such as notification icons. The live domain and Cloudflare Worker name retain their existing names. Browser storage keys also retain the `wizamp` prefix so existing preferences are preserved.
 
 ## Local development
 

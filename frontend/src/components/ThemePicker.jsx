@@ -65,8 +65,8 @@ function ThemePreview({ theme }) {
   );
 }
 
-export default function ThemePicker({ room, initialThemeId, onCancel, onApply }) {
-  const themes = availableThemes();
+export default function ThemePicker({ room, initialThemeId, enableOldThemes = false, onCancel, onApply }) {
+  const themes = availableThemes(enableOldThemes);
   const [selectedId, setSelectedId] = useState(initialThemeId);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dialogRef = useRef(null);

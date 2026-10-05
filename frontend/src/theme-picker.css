@@ -136,7 +136,7 @@
   animation: theme-preview-reveal 1s ease-out both;
 }
 @keyframes theme-preview-reveal { from { opacity: .7; } to { opacity: 0; } }
-.theme-preview[data-theme="light"] {
+.theme-preview:is([data-theme="light"], [data-theme="medium-contrast-light"], [data-theme="medium-contrast-light-v1"]) {
   --preview-playing: linear-gradient(145deg, #7a6195, #493b69);
   --preview-playing-text: #fff7df;
   --preview-playing-border: var(--preview-play-border);
@@ -401,3 +401,41 @@
   .theme-picker *, .theme-picker *::before, .theme-picker *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
   .theme-preview::after { display: none; }
 }
+
+.theme-preview[data-theme="pink-palace"] {
+  --preview-play: linear-gradient(145deg, #ffeaf4, #e8abc9 48%, #bf6e99);
+  --preview-play-text: #54233e;
+  --preview-play-border: #a26386;
+  --preview-playing: linear-gradient(145deg, #a85880, #6b487b);
+  --preview-playing-text: #fff0f7;
+  --preview-playing-border: #a26386;
+  --preview-autoplay-thumb: #54233e;
+  --preview-autoplay-icon: #ffe2a0;
+  --preview-section: linear-gradient(145deg, #fff0f6, #e4acc7 65%, #c785a6);
+  --preview-section-text: var(--theme-button-text);
+  --preview-section-border: #b87697;
+  --preview-mode: linear-gradient(145deg, #bf78a4, #875581 70%, #655078);
+  --preview-mode-text: #fff0f7;
+  --preview-mode-border: #9a6287;
+  --preview-mode-active: linear-gradient(145deg, #fff5e7, #e8cba0);
+  --preview-mode-active-text: #583147;
+  --preview-mode-active-border: #b38565;
+  --preview-end: linear-gradient(145deg, #b45d68, #85404f);
+  --preview-end-border: #b87697;
+  --preview-undo: var(--preview-section);
+  --preview-undo-text: var(--theme-button-text);
+  --preview-stop: var(--preview-section);
+  --preview-stop-text: var(--theme-button-text);
+  --preview-transport-border: #b87697;
+  --preview-progress: linear-gradient(90deg, #ba628e, #e6a8c6, #eee0b7);
+  --preview-indicator: linear-gradient(130deg, #74435e, #a65d83 48%, #765784);
+  --preview-indicator-text: #fff3f8;
+  --preview-indicator-label: #f8d8e8;
+}
+.theme-preview[data-theme="pink-palace"] {
+  --preview-end: linear-gradient(145deg, #ac5a7c, #793850);
+  --preview-end-text: #fff4f8;
+  --preview-end-border: #9e5274;
+  --preview-progress-glow: 0 0 12px rgba(186,98,142,.28);
+}
+.theme-preview[data-theme="pink-palace"] .theme-preview__track.is-current { background: linear-gradient(90deg, rgba(188,99,160,.2), rgba(132,98,151,.1)); }

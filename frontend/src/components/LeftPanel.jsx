@@ -27,6 +27,7 @@ export default function LeftPanel({
   roomIdentities,
   setRoomIdentity,
   themeChoices = {},
+  enableOldThemes = false,
   onChooseTheme,
   open,
   onOpenChange,
@@ -262,7 +263,7 @@ export default function LeftPanel({
             const selected = room.id === currentRoomId;
             const roomIdentity = roomIdentities?.[room.id] || { role: "GM", displayName: "" };
             const themeChoice = themeChoices[room.id || "private"] ?? readStr(themeStorageKey(room.id), null);
-            const currentTheme = resolveTheme(room.id, themeChoice);
+            const currentTheme = resolveTheme(room.id, themeChoice, enableOldThemes);
             return (
               <div className={`session-room-wrap ${room.private ? "is-private" : ""}`} key={room.private ? "private" : room.id}>
                 <button
@@ -350,9 +351,11 @@ export default function LeftPanel({
         <ThemePicker
           key={themePickerRoom.id || "private"}
           room={themePickerRoom}
+          enableOldThemes={enableOldThemes}
           initialThemeId={resolveTheme(
             themePickerRoom.id,
             themeChoices[themePickerRoom.id || "private"] ?? readStr(themeStorageKey(themePickerRoom.id), null),
+            enableOldThemes,
           ).id}
           onCancel={() => setThemePickerRoom(null)}
           onApply={(themeId) => {

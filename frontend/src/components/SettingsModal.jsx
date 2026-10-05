@@ -12,6 +12,7 @@ export default function SettingsModal({
   showClockOffset, setShowClockOffset,
   showLatency, setShowLatency,
   cursorEffectEnabled, setCursorEffectEnabled,
+  enableOldThemes, setEnableOldThemes,
   showPlayControlsButton, setShowPlayControlsButton,
   logoVariant, setLogoVariant,
   onOpenAbout,
@@ -168,6 +169,17 @@ export default function SettingsModal({
                   <p>Experimental interface options.</p>
                 </div>
               </div>
+
+              <label className="settings-field settings-field--toggle">
+                <span className="settings-field__copy">
+                  <strong>Enable old themes</strong>
+                  <small>Include saved v1 themes in the theme picker. Saved on this device.</small>
+                </span>
+                <span className="toggle-switch">
+                  <input type="checkbox" checked={!!enableOldThemes} onChange={(event) => setEnableOldThemes?.(event.target.checked)} />
+                  <span aria-hidden="true" />
+                </span>
+              </label>
 
               <label className="settings-field settings-field--toggle">
                 <span className="settings-field__copy">

@@ -1024,10 +1024,14 @@ body {
 .session-theme-picker__choice input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .session-theme-picker__swatch { width: 17px; height: 17px; flex: 0 0 17px; border: 1px solid rgba(255,255,255,.2); border-radius: 5px; box-shadow: inset 0 1px rgba(255,255,255,.3); }
 .session-theme-picker__swatch--dark { background: linear-gradient(135deg, #30324a, #171820); }
+.session-theme-picker__swatch--dark-magic { background: linear-gradient(135deg, #080e32, #6029ff 40%, #ed79ff 65%, #43d8f5); }
+.session-theme-picker__swatch--dark-magic-subtle { background: linear-gradient(135deg, #30324a 55%, #9d7aff 55% 72%, #ed79ff 72% 86%, #8de7f5 86%); }
 .session-theme-picker__swatch--high-contrast { border-color: #fff; background: linear-gradient(135deg, #0a0d10 50%, #72d9ff 50%); box-shadow: none; }
 .session-theme-picker__swatch--light { background: linear-gradient(135deg, #fff, #d8ddec); }
 .session-theme-picker__swatch--high-contrast-light { border-color: #4e6470; background: linear-gradient(135deg, #fff 50%, #005a73 50%); box-shadow: none; }
 .session-theme-picker__swatch--signet { background: linear-gradient(135deg, #e4b670, #a73f80 55%, #343d8d); }
+.session-theme-picker__swatch--pink-palace { background: linear-gradient(135deg, #ffe0ec, #d77da6 50%, #775284 80%, #b6c9af); }
+.session-theme-picker__swatch--pink-splash { background: linear-gradient(135deg, #fff0a1, #ffadd6 28%, #e968a8 70%, #82d9de); }
 .session-theme-picker__swatch--castle-torchlit { background: linear-gradient(135deg, #641016 0 25%, #d49b23 25% 50%, #285b34 50% 75%, #213d62 75%); }
 .session-theme-picker__swatch--h4ck3r { border-color: #2edb65; background: repeating-linear-gradient(0deg, #06170c 0 3px, #0b2915 3px 4px); box-shadow: inset 0 0 0 4px #050d08, inset 0 0 0 6px #49f87a; }
 .session-panel__presence { margin-top: 12px; padding: 12px 5px 2px; border-top: 1px solid rgba(255,255,255,.08); }

@@ -215,17 +215,24 @@ export default function App() {
     try { localStorage.setItem("wizamp_showPlayControlsButton", showPlayControlsButton ? "1" : "0"); } catch {}
   }, [showPlayControlsButton]);
 
+  const [enableOldThemes, setEnableOldThemes] = useState(() => {
+    try { return localStorage.getItem("wizamp_enableOldThemes") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("wizamp_enableOldThemes", enableOldThemes ? "1" : "0"); } catch {}
+  }, [enableOldThemes]);
+
   const { roomId, setRoomId, onlineEnabled, role, setRole, displayName, setDisplayName, roomIdentities, setRoomIdentity } = useSession();
   const [themeChoices, setThemeChoices] = useState({});
   const roomThemeKey = themeSessionKey(roomId);
   let savedThemeId;
   try { savedThemeId = localStorage.getItem(themeStorageKey(roomId)); } catch { /* Storage may be disabled. */ }
-  const activeTheme = resolveTheme(roomId, themeChoices[roomThemeKey] ?? savedThemeId);
+  const activeTheme = resolveTheme(roomId, themeChoices[roomThemeKey] ?? savedThemeId, enableOldThemes);
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = activeTheme.id;
   }, [activeTheme.id]);
   const chooseTheme = (targetRoomId, themeId) => {
-    if (resolveTheme(targetRoomId, themeId).id !== themeId) return;
+    if (resolveTheme(targetRoomId, themeId, enableOldThemes).id !== themeId) return;
     setThemeChoices((previous) => ({ ...previous, [themeSessionKey(targetRoomId)]: themeId }));
     try { localStorage.setItem(themeStorageKey(targetRoomId), themeId); } catch { /* Storage may be disabled. */ }
   };
@@ -1617,6 +1624,7 @@ export default function App() {
         roomIdentities={roomIdentities}
         setRoomIdentity={setRoomIdentity}
         themeChoices={themeChoices}
+        enableOldThemes={enableOldThemes}
         onChooseTheme={chooseTheme}
         room={room}
         open={activeDrawer === "sessions"}
@@ -1905,6 +1913,8 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         cursorEffectEnabled={cursorEffectEnabled}
         setCursorEffectEnabled={setCursorEffectEnabled}
+        enableOldThemes={enableOldThemes}
+        setEnableOldThemes={setEnableOldThemes}
         fadeOutSeconds={fadeOutSeconds}
         setFadeOutSeconds={setFadeOutSeconds}
         pauseFadeSeconds={pauseFadeSeconds}

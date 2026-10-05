@@ -1,5 +1,8 @@
 export const LOGO_VARIANTS = [
-  { id: "dark-indigo-gold-ring", label: "Dark — indigo with gold ring", src: "/branding/gizmagick-logo-color.png" },
+  { id: "dark-indigo-gold-ring", label: "Dark — indigo with gold ring", src: "/branding/gizmagick-logo-color-gold-ring.png" },
+  { id: "flat-indigo-gold-ring", label: "Dark — flat indigo with gold ring", src: "/branding/gizmagick-logo-flat-indigo-gold-ring.png" },
+  { id: "flat-no-shadows", label: "Dark — flat indigo with gold ring, no shadows", src: "/branding/gizmagick-logo-flat-indigo-gold-ring-no-shadows.png" },
+  { id: "rim-lit", label: "Dark — indigo with gold ring, strong rim light", src: "/branding/gizmagick-logo-color-rim-lit-strong.png" },
   { id: "dark-indigo", label: "Dark — indigo", src: "/branding/gizmagick-logo-dark-indigo.png" },
   { id: "original", label: "Original full color", src: "/branding/gizmagick-logo-color-original.png" },
   { id: "dark-gold", label: "Dark — gold ribbon", src: "/branding/gizmagick-logo-dark-gold.png" },

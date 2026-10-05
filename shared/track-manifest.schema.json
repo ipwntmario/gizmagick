@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:gizmagick:track-manifest:v2",
+  "title": "Gizmagick TrackManifestV2",
+  "description": "An immutable playback document. Ownership, access and publication status are managed separately by the server.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "versionId", "track", "assets", "clips", "sections"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 2 },
+    "versionId": { "$ref": "#/definitions/uuid" },
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug", "title", "firstSection", "simple", "test"],
+      "properties": {
+        "id": { "$ref": "#/definitions/uuid" },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "title": { "$ref": "#/definitions/label" },
+        "firstSection": { "$ref": "#/definitions/id" },
+        "simple": { "type": "boolean" },
+        "test": { "type": "boolean" }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 10000,
+      "propertyNames": { "$ref": "#/definitions/id" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string", "maxLength": 300, "pattern": "^audio/[^/\\\\:%?#\\u0000-\\u001f]+\\.ogg$" },
+          "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+          "byteLength": { "type": "integer", "minimum": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "clips": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 10000,
+      "propertyNames": { "$ref": "#/definitions/id" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["assetsByMode", "loopStart", "loopPoint", "clipEnd", "transitions"],
+        "properties": {
+          "assetsByMode": {
+            "type": "object",
+            "required": ["base"],
+            "properties": { "base": { "$ref": "#/definitions/id" } },
+            "maxProperties": 64,
+            "propertyNames": { "$ref": "#/definitions/id" },
+            "additionalProperties": { "$ref": "#/definitions/id" }
+          },
+          "loopStart": { "type": "number", "minimum": 0 },
+          "loopPoint": { "type": "number", "exclusiveMinimum": 0 },
+          "clipEnd": { "type": "number", "exclusiveMinimum": 0 },
+          "transitions": {
+            "type": "array",
+            "maxItems": 1024,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["to", "weight"],
+              "properties": {
+                "to": { "$ref": "#/definitions/id" },
+                "weight": { "type": "integer", "minimum": 1, "maximum": 1024 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sections": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 10000,
+      "propertyNames": { "$ref": "#/definitions/id" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "firstClip", "clips", "type", "nextSections", "modes"],
+        "properties": {
+          "title": { "$ref": "#/definitions/label" },
+          "buttonLabel": { "$ref": "#/definitions/label" },
+          "baseModeLabel": { "$ref": "#/definitions/label" },
+          "firstClip": { "$ref": "#/definitions/id" },
+          "clips": { "$ref": "#/definitions/idList" },
+          "type": { "enum": ["manual", "auto", "end"] },
+          "nextSections": { "$ref": "#/definitions/idList" },
+          "modes": { "$ref": "#/definitions/idList" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "uuid": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$" },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[^/\\\\\\u0000-\\u001f]+$",
+      "not": { "enum": ["__proto__", "prototype", "constructor"] }
+    },
+    "label": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "idList": { "type": "array", "maxItems": 10000, "uniqueItems": true, "items": { "$ref": "#/definitions/id" } }
+  }
+}

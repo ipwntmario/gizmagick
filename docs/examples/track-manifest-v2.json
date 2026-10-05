@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 2,
+  "versionId": "33333333-3333-4333-8333-333333333333",
+  "track": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "slug": "example-dynamic-track",
+    "title": "Example Dynamic Track",
+    "firstSection": "Intro",
+    "simple": false,
+    "test": true
+  },
+  "assets": {
+    "intro-audio": { "path": "audio/Intro.ogg" },
+    "main-base": { "path": "audio/Main.ogg" },
+    "main-keychange": { "path": "audio/Main_keychange.ogg" },
+    "end-audio": { "path": "audio/End.ogg" }
+  },
+  "clips": {
+    "Intro": {
+      "assetsByMode": { "base": "intro-audio" },
+      "loopStart": 0,
+      "loopPoint": 4,
+      "clipEnd": 6,
+      "transitions": [{ "to": "Intro", "weight": 1 }]
+    },
+    "Main_a": {
+      "assetsByMode": { "base": "main-base", "keychange": "main-keychange" },
+      "loopStart": 0,
+      "loopPoint": 8,
+      "clipEnd": 10,
+      "transitions": [{ "to": "Main_b", "weight": 3 }, { "to": "Main_a", "weight": 2 }]
+    },
+    "Main_b": {
+      "assetsByMode": { "base": "main-base", "keychange": "main-keychange" },
+      "loopStart": 0,
+      "loopPoint": 8,
+      "clipEnd": 10,
+      "transitions": [{ "to": "Main_a", "weight": 1 }]
+    },
+    "End": {
+      "assetsByMode": { "base": "end-audio" },
+      "loopStart": 0,
+      "loopPoint": 5,
+      "clipEnd": 5,
+      "transitions": []
+    }
+  },
+  "sections": {
+    "Intro": {
+      "title": "Introduction",
+      "firstClip": "Intro",
+      "clips": ["Intro"],
+      "type": "auto",
+      "nextSections": ["Main"],
+      "modes": []
+    },
+    "Main": {
+      "title": "Main theme",
+      "buttonLabel": "Main",
+      "baseModeLabel": "Original key",
+      "firstClip": "Main_a",
+      "clips": ["Main_a", "Main_b"],
+      "type": "manual",
+      "nextSections": ["End"],
+      "modes": ["keychange"]
+    },
+    "End": {
+      "title": "Ending",
+      "firstClip": "End",
+      "clips": ["End"],
+      "type": "end",
+      "nextSections": [],
+      "modes": []
+    }
+  }
+}

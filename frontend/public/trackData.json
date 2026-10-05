@@ -49,6 +49,13 @@
       "simple": true,
       "test": false
     },
+    "Lena's Home": {
+      "defaultDisplayName": "Lena's Home",
+      "basePath": "/tracks/Lena's Home",
+      "firstSection": "Lena's Home",
+      "simple": true,
+      "test": false
+    },
     "Lena's Sight": {
       "defaultDisplayName": "Lena's Sight",
       "basePath": "/tracks/Lena's Sight",

@@ -65,6 +65,8 @@ Tests cover room command dispatch and isolation, playback transition/RNG consist
 
 ## Music data
 
+The upcoming R2/D1 migration now has a [TrackManifestV2 contract and local tools](docs/track-manifest-v2.md). Phases 1–2 define a combined manifest, validate its graph, and convert the existing library without changing live loading. From `frontend`, run `npm run tracks:migrate` for a dry run or add `-- --write` to export manifests into the ignored `.track-manifests` directory. The original JSON/audio remains the active source until Phase 3.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

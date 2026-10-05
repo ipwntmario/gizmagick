@@ -316,13 +316,13 @@ export default function DatabaseModal({
           display: "flex", alignItems: "center", justifyContent: "space-between"
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18 }}>Database</h2>
+            <h2 style={{ margin: 0, fontSize: 21 }}>Database</h2>
             <p className="database-modal__subtitle">Manage tracks, sections, modes, and display names</p>
           </div>
           <button
             onClick={onClose}
             className="database-icon-button"
-            style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "white" }}
+            style={{ background: "transparent", border: "none", fontSize: 23, cursor: "pointer", color: "white" }}
             aria-label="Close"
           >
             <Icon name="close" size={20} />
@@ -485,7 +485,7 @@ export default function DatabaseModal({
                         border: "none",
                         color: "white",
                         borderRadius: 4,
-                        fontSize: 12, lineHeight: 1, padding: 0,
+                        fontSize: 15, lineHeight: 1, padding: 0,
                         cursor: "pointer"
                       }}
                       title={expanded ? "Collapse" : "Expand"}
@@ -602,7 +602,7 @@ export default function DatabaseModal({
                                   border: "none",
                                   color: "white",
                                   borderRadius: 4,
-                                  fontSize: 12, lineHeight: 1, padding: 0,
+                                  fontSize: 15, lineHeight: 1, padding: 0,
                                   cursor: "pointer"
                                 }}
                                 title={secExpanded ? "Collapse" : "Expand"}
@@ -1031,7 +1031,7 @@ function RenameModal({ target, fields, defaults, onChangeFields, onResetField, o
       >
         <div className="rename-modal__handle" aria-hidden="true"><span /></div>
         <div className="rename-modal__header">
-          <h3 style={{ margin: 0, fontSize: 16 }}>{title}</h3>
+          <h3 style={{ margin: 0, fontSize: 19 }}>{title}</h3>
         </div>
 
         {/* FORM */}

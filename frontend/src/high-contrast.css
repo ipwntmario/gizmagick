@@ -151,11 +151,11 @@
   .queue-indicator__item small, .about-panel__eyebrow,
   .about-panel__concept-number, .about-panel__flow-title,
   .about-panel__tutorial span
-) { font-size: 11px; letter-spacing: .02em; }
+) { font-size: 14px; letter-spacing: .02em; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .about-panel__intro, .about-panel__concept p, .about-panel__flow p,
   .about-panel__tip, .about-panel__updates span
-) { font-size: 12px; }
+) { font-size: 15px; }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) :is(
   .session-room__icon--private, .session-room__icon--online,
   .settings-group__icon, .session-panel__action-icon,
@@ -202,7 +202,7 @@
 }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .session-theme-picker__choice {
   min-height: 44px;
-  font-size: 12px;
+  font-size: 15px;
   border-radius: 5px;
 }
 :root:is([data-theme="high-contrast"], [data-theme="high-contrast-light"]) .session-theme-picker__swatch { box-shadow: none; }

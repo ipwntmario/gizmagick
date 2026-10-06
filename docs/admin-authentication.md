@@ -1,6 +1,6 @@
 # Phase 5: Gizmagick admin authentication
 
-The authentication foundation is implemented and tested locally. Cloudflare Access provisioning, real email-code sign-in, and an explicitly authorized Worker deployment are still pending. No music was uploaded, no remote D1 migrations ran, and the live frontend is unchanged. There are no upload/publication handlers yet.
+The authentication foundation is implemented, tested locally, and deployed to the existing `gizmagick-worker`. The administrator provisioned the admin-only Cloudflare Access application and saved `GIZMAGICK_ADMIN_EMAILS` as a private Worker secret; its name and retention were verified without reading its value. Anonymous admin requests redirect to Access, while public health and the WebSocket handshake work without login. The administrator confirmed successful real sign-in and the **Administrator verified** page on October 6, 2026. Separate signed-in session API, sign-out, and denied-account smoke checks are not yet reported. No music was uploaded, no remote D1 migrations ran, and the live frontend is unchanged. There are no upload/publication handlers yet.
 
 ## Design
 
@@ -36,7 +36,7 @@ Use the same account as `gizmagick-worker`. These steps protect **only the new a
    | `api/admin` | API namespace root |
    | `api/admin/*` | Session and future admin endpoints |
 
-   If the hostname is a `workers.dev` address and is not in the domain dropdown, use **Switch to custom input**. Do not leave a hostname entry's path empty. Wildcard child paths do not cover their parent, which is why all four entries are listed. If the dashboard cannot accept this hostname or these entries in one application, stop and ask before creating a new domain or separate applications with different audiences.
+   If the hostname is a `workers.dev` address and is not in the domain dropdown, use **Switch to custom input**. Do not leave a hostname entry's path empty. Do not add a **Workers** destination in addition to these hostnames: selecting the Worker's production/preview URLs protects the whole Worker, not just the four paths. Wildcard child paths do not cover their parent, which is why all four entries are listed. If the dashboard cannot accept this hostname or these entries in one application, stop and ask before creating a new domain or separate applications with different audiences.
 6. Create an **Allow** policy named **Gizmagick administrator**, with **Include → Emails → your exact email address**. Do not use Everyone, an email-domain wildcard, Bypass, or Service Auth. Enable **One-time PIN** as this application's login method; disable other login methods for this initial setup. Leave admin CORS settings unset—our page and API are same-origin.
 7. Save the application. Copy its **Application Audience (AUD) tag**, the team-domain URL, and the Worker-origin URL (`https://HOSTNAME`, without `/admin`). Review that only the intended admin paths are covered and no broader policy is overriding them.
 
@@ -48,15 +48,40 @@ Sources: [Access on specific Worker hostnames/paths](https://developers.cloudfla
 
 ## Configuration and deployment handoff
 
-After those values are reviewed, record these **non-secret** settings in `[vars]` in `worker/wrangler.toml`:
+These **non-secret** settings are recorded in `[vars]` in `worker/wrangler.toml`:
 
 ```toml
-GIZMAGICK_ACCESS_TEAM_DOMAIN = "https://YOUR-TEAM.cloudflareaccess.com"
-GIZMAGICK_ACCESS_AUD = "YOUR_64_CHARACTER_APPLICATION_AUD"
-GIZMAGICK_ADMIN_ORIGIN = "https://YOUR_EXISTING_WORKER_HOSTNAME"
+GIZMAGICK_ACCESS_TEAM_DOMAIN = "https://black-resonance-a976.cloudflareaccess.com"
+GIZMAGICK_ACCESS_AUD = "b6e219cb96a0117d174511b52ed7df377fc4a1f7389de4d6e177388ce02a1687"
+GIZMAGICK_ADMIN_ORIGIN = "https://gizmagick-worker.nin10dos.workers.dev"
 ```
 
-The server allowlist is the private Worker secret `GIZMAGICK_ADMIN_EMAILS` (comma-separated exact email addresses). During the separately authorized deployment setup, enter it through Wrangler's interactive secret prompt using `--config ../worker/wrangler.toml` from `frontend`. Do not put it in `VITE_*`, commit it, or set it from browser input. No real values have been configured by this change; commented examples grant no access.
+The server allowlist is the private Worker secret `GIZMAGICK_ADMIN_EMAILS` (comma-separated exact email addresses). During the separately authorized deployment setup, enter it through Wrangler's interactive secret prompt using `--config ../worker/wrangler.toml` from `frontend`. Do not put it in `VITE_*`, commit it, or set it from browser input. Recording the public identifiers does not enable administrator access without this private allowlist.
+
+Alternatively, enter the allowlist yourself in **Workers & Pages → gizmagick-worker → Settings → Variables and Secrets → Add**. Choose **Secret**, name it `GIZMAGICK_ADMIN_EMAILS`, use the exact email allowed by the Access policy, and select **Deploy**. This deploys the secret configuration on the existing Worker; it does not deploy the repository's new authentication code or change Pages. Do not add it as a plaintext variable or put it on the Pages project. Report only that it was saved; do not send its value or email codes. [Cloudflare's secret setup instructions](https://developers.cloudflare.com/workers/configuration/secrets/)
+
+The initial read-only preflight found no Worker secrets configured. The latest deployed version before setup was `5b5c642e-6da3-4b81-82d9-f35a8f2b9de4` (September 24, 2026), with `ROOM_HUB` and compatibility date `2024-09-01`; D1/R2 were not yet bound. The administrator then saved the secret, creating deployed version `c46031a1-8a18-4a0f-aff1-8d2480e9409c`. This is the pre-authentication-code rollback reference; do not roll back automatically or discard the private secret.
+
+On October 6, 2026, the authorized authentication deployment produced version `6b283865-049e-4aae-a259-737122a75563`. It added the project-configured D1/R2 bindings and Access identifiers, preserved `GIZMAGICK_ADMIN_EMAILS`, and retained `ROOM_HUB` on the existing Durable Object namespace (its historical `wizamp-worker_RoomHub` label is not a new naming choice). No remote D1 migrations, music uploads, Pages rebuilds, or DNS/Access policy edits were performed.
+
+Production checks after deployment:
+
+- Anonymous `/health`: 200 with `{ok: true, worker: "gizmagick-worker"}`.
+- Anonymous non-upgrade `GET /ws`: 426; an actual unauthenticated WebSocket connection opened successfully and was closed without joining a room or sending playback commands. This is a handshake smoke check, not a deployed two-client playback test.
+- `/admin`, `/admin/`, `/admin/not-a-real-page`, `/api/admin`, and `/api/admin/session`: 302 redirects to the configured team's Access login. Redirect query strings/tokens were not deliberately extracted or recorded.
+- The browser displays **Log in to Gizmagick Admin** with **Send login code**. The administrator entered their own authentication details and confirmed the deployed **Gizmagick / Library admin / Administrator verified** page. This confirms the real login flow and Worker authorization, not just the Access login screen. No code, cookie, or session JWT was requested from the administrator. A separate session API smoke check, denied-account check, and sign-out are not yet reported.
+- Anonymous `/api/library/catalog`: sanitized 503 (`Library is temporarily unavailable`) because the remote library schema/import is still pending. This is not an Access redirect or a reason to cut the player over prematurely.
+- The Worker dashboard still shows `*.wizamp.app/*` after deployment despite Wrangler's local/remote route warning. No replacement route was added. Bindings show the intended existing D1, R2, and Durable Object resources.
+
+### Dashboard and hostname review (October 6, 2026)
+
+The **Gizmagick Admin** editor showed all four correct hostname/path entries, the supplied AUD, a one-hour application session, a single **Allow** policy with **Include → Emails** containing one exact address, and only **One-time PIN** enabled. Admin CORS fields were unset. It initially also showed an extra **Workers → gizmagick-worker → A Worker's production and preview URLs** destination. The administrator removed that extra destination and saved; a fresh reload confirmed it is gone and all four public hostnames remain. No dashboard security settings were changed by the agent during the review. The unauthenticated production `/health` check returned 200 during the initial review; post-deployment public health/WebSocket and real admin sign-in checks are still required.
+
+The deployed `https://gizmagick.com/` bundle (`/assets/index-Cd0R8Sh7.js` at review time) contains `wss://wizamp-worker.nin10dos.workers.dev/ws`. The live frontend therefore still points at the old Worker hostname. Do not assume renaming a Worker or moving Pages to a new domain updates an already-built `VITE_WS_URL`. Before a separately authorized frontend rollout, verify which Worker currently serves rooms, review room compatibility, and explicitly set `VITE_WS_URL=wss://gizmagick-worker.nin10dos.workers.dev/ws` for the new build. Avoid interrupting active legacy rooms.
+
+The dashboard's legacy `*.wizamp.app/*` route does not supply that `workers.dev` connection and does not automatically become a `gizmagick.com` route. Leave it unchanged during this setup; confirm no old-domain clients rely on it before cleanup. No replacement route on `gizmagick.com` is needed to use the existing Worker hostname. In particular, **do not add `gizmagick.com/*`**: it would invoke this API/room Worker for frontend requests without a Pages asset handler. If a separate API custom domain is desired later, review that as a separate routing change. `workers_dev = true` is explicit in the project configuration; reconcile dashboard-only routes before any deployment rather than silently treating the current file as a complete routing inventory.
+
+Sources: [path-based versus whole-Worker Access](https://developers.cloudflare.com/workers/configuration/cloudflare-access/), [Worker routes](https://developers.cloudflare.com/workers/configuration/routing/routes/), [workers.dev configuration](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/).
 
 Deploy the Worker only after reviewing the existing Phase 4 D1/R2 bindings and rollout plan. This authentication feature needs no new D1 migration and should not cut the frontend over to remote loading. After deployment:
 
@@ -84,8 +109,10 @@ The Worker now has its own dependency lockfile; install both sets of dependencie
 
 Without real authentication configuration, local `/admin` displays **Admin access locked / Setup required** with status 503. With configured authentication but no signed token, requests get 401. Copy `worker/.dev.vars.example` to ignored `worker/.dev.vars` only if you need real local configuration; placeholders do not authenticate anybody. Never commit `.dev.vars` or tokens. A real signed-in browser flow is checked on the protected HTTPS hostname, not simulated by trusting a fake email header locally.
 
-Verified: 146 tests pass, including forged/expired/wrong-audience JWTs, allowlist denial, unsafe/cross-origin requests, malformed configuration, unknown admin routes, escaped HTML, key-server errors, and verification in the local Workers runtime. Lint, the normal frontend build, and Worker deployment packaging pass. The local browser shows the expected locked page; real Cloudflare OTP login remains untested until provisioning and deployment.
+Verified: 146 tests pass, including forged/expired/wrong-audience JWTs, allowlist denial, unsafe/cross-origin requests, malformed configuration, unknown admin routes, escaped HTML, key-server errors, and verification in the local Workers runtime. Lint, the normal frontend build, and Worker deployment packaging pass. The local browser shows the expected locked page. The deployed browser shows Access's email-code login, and the administrator confirmed successful real sign-in and the verified-admin page.
 
 ## Next implementation phase
 
 Build the admin upload/editor page and its guarded API, private draft storage, file-size/type/duration checks and audio probing, upload limits, reviewed ownership mapping, immutable version publication and audit records. Drafts/unapproved uploads must never enter the public `gizmagick-media` bucket. Future ordinary contributors need their own identity/ownership/role model; expanding the admin allowlist is not a public-user signup system.
+
+Start with private draft intake, not automatic publication: a separate `gizmagick-drafts` R2 bucket with no public domain or `r2.dev` URL; an authenticated admin-only upload page/API using the existing verified principal and origin guard; and server-owned draft metadata in D1. Creating/binding this additional cloud resource and applying draft migrations are a separate rollout step, not part of the completed login setup. First-stage uploads must leave the existing catalog and published R2 objects untouched. Audio probing and reviewed publication must be implemented before any uploaded draft can enter the public bucket. Import the existing clip/section JSON through the canonical-manifest adapter rather than rewriting the live source files as part of upload intake.

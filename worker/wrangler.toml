@@ -1,6 +1,8 @@
 name = "gizmagick-worker"
 main = "src/index.js"
 compatibility_date = "2024-09-01"
+# Keep the existing admin/API hostname enabled independently of future routes.
+workers_dev = true
 
 [[d1_databases]]
 binding = "GIZMAGICK_DB"
@@ -16,11 +18,11 @@ bucket_name = "gizmagick-media"
 GIZMAGICK_MEDIA_BASE_URL = "https://media.gizmagick.com"
 GIZMAGICK_APP_ORIGINS = "https://gizmagick.com,https://www.gizmagick.com,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5180,http://127.0.0.1:5180"
 
-# Admin routes fail closed until Access is provisioned. Add the real team domain,
-# application AUD, and admin origin here during the authorized setup (not guesses).
-# GIZMAGICK_ACCESS_TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
-# GIZMAGICK_ACCESS_AUD = "<application AUD>"
-# GIZMAGICK_ADMIN_ORIGIN = "https://<existing Worker hostname>"
+# Public Access application identifiers supplied by the administrator.
+# Admin routes still fail closed until the private email allowlist is configured.
+GIZMAGICK_ACCESS_TEAM_DOMAIN = "https://black-resonance-a976.cloudflareaccess.com"
+GIZMAGICK_ACCESS_AUD = "b6e219cb96a0117d174511b52ed7df377fc4a1f7389de4d6e177388ce02a1687"
+GIZMAGICK_ADMIN_ORIGIN = "https://gizmagick-worker.nin10dos.workers.dev"
 # Keep the admin email allowlist out of Git: wrangler secret put GIZMAGICK_ADMIN_EMAILS.
 
 [durable_objects]
@@ -32,7 +34,6 @@ bindings = [
 tag = "v1"
 new_sqlite_classes = ["RoomHub"]
 
-# If you plan to bind a custom domain later:
-# routes = [
-#   { pattern = "api.yourdomain.com/*", custom_domain = true }
-# ]
+# No new routes/custom domains are part of this rollout. In particular, do not
+# route gizmagick.com/* here: this Worker does not serve the Pages frontend.
+# Review the dashboard-only legacy *.wizamp.app/* route before deployment.

@@ -14,7 +14,14 @@ migrations_dir = "migrations"
 binding = "GIZMAGICK_MEDIA"
 bucket_name = "gizmagick-media"
 
+# Quarantined admin uploads only. No custom domain or public r2.dev access.
+# Never point this binding at the publicly readable gizmagick-media bucket.
+[[r2_buckets]]
+binding = "GIZMAGICK_DRAFTS"
+bucket_name = "gizmagick-drafts"
+
 [vars]
+GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
 GIZMAGICK_MEDIA_BASE_URL = "https://media.gizmagick.com"
 GIZMAGICK_APP_ORIGINS = "https://gizmagick.com,https://www.gizmagick.com,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5180,http://127.0.0.1:5180"
 

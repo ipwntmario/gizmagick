@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { gizmagickRepository } from './gizmagickRepository.js';
 
 export function useMusicData() {
   const [tracks, setTracks] = useState({});
@@ -9,11 +10,9 @@ export function useMusicData() {
     let alive = true;
     (async () => {
       try {
-        const response = await fetch('/trackData.json');
-        if (!response.ok) throw new Error(`Could not load track catalog (${response.status})`);
-        const t = await response.json();
+        const catalog = await gizmagickRepository.loadCatalog();
         if (!alive) return;
-        setTracks(t.tracks || {});
+        setTracks(catalog);
       } catch (err) {
         if (alive) setError(err.message);
       } finally {

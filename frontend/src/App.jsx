@@ -18,6 +18,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback  } from "react";
 import { AudioEngine } from "./audio/audioEngine";
 import { useMusicData } from "./data/useMusicData";
+import { gizmagickRepository } from './data/gizmagickRepository.js';
 import { normalizeTrackFilters } from "./data/trackOrdering";
 import { findSelectableEndSection, getAutoLockedTargets } from "./data/sectionTransitions";
 import { replacementRemainingSeconds } from "./data/replacementTiming";
@@ -810,14 +811,9 @@ export default function App() {
     if (pending) return pending;
 
     const request = (async () => {
-      const basePath = tracks[name]?.basePath || `/tracks/${name}`;
-      const responses = await Promise.all(["clipData", "sectionData"].map(file => fetch(`${basePath}/${file}.json`)));
-      if (responses.some(response => !response.ok)) throw new Error("Could not load track metadata");
-      const [clipJson, sectionJson] = await Promise.all(responses.map(response => response.json()));
+      const metadata = await gizmagickRepository.loadTrack(name);
       const assets = {
-        basePath,
-        clips: clipJson.clips || clipJson,
-        sections: sectionJson.sections || sectionJson,
+        ...metadata,
         buffersReady: false,
       };
       preparedTracksRef.current.set(name, assets);
@@ -830,7 +826,7 @@ export default function App() {
     } finally {
       trackAssetPromisesRef.current.delete(name);
     }
-  }, [tracks]);
+  }, []);
 
   const loadTrackAssets = useCallback(async (name) => {
     if (!name || engine.isPlaying || loadBusyRef.current) return;
@@ -1937,6 +1933,7 @@ export default function App() {
         open={dbOpen}
         onClose={() => setDbOpen(false)}
         tracks={tracks}
+        getTrackAssets={getTrackAssets}
         sortMode={dbSort}
         onChangeSort={setDbSort}
         pinned={pinned}

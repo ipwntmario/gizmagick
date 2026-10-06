@@ -1,6 +1,6 @@
 # TrackManifestV2 contract and migration
 
-Phase 1 defines the playback contract; Phase 2 provides validation, conversion and an engine compatibility adapter. The live app still uses the original catalog and JSON files. Phase 3 will connect the local player to these manifests. No Cloudflare resources, upload endpoints or authentication are created in these phases.
+Phase 1 defines the playback contract; Phase 2 provides validation, conversion and an engine compatibility adapter. Phase 3 connects the local player and previews through a shared Gizmagick repository, with manifest loading selectable and legacy loading available for rollback. No Cloudflare resources, upload endpoints or authentication are created in these phases.
 
 The authoritative structural contract is [`shared/track-manifest.schema.json`](../shared/track-manifest.schema.json), using [JSON Schema Draft 7](https://json-schema.org/draft-07). Semantic rules are in [`shared/track-manifest.js`](../shared/track-manifest.js). [`examples/track-manifest-v2.json`](examples/track-manifest-v2.json) is a validated illustrative track, not a playable audio package.
 
@@ -89,8 +89,35 @@ Tracks not listed in `trackData.json` are reported and not imported. `Lena's Hom
 
 The reusable functions are `convertLegacyTrack`, `validateManifest`, `checkAudioFiles`, and `fingerprintManifest` in `frontend/scripts/lib/track-manifests.mjs`. Structural validation uses Ajv at tool time. `validateManifestSemantics` and `manifestToEngineData` in `shared/track-manifest.js` have no Node or library dependencies. Always run structural and semantic validation before calling the engine adapter. For the eventual Worker, compile a standalone schema validator during the build; Ajv's runtime schema compilation uses code generation that should not run inside a Worker request.
 
+## Phase 3: local loading
+
+From `frontend`:
+
+```sh
+npm run dev:manifest
+npm run build:manifest
+
+# Rollback/default when VITE_TRACK_SOURCE is not set elsewhere:
+npm run dev
+npm run build
+```
+
+`frontend/.env.manifest` sets `VITE_TRACK_SOURCE=manifest` for the manifest-mode commands. Alternatively set the variable in `.env.local` or the shell before starting Vite. A shell variable takes precedence over env files. Restart after changing the source or editing musical metadata/audio. Unknown source names fail visibly instead of choosing a fallback.
+
+The `gizmagick-local-manifests` Vite plugin validates and fingerprints all catalogued tracks at startup/build time. It serves `/gizmagick-tracks/catalog.json` and `/gizmagick-tracks/{trackId}/{versionId}/manifest.json` in development and emits the same files into `dist` for a manifest build. It neither writes generated metadata into source folders nor depends on `.track-manifests` exports. Development responses bypass caching and unknown generated paths return JSON 404s. Development snapshots are fixed until restart.
+
+The generated catalog keeps compatibility names as UI keys and attaches track ID, version ID, manifest URL, original audio base path and display/filter metadata. `trackRepository.js` loads the catalog and caches/coalesces track metadata requests by source, identity and version. The player, queued-track preload, library durations and Database previews all use it. Failed requests are removed from the pending cache so a user can retry. Database failures display a retryable message instead of expanding a blank track.
+
+The browser validates structure using a standalone validator compiled from the canonical schema by Vite, then applies the shared graph checks. Ajv and Node APIs do not ship as a runtime compiler. A catalog/manifest ID, version or display/playback metadata mismatch fails before conversion. Invalid manifest data never silently falls back to legacy JSON. The compatibility adapter supplies existing engine fields and filenames, preserving mode fallback, labels, weights and RNG behavior.
+
+Audio continues to use the original `public/tracks` URLs in Phase 3. The manifest snapshot IDs describe the computed file hashes at build time, but these audio paths are not immutable version directories yet. Immutable R2 audio delivery and the room protocol's track/version pinning remain required for remote publication. Browser preferences and existing name-based messages have not been renamed. New implementation names use Gizmagick.
+
 ## Checks and next phase
 
 `npm test` covers conversion of all 13 catalog tracks, actual audio file references, timing/labels/modes, deduplication, transition probabilities, RNG draw counts, repeatability, changed version content, unknown fields, broken graphs, unsafe paths and missing files. Testing Time retains 162 logical clips, 82 sections and 129 physical assets. The example document is validated too.
 
-Phase 3 should add a repository loader with local legacy and manifest sources, use the compatibility adapter to feed the existing engine, and route every consumer (playback, queued-track preload, library duration/section previews, and database modal) through that loader. Enable manifest loading behind a development option first. Keep the original catalog/assets as rollback material until local and synchronized playback have been checked in the browser. Then the remote repository can use the same contract when R2/D1 are ready.
+Repository tests compare all 13 tracks across both sources, including duration previews, audio URLs and transition outcomes. They exercise concurrent reads, cache reuse, failures/retries, malformed JSON, schema/graph errors, catalog identity mismatches, changed versions, the browser's standalone validator, and development/build document serving. Existing engine and room tests remain part of `npm test`.
+
+Phase 3 browser smoke checks covered Lena's Home playback/pause/seek, Testing Time section transitions, Database section/mode previews, and two local clients synchronizing BleepBloop with Modes, a mode change, queued Lena's Home, pause and seek. The room protocol remains name-based in this phase; these checks do not establish remote version pinning.
+
+Phase 4 can now provision R2/D1 and add a remote catalog/repository using the same manifest contract. Keep the original catalog/assets as rollback material until remote loading and synchronized version pinning have been verified. Public playback need not use the admin upload workflow until its authentication and write APIs are ready.

@@ -59,13 +59,19 @@ Tests cover room command dispatch and isolation, playback transition/RNG consist
 - `frontend/src/audio/transitions.js`: shared deterministic next-clip selection.
 - `frontend/src/net/useRoom.js`: WebSocket connection, room commands, readiness and clock estimation.
 - `frontend/src/net/useSession.js`: room, role, display name, URL and persisted identity.
-- `frontend/src/data`: catalog loading and shared track ordering.
+- `frontend/src/data`: the Gizmagick track repository, catalog loading, and shared track ordering.
 - `frontend/src/components`: controls, settings, and the music database.
 - `worker/src/index.js`: Cloudflare Worker and room hub.
 
 ## Music data
 
-The upcoming R2/D1 migration now has a [TrackManifestV2 contract and local tools](docs/track-manifest-v2.md). Phases 1–2 define a combined manifest, validate its graph, and convert the existing library without changing live loading. From `frontend`, run `npm run tracks:migrate` for a dry run or add `-- --write` to export manifests into the ignored `.track-manifests` directory. The original JSON/audio remains the active source until Phase 3.
+The upcoming R2/D1 migration has a [TrackManifestV2 contract and local tools](docs/track-manifest-v2.md). Phases 1–2 define and validate the combined manifest and convert the existing library. Phase 3 adds a shared repository for catalog loading, playback, queued-track preparation, library duration previews, and Database section/mode previews.
+
+From `frontend`, use `npm run dev:manifest` to test manifest loading, or `npm run build:manifest` to build a static version with the generated Gizmagick catalog and manifests included. Regular `npm run dev` and `npm run build` default to legacy JSON loading for rollback. You can also set `VITE_TRACK_SOURCE=manifest` in the environment or `.env.local`; restart Vite after changing it. Only `legacy` and `manifest` are accepted. In an online smoke test, run the local Worker and use the same track source in both tabs.
+
+Manifest mode generates validated metadata directly from the original JSON/audio at server startup or build time. It does not require the ignored `.track-manifests` exports. Restart the development server after changing musical data. Browser validation uses the same schema and graph rules; invalid manifests or mismatched catalog/version data report a loading error. Audio is still fetched from the original `public/tracks` paths during this phase. Original music files, browser preference keys, and room message names remain compatible.
+
+For standalone exports, run `npm run tracks:migrate` for a dry run or add `-- --write` to export manifests into the ignored `.track-manifests` directory.
 
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 

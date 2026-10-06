@@ -13,6 +13,7 @@ export default function DatabaseModal({
   open,
   onClose,
   tracks, // { [trackName]: { defaultDisplayName, basePath, simple, test?, ... } }
+  getTrackAssets,
   // Controlled prefs
   sortMode = "alpha-asc",     // "alpha-asc" | "alpha-desc"
   onChangeSort,
@@ -25,6 +26,7 @@ export default function DatabaseModal({
   const [expandedSections, setExpandedSections] = useState(() => new Set()); // keys: `${track}::${sectionKey}`
   const [sectionsByTrack, setSectionsByTrack] = useState({});               // cache: { trackName: { sections } }
   const [loadingTrack, setLoadingTrack] = useState(null);
+  const [trackErrors, setTrackErrors] = useState({});
   const [trackMenuOpen, setTrackMenuOpen] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 760px)").matches);
   const [sheetOffset, setSheetOffset] = useState(0);
@@ -178,15 +180,12 @@ export default function DatabaseModal({
     if (sectionsByTrack[trackName]) return sectionsByTrack[trackName];
     try {
       setLoadingTrack(trackName);
-      const basePath = tracks[trackName]?.basePath || `/tracks/${trackName}`;
-      const res = await fetch(`${basePath}/sectionData.json`);
-      if (!res.ok) throw new Error(`Failed to load sections: ${res.status}`);
-      const json = await res.json();
-      const sections = json?.sections || json || {};
+      const { sections } = await getTrackAssets(trackName);
+      setTrackErrors(prev => ({ ...prev, [trackName]: null }));
       setSectionsByTrack((prev) => ({ ...prev, [trackName]: sections }));
       return sections;
     } catch (e) {
-      console.error("Failed to load sectionData for", trackName, e);
+      setTrackErrors(prev => ({ ...prev, [trackName]: e.message }));
     } finally {
       setLoadingTrack(null);
     }
@@ -199,7 +198,7 @@ export default function DatabaseModal({
       setExpandedTracks(next);
       return;
     }
-    await fetchSectionsIfNeeded(trackName);
+    if (!await fetchSectionsIfNeeded(trackName)) return;
     next.add(trackName);
     setExpandedTracks(next);
   };
@@ -215,7 +214,7 @@ export default function DatabaseModal({
   const expandAll = async () => {
     // expand all tracks (and load each if needed), then all sections
     const loaded = await Promise.all(sortedTrackNames.map(async name => [name, await fetchSectionsIfNeeded(name)]));
-    setExpandedTracks(new Set(sortedTrackNames));
+    setExpandedTracks(new Set(loaded.filter(([, sections]) => sections).map(([name]) => name)));
     const allSectionKeys = loaded.flatMap(([name, sections]) => Object.keys(sections || {}).map(key => `${name}::${key}`));
     setExpandedSections(new Set(allSectionKeys));
   };
@@ -450,6 +449,7 @@ export default function DatabaseModal({
 
               return (
                 <div key={trackName}>
+                  {trackErrors[trackName] && <p role="alert" className="database-track-error">Could not load {titleForTrack(trackName, t)}: {trackErrors[trackName]}. Expand again to retry.</p>}
                   {/* Track row */}
                   <div
                     className={`database-row database-row--track ${expanded ? "is-expanded" : ""} ${trackMenuOpen === trackName ? "is-menu-open" : ""}`}

@@ -3,6 +3,21 @@
 const owns = (object, key) => Object.hasOwn(object, key);
 const pointer = key => String(key).replaceAll('~', '~0').replaceAll('/', '~1');
 
+// checkStructure is an Ajv function compiled at build time for the browser/Worker.
+export function validateManifestWithStructure(manifest, checkStructure) {
+  if (!checkStructure(manifest)) {
+    return {
+      valid: false,
+      errors: checkStructure.errors.map(error => ({
+        path: error.instancePath || '/', code: `schema:${error.keyword}`,
+        message: `${error.message}${error.params.additionalProperty ? ` (${error.params.additionalProperty})` : ''}`,
+      })),
+      warnings: [],
+    };
+  }
+  return validateManifestSemantics(manifest);
+}
+
 export function validateManifestSemantics(manifest) {
   const errors = [], warnings = [];
   const error = (path, code, message) => errors.push({ path, code, message });

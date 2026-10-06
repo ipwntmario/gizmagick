@@ -2,23 +2,13 @@ import { createHash } from 'node:crypto';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import Ajv from 'ajv';
-import { validateManifestSemantics, walk } from '../../../shared/track-manifest.js';
+import { validateManifestWithStructure, walk } from '../../../shared/track-manifest.js';
 
 export const schema = JSON.parse(await readFile(new URL('../../../shared/track-manifest.schema.json', import.meta.url), 'utf8'));
 const checkStructure = new Ajv({ allErrors: true, strict: true, ownProperties: true }).compile(schema);
 
 export function validateManifest(manifest) {
-  if (!checkStructure(manifest)) {
-    return {
-      valid: false,
-      errors: checkStructure.errors.map(error => ({
-        path: error.instancePath || '/', code: `schema:${error.keyword}`,
-        message: `${error.message}${error.params.additionalProperty ? ` (${error.params.additionalProperty})` : ''}`,
-      })),
-      warnings: [],
-    };
-  }
-  return validateManifestSemantics(manifest);
+  return validateManifestWithStructure(manifest, checkStructure);
 }
 
 // RFC 4122 UUIDv5 using the standard URL namespace. Only initial legacy import

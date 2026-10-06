@@ -1,0 +1,81 @@
+import { manifestToEngineData } from '../../../shared/track-manifest.js';
+
+const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const safeKey = key => !['__proto__', 'prototype', 'constructor'].includes(key);
+
+export function createTrackRepository({ source = 'legacy', fetchImpl = globalThis.fetch, validateManifest } = {}) {
+  if (!['legacy', 'manifest'].includes(source)) throw new Error(`Unknown Gizmagick track source: ${source}`);
+  if (source === 'manifest' && typeof validateManifest !== 'function') throw new Error('Gizmagick manifest validation is required.');
+  const catalogUrl = source === 'manifest' ? '/gizmagick-tracks/catalog.json' : '/trackData.json';
+  const metadata = new Map(), pending = new Map();
+  let catalogPromise;
+
+  async function fetchJSON(url, label) {
+    const response = await fetchImpl(encodeURI(url), { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`Could not load ${label} (${response.status})`);
+    try { return await response.json(); }
+    catch { throw new Error(`Invalid JSON in ${label}`); }
+  }
+
+  function checkCatalog(document) {
+    if (!isObject(document) || !isObject(document.tracks) || (source === 'manifest' && document.schemaVersion !== 2)) throw new Error('Invalid Gizmagick track catalog');
+    const identities = new Set();
+    for (const [name, track] of Object.entries(document.tracks)) {
+      if (!safeKey(name) || !isObject(track) || typeof track.basePath !== 'string' || !track.basePath.startsWith('/tracks/') || typeof track.firstSection !== 'string' || typeof track.simple !== 'boolean') throw new Error(`Invalid Gizmagick catalog entry: ${name}`);
+      if (source === 'manifest') {
+        if (!uuidPattern.test(track.id) || !uuidPattern.test(track.versionId) || typeof track.manifestUrl !== 'string' || !track.manifestUrl.startsWith('/gizmagick-tracks/') || typeof track.defaultDisplayName !== 'string' || typeof track.test !== 'boolean' || identities.has(track.id)) throw new Error(`Invalid Gizmagick manifest catalog entry: ${name}`);
+        identities.add(track.id);
+      }
+    }
+    return document.tracks;
+  }
+
+  function loadCatalog() {
+    if (!catalogPromise) {
+      catalogPromise = fetchJSON(catalogUrl, 'Gizmagick catalog').then(checkCatalog).catch(error => {
+        catalogPromise = undefined;
+        throw error;
+      });
+    }
+    return catalogPromise;
+  }
+
+  async function loadTrack(name) {
+    const catalog = await loadCatalog();
+    if (!Object.hasOwn(catalog, name)) throw new Error(`Unknown Gizmagick track: ${name}`);
+    const entry = catalog[name];
+    // Version identity stays attached to cached metadata. App/UI keys remain
+    // legacy names until the room protocol and preference migration are ready.
+    const key = JSON.stringify([source, entry.id || name, entry.versionId || entry.basePath]);
+    if (metadata.has(key)) return metadata.get(key);
+    if (pending.has(key)) return pending.get(key);
+    const request = (async () => {
+      let data;
+      if (source === 'manifest') {
+        const manifest = await fetchJSON(entry.manifestUrl, `${name} manifest`);
+        const validation = validateManifest(manifest);
+        if (!validation.valid) throw new Error(`Invalid ${name} manifest: ${validation.errors[0]?.path}: ${validation.errors[0]?.message}`);
+        if (manifest.track.id !== entry.id || manifest.versionId !== entry.versionId || manifest.track.title !== entry.defaultDisplayName || manifest.track.firstSection !== entry.firstSection || manifest.track.simple !== entry.simple || manifest.track.test !== entry.test) throw new Error(`Gizmagick catalog/manifest mismatch for ${name}`);
+        data = { ...manifestToEngineData(manifest), trackId: entry.id, versionId: entry.versionId, warnings: validation.warnings };
+      } else {
+        const [clipDocument, sectionDocument] = await Promise.all([
+          fetchJSON(`${entry.basePath}/clipData.json`, `${name} clips`),
+          fetchJSON(`${entry.basePath}/sectionData.json`, `${name} sections`),
+        ]);
+        const clips = clipDocument?.clips || clipDocument;
+        const sections = sectionDocument?.sections || sectionDocument;
+        if (!isObject(clips) || !isObject(sections) || !Object.hasOwn(sections, entry.firstSection)) throw new Error(`Invalid ${name} track metadata`);
+        data = { clips, sections };
+      }
+      const result = { ...data, basePath: entry.basePath };
+      metadata.set(key, result);
+      return result;
+    })();
+    pending.set(key, request);
+    try { return await request; }
+    finally { pending.delete(key); }
+  }
+
+  return { source, loadCatalog, loadTrack };
+}

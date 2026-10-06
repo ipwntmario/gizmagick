@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
-    files: ['scripts/track-manifests.mjs', 'scripts/lib/track-manifests.mjs', 'tests/trackManifest.test.mjs'],
+    files: ['scripts/track-manifests.mjs', 'scripts/gizmagick-manifests-plugin.mjs', 'scripts/lib/*.mjs', 'tests/trackManifest.test.mjs', 'tests/trackRepository.test.mjs'],
     extends: [js.configs.recommended],
     languageOptions: { ecmaVersion: 'latest', globals: globals.node, sourceType: 'module' },
     rules: { 'no-unused-vars': ['error', { varsIgnorePattern: '^_' }] },

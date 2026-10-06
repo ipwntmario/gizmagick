@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint:auth": "node ../frontend/node_modules/eslint/bin/eslint.js --config ../frontend/eslint.config.js src/admin-auth.js src/admin.js"
+    "lint:auth": "node ../frontend/node_modules/eslint/bin/eslint.js --config ../frontend/eslint.config.js src/admin-auth.js src/admin.js src/admin-drafts.js src/admin-page.js src/admin-client.js"
   },
   "dependencies": {
     "jose": "6.2.12"

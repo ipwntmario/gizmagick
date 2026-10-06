@@ -1,14 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
+import { convertLegacyTrack } from '../scripts/lib/track-manifests.mjs';
 
 test('the bundled Worker verifies signed admin tokens in the actual local Workers runtime', async () => {
   const result = await build({
     configFile: false, logLevel: 'silent',
-    build: { write: false, minify: false, lib: { entry: fileURLToPath(new URL('../../worker/src/index.js', import.meta.url)), formats: ['es'] } },
+    build: { write: false, minify: true, lib: { entry: fileURLToPath(new URL('../../worker/src/index.js', import.meta.url)), formats: ['es'] } },
   });
   const output = Array.isArray(result) ? result[0].output : result.output;
   const code = output.find(chunk => chunk.type === 'chunk' && chunk.isEntry).code;
@@ -28,7 +30,8 @@ test('the bundled Worker verifies signed admin tokens in the actual local Worker
   const outbound = [];
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
-    bindings: { GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS'],
+    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -37,9 +40,13 @@ test('the bundled Worker verifies signed admin tokens in the actual local Worker
     },
   }));
   try {
+    const db = await mf.getD1Database('GIZMAGICK_DB');
+    const draftMigration = await readFile(new URL('../../worker/migrations/0002_gizmagick_drafts.sql', import.meta.url), 'utf8');
+    // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
+    await db.exec(draftMigration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     const token = issue('admin@example.com');
     const request = (path, jwt = token, extra = {}) => mf.dispatchFetch(`https://admin.example.com${path}`, {
-      headers: { ...(jwt ? { 'Cf-Access-Jwt-Assertion': jwt } : {}) }, ...extra,
+      ...extra, headers: { ...(jwt ? { 'Cf-Access-Jwt-Assertion': jwt } : {}), ...extra.headers },
     });
     const allowed = await request('/api/admin/session');
     assert.equal(allowed.status, 200);
@@ -54,6 +61,31 @@ test('the bundled Worker verifies signed admin tokens in the actual local Worker
     assert.equal((await request('/api/admin/session', `${token.slice(0, -20)}invalidsignature`)).status, 401);
     assert.equal((await request('/api/admin/uploads', token, { method: 'POST' })).status, 403);
     assert.equal((await request('/health', null)).status, 200);
+    const read = async relative => JSON.parse(await readFile(new URL(relative, import.meta.url), 'utf8'));
+    const catalog = await read('../public/trackData.json');
+    const track = catalog.tracks["Lena's Home"];
+    const manifest = convertLegacyTrack("Lena's Home", track,
+      await read(`../public${track.basePath}/clipData.json`), await read(`../public${track.basePath}/sectionData.json`));
+    const writeHeaders = { Origin: 'https://admin.example.com', 'X-Gizmagick-Admin-Request': '1', 'Content-Type': 'application/json' };
+    const created = await request('/api/admin/drafts', token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ requestId: crypto.randomUUID(), manifest }) });
+    assert.equal(created.status, 201, await created.clone().text());
+    const draft = await created.json();
+    const assetId = Object.keys(draft.manifest.assets)[0];
+    const bytes = new Uint8Array(await readFile(new URL(`../public${track.basePath}/${draft.manifest.assets[assetId].path}`, import.meta.url)));
+    const uploadUrl = `/api/admin/drafts/${draft.id}/assets/${assetId}`;
+    assert.equal((await request(uploadUrl, null, { method: 'PUT', headers: writeHeaders, body: bytes })).status, 401);
+    assert.equal((await request(uploadUrl, token, { method: 'PUT', body: bytes })).status, 403);
+    const upload = await request(uploadUrl, token, { method: 'PUT', headers: { ...writeHeaders, 'Content-Type': 'application/octet-stream' }, body: bytes });
+    assert.equal(upload.status, 200, await upload.clone().text());
+    assert.equal((await upload.json()).audioProbed, false);
+    const download = await request(uploadUrl);
+    assert.equal(download.status, 200);
+    assert.deepEqual(new Uint8Array(await download.arrayBuffer()), bytes);
+    assert.equal((await request(uploadUrl, issue('member@example.com'))).status, 403);
+    const resumed = await request(`/api/admin/drafts/${draft.id}`);
+    assert.equal((await resumed.json()).missingAssets.length, 0);
+    assert.equal((await request('/api/admin/publish', token, { method: 'POST', headers: writeHeaders })).status, 405);
     assert.equal(outbound.length, 1);
   } finally { await mf.dispose(); }
 });

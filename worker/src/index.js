@@ -1,5 +1,6 @@
 // src/index.js
 import { handleLibraryRequest } from './library.js';
+import { ROOM_LIBRARY_PROTOCOL, validTrackRef, sameTrackRef } from '../../shared/room-library.js';
 
 export default {
   async fetch(req, env, ctx) {
@@ -37,6 +38,16 @@ export class RoomHub {
     this.env = env;
     this.clients = new Map(); // Map<WebSocket, {id,name,role,ready,roomId}>
     this.roomState = new Map(); // Map<roomId, { selectedTrack?: string, seed?: number, queuedTrack?: string|null, queuedTrackPlayAfterRelease?: boolean|null, queuedSection?: string|null, queuedMode?: string|null, trackVolume?: number, playing?: { trackName:string, sectionName:string, serverMs:number } }>
+    this.roomCommands = new Map();
+    // Hibernation creates a fresh instance: restore pins and socket identities
+    // before accepting commands. Keep the existing Durable Object/class name.
+    for (const socket of state.getWebSockets?.() || []) {
+      const user = socket.deserializeAttachment?.();
+      if (user) this.clients.set(socket, user);
+    }
+    if (state.storage && state.blockConcurrencyWhile) state.blockConcurrencyWhile(async () => {
+      this.roomState = new Map(await state.storage.get('gizmagick-room-library-v1') || []);
+    });
   }
 
   async fetch(req) {
@@ -85,16 +96,97 @@ export class RoomHub {
 
     if (!data || typeof data !== "object") return;
 
+    const user = this.clients.get(ws);
+    if (user?.trackSource === 'remote' && data.type !== 'HELLO') {
+      // Serialize validation + mutation: an older database lookup must never
+      // overwrite a newer selection/queue or race a clear/readiness message.
+      const previous = this.roomCommands.get(user.roomId) || Promise.resolve();
+      const next = previous.catch(() => {}).then(async () => {
+        if (this.clients.get(ws) !== user) return;
+        await this.handlePinnedMessage(ws, data, user);
+        ws.serializeAttachment?.(user);
+        if (this.state.storage && data.type !== 'PING') await this.persistLibraryRooms();
+      }).catch(() => this.roomError(ws, 'LIBRARY_UNAVAILABLE', 'Room library is temporarily unavailable.'));
+      this.roomCommands.set(user.roomId, next);
+      void next.finally(() => { if (this.roomCommands.get(user.roomId) === next) this.roomCommands.delete(user.roomId); });
+      return next;
+    }
+    this.handleMessage(ws, data);
+    const joined = this.clients.get(ws);
+    if (joined) ws.serializeAttachment?.(joined);
+    if (joined?.trackSource === 'remote' && this.state.storage) return this.persistLibraryRooms();
+  }
+
+  persistLibraryRooms() {
+    return this.state.storage.put('gizmagick-room-library-v1', [...this.roomState].filter(([, room]) => room.trackSource === 'remote'));
+  }
+
+  roomError(ws, code, message) {
+    try { ws.send(JSON.stringify({ type: 'ERROR', code, message })); } catch {}
+  }
+
+  roomContext(roomId) {
+    const rs = this.roomState.get(roomId);
+    return rs?.trackSource === 'remote' ? { trackRef: rs.selectedTrackRef || null, selectionId: rs.seed ?? null } : {};
+  }
+
+  async handlePinnedMessage(ws, data, user) {
+    const rs = this.roomState.get(user.roomId) || {};
+    if (['SET_TRACK_REQUEST', 'QUEUE_TRACK_REQUEST'].includes(data.type)) {
+      if (user.role !== 'GM') return this.roomError(ws, 'FORBIDDEN', 'Only active user can select tracks.');
+      if (!validTrackRef(data.trackRef)) return this.roomError(ws, 'INVALID_TRACK_REF', 'A published track/version reference is required.');
+      if (!this.env.GIZMAGICK_DB) return this.roomError(ws, 'LIBRARY_UNAVAILABLE', 'Room library is not configured.');
+      const row = await this.env.GIZMAGICK_DB.prepare(`SELECT t.id, t.legacy_key FROM library_tracks t
+        JOIN library_track_versions v ON v.track_id = t.id WHERE t.id = ? AND v.version_id = ?
+        AND t.visibility = 'public' AND t.status = 'published' AND v.status = 'published'`)
+        .bind(data.trackRef.trackId, data.trackRef.versionId).first();
+      if (!row) return this.roomError(ws, 'TRACK_UNAVAILABLE', 'That published track version is unavailable.');
+      if (this.clients.get(ws) !== user) return;
+      data = { ...data, name: row.legacy_key ?? row.id, trackRef: { trackId: row.id, versionId: data.trackRef.versionId } };
+    } else if (data.type === 'SET_READY') {
+      if (!sameTrackRef(data.trackRef, rs.selectedTrackRef) || data.selectionId !== rs.seed) return;
+      user.readyTrackRef = data.ready ? data.trackRef : null;
+      user.readySelectionId = data.ready ? data.selectionId : null;
+    } else if (data.type === 'SYNC_RESPONSE') {
+      if (!sameTrackRef(data.state?.trackRef, rs.selectedTrackRef) || data.state?.selectionId !== rs.seed || data.state?.trackName !== rs.selectedTrack) {
+        return this.roomError(ws, 'STALE_TRACK', 'Sync does not match the room track version.');
+      }
+    } else if (['PLAY_REQUEST', 'PAUSE_REQUEST', 'STOP_REQUEST', 'CANCEL_STOP_REQUEST', 'RESUME_REQUEST', 'SEEK_REQUEST',
+      'QUEUE_SECTION_REQUEST', 'CLEAR_SECTION_QUEUE_REQUEST', 'QUEUE_MODE_REQUEST', 'CLEAR_MODE_QUEUE_REQUEST'].includes(data.type)) {
+      if (!sameTrackRef(data.trackRef, rs.selectedTrackRef) || data.selectionId !== rs.seed
+          || (data.type === 'PLAY_REQUEST' && data.trackName !== rs.selectedTrack)) {
+        return this.roomError(ws, 'STALE_TRACK', 'Command does not match the room track version.');
+      }
+    }
+    this.handleMessage(ws, data);
+  }
+
+  handleMessage(ws, data) {
     switch (data.type) {
       case "HELLO": {
+        const roomId = String(data.roomId || 'default');
+        const source = data.trackSource === 'remote' ? 'remote' : 'legacy';
+        const existing = this.roomState.get(roomId);
+        const peers = [...this.clients.values()].filter(user => user.roomId === roomId);
+        if ((source === 'remote' && data.roomProtocol !== ROOM_LIBRARY_PROTOCOL)
+            || (existing && (existing.trackSource || 'legacy') !== source)
+            || peers.some(user => (user.trackSource || 'legacy') !== source)) {
+          this.roomError(ws, 'ROOM_SOURCE_MISMATCH', 'This room uses a different track source or room protocol.');
+          return;
+        }
+        if (source === 'remote') {
+          this.roomState.set(roomId, existing || { trackSource: 'remote' });
+          ws.send(JSON.stringify({ type: 'ROOM_PROTOCOL', roomProtocol: ROOM_LIBRARY_PROTOCOL, trackSource: 'remote' }));
+        }
         // Seed user record; roomId comes from HELLO
         const user = {
           id: crypto.randomUUID(),
           name: data.name || "Anon",
           role: data.role || "Player",
-          ready: !!data.ready,
-          loading: !data.ready && data.loading === true,
-          roomId: data.roomId || "default",
+          ready: source === 'remote' ? false : !!data.ready,
+          loading: source === 'remote' ? false : !data.ready && data.loading === true,
+          roomId,
+          trackSource: source,
         };
         this.clients.set(ws, user);
         console.log("[RoomHub] HELLO add:", user, "total:", this.clients.size);
@@ -105,6 +197,7 @@ export class RoomHub {
           ws.send(JSON.stringify({
             type: "STATE",
             selectedTrack: rs.selectedTrack,
+            ...(source === 'remote' ? { selectedTrackRef: rs.selectedTrackRef || null, queuedTrackRef: rs.queuedTrackRef || null, roomProtocol: ROOM_LIBRARY_PROTOCOL } : {}),
             seed: rs.seed ?? null,
             queuedSection: rs.queuedSection ?? null,
             queuedMode: rs.queuedMode ?? null,
@@ -172,7 +265,9 @@ export class RoomHub {
         // (2) Ready gate
         const usersInRoom = [];
         for (const [, ru] of this.clients) if (ru.roomId === roomId) usersInRoom.push(ru);
-        const notReady = usersInRoom.filter(x => !x.ready).map(x => x.name);
+        const rs = this.roomState.get(roomId) || {};
+        const notReady = usersInRoom.filter(x => !x.ready || (u.trackSource === 'remote'
+          && (!sameTrackRef(x.readyTrackRef, rs.selectedTrackRef) || x.readySelectionId !== rs.seed))).map(x => x.name);
 
         if (!override && notReady.length > 0) {
           console.log("[RoomHub] PLAY_REQUEST rejected (not ready):", notReady);
@@ -189,10 +284,9 @@ export class RoomHub {
 
         console.log("[RoomHub] PLAY_REQUEST accepted", { roomId, trackName, sectionName, serverMs, override });
         // save snapshot for late joiners
-        const rs = this.roomState.get(roomId) || {};
-        rs.playing = { trackName, sectionName, serverMs };
+        rs.playing = { trackName, sectionName, serverMs, ...this.roomContext(roomId) };
         this.roomState.set(roomId, rs);
-        const payload = JSON.stringify({ type: "PLAY", trackName, sectionName, serverMs });
+        const payload = JSON.stringify({ type: "PLAY", trackName, sectionName, serverMs, ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) {
           if (uu.roomId === roomId) {
             try { sock.send(payload); } catch {}
@@ -209,7 +303,7 @@ export class RoomHub {
         }
         const roomId = u.roomId;
         console.log("[RoomHub] PAUSE_REQUEST", { roomId });
-        const payload = JSON.stringify({ type: "PAUSE" });
+        const payload = JSON.stringify({ type: "PAUSE", ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -226,7 +320,7 @@ export class RoomHub {
           ? data.fadeSeconds
           : null;
         console.log("[RoomHub] STOP_REQUEST", { roomId, fade });
-        const payload = JSON.stringify({ type: "STOP", fade, ...(fadeSeconds == null ? {} : { fadeSeconds }) });
+        const payload = JSON.stringify({ type: "STOP", fade, ...(fadeSeconds == null ? {} : { fadeSeconds }), ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         // clear playing snapshot for late joiners
         const rs = this.roomState.get(roomId) || {};
@@ -248,7 +342,7 @@ export class RoomHub {
         rs.stoppingPlaying = null;
         this.roomState.set(roomId, rs);
         console.log("[RoomHub] CANCEL_STOP_REQUEST", { roomId });
-        const payload = JSON.stringify({ type: "CANCEL_STOP" });
+        const payload = JSON.stringify({ type: "CANCEL_STOP", ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -262,7 +356,7 @@ export class RoomHub {
         const roomId = u.roomId;
         const serverMs = Number(data.serverMs) || (Date.now() + 2000);
         console.log("[RoomHub] RESUME_REQUEST", { roomId, serverMs });
-        const payload = JSON.stringify({ type: "RESUME", serverMs });
+        const payload = JSON.stringify({ type: "RESUME", serverMs, ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -277,7 +371,7 @@ export class RoomHub {
         const positionSeconds = Math.max(0, Number(data.positionSeconds) || 0);
         const serverMs = Number(data.serverMs) || (Date.now() + 300);
         console.log("[RoomHub] SEEK_REQUEST", { roomId, positionSeconds, serverMs });
-        const payload = JSON.stringify({ type: "SEEK", positionSeconds, serverMs });
+        const payload = JSON.stringify({ type: "SEEK", positionSeconds, serverMs, ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -300,10 +394,25 @@ export class RoomHub {
         const rs = this.roomState.get(roomId) || {};
         rs.selectedTrack = name;
         rs.seed = seed;
+        if (u.trackSource === 'remote') {
+          rs.selectedTrackRef = data.trackRef;
+          rs.playing = null;
+          rs.stoppingPlaying = null;
+          rs.queuedSection = null;
+          rs.queuedMode = null;
+          for (const [peerSocket, peer] of this.clients) if (peer.roomId === roomId) {
+            peer.ready = false;
+            peer.loading = false;
+            peer.readyTrackRef = null;
+            peer.readySelectionId = null;
+            peerSocket.serializeAttachment?.(peer);
+          }
+          this.broadcastPresence(roomId);
+        }
         this.roomState.set(roomId, rs);
 
         // broadcast to room
-        const payload = JSON.stringify({ type: "SET_TRACK", name, seed });
+        const payload = JSON.stringify({ type: "SET_TRACK", name, seed, ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) {
           if (uu.roomId === roomId) {
             try { sock.send(payload); } catch {}
@@ -321,7 +430,7 @@ export class RoomHub {
         rs.queuedSection = name || null;
         this.roomState.set(roomId, rs);
         console.log("[RoomHub] QUEUE_SECTION_REQUEST", { roomId, name });
-        const payload = JSON.stringify({ type: "QUEUE_SECTION", name });
+        const payload = JSON.stringify({ type: "QUEUE_SECTION", name, ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -334,7 +443,7 @@ export class RoomHub {
         rs.queuedSection = null;
         this.roomState.set(roomId, rs);
         console.log("[RoomHub] CLEAR_SECTION_QUEUE_REQUEST", { roomId });
-        const payload = JSON.stringify({ type: "CLEAR_SECTION_QUEUE" });
+        const payload = JSON.stringify({ type: "CLEAR_SECTION_QUEUE", ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -353,7 +462,7 @@ export class RoomHub {
         rs.queuedMode = name || null;
         this.roomState.set(roomId, rs);
         console.log("[RoomHub] QUEUE_MODE_REQUEST", { roomId, name });
-        const payload = JSON.stringify({ type: "QUEUE_MODE", name });
+        const payload = JSON.stringify({ type: "QUEUE_MODE", name, ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -371,7 +480,7 @@ export class RoomHub {
         rs.queuedMode = null;
         this.roomState.set(roomId, rs);
         console.log("[RoomHub] CLEAR_MODE_QUEUE_REQUEST", { roomId });
-        const payload = JSON.stringify({ type: "CLEAR_MODE_QUEUE" });
+        const payload = JSON.stringify({ type: "CLEAR_MODE_QUEUE", ...this.roomContext(roomId) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -386,9 +495,11 @@ export class RoomHub {
         const playAfterRelease = typeof data.playAfterRelease === "boolean" ? data.playAfterRelease : null;
         rs.queuedTrack = name;
         rs.queuedTrackPlayAfterRelease = playAfterRelease;
+        if (u.trackSource === 'remote') rs.queuedTrackRef = data.trackRef;
         this.roomState.set(roomId, rs);
         console.log("[RoomHub] QUEUE_TRACK_REQUEST", { roomId, name, playAfterRelease });
-        const payload = JSON.stringify({ type: "QUEUE_TRACK", name, ...(playAfterRelease !== null ? { playAfterRelease } : {}) });
+        const payload = JSON.stringify({ type: "QUEUE_TRACK", name, ...(playAfterRelease !== null ? { playAfterRelease } : {}),
+          ...(u.trackSource === 'remote' ? { trackRef: rs.queuedTrackRef } : {}) });
         for (const [sock, uu] of this.clients) if (uu.roomId === roomId) { try { sock.send(payload); } catch {} }
         break;
       }
@@ -400,6 +511,7 @@ export class RoomHub {
         const rs = this.roomState.get(roomId) || {};
         rs.queuedTrack = null;
         rs.queuedTrackPlayAfterRelease = null;
+        if (u.trackSource === 'remote') rs.queuedTrackRef = null;
         this.roomState.set(roomId, rs);
         console.log("[RoomHub] CLEAR_TRACK_QUEUE_REQUEST", { roomId });
         const payload = JSON.stringify({ type: "CLEAR_TRACK_QUEUE" });

@@ -53,6 +53,25 @@ function withTimers(fn) {
   try { return fn(timers); } finally { globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear; }
 }
 
+test('paused late-join hydration retains buffers, freezes snapshots and resumes the same clip', () => withTimers(() => {
+  const engine = fixture();
+  engine.currentTrackName = 'Pinned track';
+  engine._isPreloaded = true;
+  let starts = 0;
+  engine.audioCtx.createBufferSource = () => ({ connect() {}, start() { starts++; }, stop() {}, disconnect() {} });
+  assert.equal(engine.restorePausedPosition({ sectionName: 'Main', modeName: 'base', clipName: 'A', offsetSeconds: 4.5 }), true);
+  assert.equal(starts, 0);
+  assert.equal(engine.isPaused, true);
+  assert.equal(engine.isPreloaded, true);
+  engine.audioCtx.currentTime = 100;
+  assert.equal(engine.getNowPlaying().offsetSeconds, 4.5);
+  assert.equal(engine.restorePausedPosition({ sectionName: 'Missing', clipName: 'A' }), false);
+  engine.resume(true);
+  assert.equal(starts, 1);
+  assert.equal(engine.lastPlayingClipName, 'A');
+  assert.equal(engine.isPaused, false);
+}));
+
 test('normal and scheduled playback consume identical RNG draws at boundaries', () => withTimers(timers => {
   const normal = fixture();
   normal.playClip('A');

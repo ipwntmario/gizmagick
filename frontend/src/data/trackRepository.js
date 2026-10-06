@@ -1,5 +1,6 @@
 import { manifestToEngineData } from '../../../shared/track-manifest.js';
 import { LIBRARY_CATALOG_PATH, UUID_PATTERN, libraryVersionLocation, normalizeMediaBase } from '../../../shared/library-contract.js';
+import { validTrackRef } from '../../../shared/room-library.js';
 
 const uuidPattern = UUID_PATTERN;
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -48,12 +49,20 @@ export function createTrackRepository({ source = 'legacy', fetchImpl = globalThi
     return catalogPromise;
   }
 
-  async function loadTrack(name) {
-    const catalog = await loadCatalog();
-    if (!Object.hasOwn(catalog, name)) throw new Error(`Unknown Gizmagick track: ${name}`);
-    const entry = catalog[name];
-    // Version identity stays attached to cached metadata. App/UI keys remain
-    // legacy names until the room protocol and preference migration are ready.
+  async function loadTrack(name, pin = null) {
+    let entry;
+    if (pin) {
+      if (source !== 'remote' || !validTrackRef(pin)) throw new Error('Invalid Gizmagick room track reference');
+      // Resolve the exact historical version through the same trusted API, never
+      // through the catalog's mutable current-version pointer or a socket URL.
+      const versionUrl = `${catalogUrl.slice(0, -'/catalog'.length)}/tracks/${pin.trackId}/versions/${pin.versionId}`;
+      entry = await fetchJSON(versionUrl, `${name} pinned version`);
+      checkCatalog({ schemaVersion: 2, tracks: { [name]: entry } });
+      if (entry.id !== pin.trackId || entry.versionId !== pin.versionId) throw new Error('Gizmagick pinned version identity mismatch');
+    } else entry = (await loadCatalog())[name];
+    if (!entry) throw new Error(`Unknown Gizmagick track: ${name}`);
+    // Version identity stays attached to cached metadata. Compatibility names
+    // remain UI/preference keys; remote rooms additionally carry explicit pins.
     const key = JSON.stringify([source, entry.id || name, entry.versionId || entry.basePath]);
     if (metadata.has(key)) return metadata.get(key);
     if (pending.has(key)) return pending.get(key);
@@ -75,7 +84,7 @@ export function createTrackRepository({ source = 'legacy', fetchImpl = globalThi
         if (!isObject(clips) || !isObject(sections) || !Object.hasOwn(sections, entry.firstSection)) throw new Error(`Invalid ${name} track metadata`);
         data = { clips, sections };
       }
-      const result = { ...data, basePath: entry.basePath };
+      const result = { ...data, basePath: entry.basePath, entry };
       metadata.set(key, result);
       return result;
     })();

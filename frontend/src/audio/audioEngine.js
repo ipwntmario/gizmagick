@@ -89,7 +89,8 @@ export class AudioEngine {
     if (!entry) return null;
     const ctx = this.audioCtx;
     const elapsed = Math.max(0, ctx.currentTime - (entry.startedAt || ctx.currentTime));
-    const offsetSeconds = (entry.offsetAtStart || 0) + elapsed;
+    const offsetSeconds = this.isPaused && this.pausedInfo
+      ? (this.pausedInfo.offsetSeconds ?? 0) : (entry.offsetAtStart || 0) + elapsed;
     return {
       trackName: this.currentTrackName || null,
       sectionName: this.currentSectionName || null,
@@ -1142,6 +1143,30 @@ export class AudioEngine {
       this.pausedInfo = { clipName: this.lastPlayingClipName, offsetSeconds };
       this.onStatus?.("Paused");
     }, fade * 1000 + 20);
+  }
+
+  // Hydrate a paused late join without briefly starting sound. Keep decoded
+  // buffers so the normal synchronized Resume path can use the same pin.
+  restorePausedPosition({ sectionName, modeName = 'base', clipName, offsetSeconds = 0 } = {}) {
+    if (!this.sectionData[sectionName] || !this.activeClips[clipName]) return false;
+    this._playbackToken += 1;
+    clearTimeout(this._pauseFinishTimer);
+    this._pauseFinishTimer = null;
+    this.clearScheduled();
+    this._clearWarmStart();
+    for (const entry of Object.values(this.activeClips)) {
+      try { entry.source?.stop(); } catch {}
+      entry.source = null;
+    }
+    this.clearQueuedSection();
+    this.clearQueuedMode();
+    this.setCurrentSection(sectionName);
+    this.setCurrentMode(modeName);
+    this.lastPlayingClipName = clipName;
+    this.isPaused = true;
+    this.pausedInfo = { clipName, offsetSeconds: Math.max(0, Number(offsetSeconds) || 0) };
+    this.onStatus?.('Paused');
+    return true;
   }
 
   resume(simpleTrack = true) {

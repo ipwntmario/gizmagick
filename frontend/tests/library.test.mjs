@@ -5,9 +5,10 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import worker from '../../worker/src/index.js';
+import worker, { RoomHub } from '../../worker/src/index.js';
 import { handleLibraryRequest } from '../../worker/src/library.js';
-import { LIBRARY_CATALOG_PATH, libraryVersionLocation, normalizeMediaBase, assertTrackSourceSession, assertRemoteBuildConfiguration } from '../../shared/library-contract.js';
+import { LIBRARY_CATALOG_PATH, libraryVersionLocation, normalizeMediaBase, assertRemoteBuildConfiguration } from '../../shared/library-contract.js';
+import { ROOM_LIBRARY_PROTOCOL, trackRefOf } from '../../shared/room-library.js';
 import { createLocalLibrarySnapshot } from '../scripts/lib/gizmagick-local-library.mjs';
 import { seedLocalLibrary } from '../scripts/lib/gizmagick-local-seed.mjs';
 import { createTrackRepository } from '../src/data/trackRepository.js';
@@ -277,10 +278,38 @@ test('remote repository rejects URL substitution, mismatched identity and failur
   assert.deepEqual(calls, [LIBRARY_CATALOG_PATH, LIBRARY_CATALOG_PATH]);
 });
 
-test('remote source requires Private Session and production builds cannot embed localhost defaults', () => {
-  assert.throws(() => assertTrackSourceSession('remote', true), /Private Session/);
-  assert.doesNotThrow(() => assertTrackSourceSession('remote', false));
-  assert.doesNotThrow(() => assertTrackSourceSession('manifest', true));
+test('pinned loads do not depend on the current catalog and reject untrusted version responses', async t => {
+  const f = fixture(t);
+  const name = "Lena's Home";
+  await f.seed(oneTrack(name));
+  const pin = trackRefOf(snapshot.catalog.tracks[name]);
+  const calls = [];
+  const fetchImpl = async url => {
+    calls.push(url);
+    assert.notEqual(url, LIBRARY_CATALOG_PATH);
+    return url.startsWith('/api/library/') ? f.request(url) : f.request(`/api/library/media${new URL(url).pathname}`);
+  };
+  const repository = createTrackRepository({ source: 'remote', validateManifest, fetchImpl });
+  assert.equal((await repository.loadTrack(name, pin)).versionId, pin.versionId);
+  assert.equal(calls.length, 2);
+  for (const mutate of [
+    entry => { entry.manifestUrl = 'https://evil.test/manifest.json'; },
+    entry => { entry.versionId = '77777777-7777-4777-8777-777777777777'; entry.basePath = libraryVersionLocation(undefined, entry.id, entry.versionId).basePath; entry.manifestUrl = `${entry.basePath}/manifest.json`; },
+  ]) {
+    const entry = (await (await f.request(LIBRARY_CATALOG_PATH)).json()).tracks[name];
+    mutate(entry);
+    const bad = createTrackRepository({ source: 'remote', validateManifest, fetchImpl: async () => Response.json(entry) });
+    await assert.rejects(bad.loadTrack(name, pin), /Untrusted|identity mismatch/);
+  }
+  const absolute = createTrackRepository({ source: 'remote', remoteCatalogUrl: 'https://catalog.test/api/library/catalog', validateManifest, fetchImpl: async url => {
+    assert.equal(url, `https://catalog.test/api/library/tracks/${pin.trackId}/versions/${pin.versionId}`);
+    return new Response('', { status: 404 });
+  } });
+  await assert.rejects(absolute.loadTrack(name, pin), /404/);
+  await assert.rejects(repository.loadTrack(name, { ...pin, versionId: 'invalid' }), /Invalid.*reference/);
+});
+
+test('production builds cannot embed localhost defaults', () => {
   assert.throws(() => normalizeMediaBase('http://media.gizmagick.com'), /HTTPS/);
   assert.throws(() => normalizeMediaBase('https://media.gizmagick.com/?bad=1'), /query/);
   assert.throws(() => normalizeMediaBase('https://user:password@media.gizmagick.com'), /credentials/);
@@ -289,6 +318,56 @@ test('remote source requires Private Session and production builds cannot embed 
   assert.throws(() => assertRemoteBuildConfiguration({ source: 'remote', command: 'build', catalogUrl: 'https://catalog.test/api/library/catalog', mediaBaseUrl: 'http://localhost:8787/api/library/media' }), /production HTTPS/);
   assert.doesNotThrow(() => assertRemoteBuildConfiguration({ source: 'remote', command: 'build', catalogUrl: 'https://catalog.test/api/library/catalog', mediaBaseUrl: 'https://media.gizmagick.com' }));
   assert.doesNotThrow(() => assertRemoteBuildConfiguration({ source: 'remote', command: 'serve' }));
+});
+
+test('two room clients load the historical pin after catalog republishing, including a queued pin', async t => {
+  const f = fixture(t);
+  const name = "Lena's Home";
+  await f.seed(oneTrack(name));
+  const original = snapshot.catalog.tracks[name];
+  const pin = trackRefOf(original);
+  const hub = new RoomHub({}, f.env);
+  const messages = [], joinedMessages = [];
+  const director = { send: value => messages.push(JSON.parse(value)) };
+  const joiner = { send: value => joinedMessages.push(JSON.parse(value)) };
+  const hello = { type: 'HELLO', roomId: 'pinned', trackSource: 'remote', roomProtocol: ROOM_LIBRARY_PROTOCOL };
+  await hub.webSocketMessage(director, JSON.stringify({ ...hello, role: 'GM' }));
+  await hub.webSocketMessage(director, JSON.stringify({ type: 'SET_TRACK_REQUEST', name, trackRef: pin }));
+  await hub.webSocketMessage(director, JSON.stringify({ type: 'QUEUE_TRACK_REQUEST', name, trackRef: pin }));
+  const manifest = JSON.parse(snapshot.documents.get(original.manifestUrl));
+  manifest.versionId = '66666666-6666-4666-8666-666666666666';
+  manifest.track.title = 'New published title';
+  const entry = { ...original, versionId: manifest.versionId, manifestUrl: '/republished.json' };
+  await f.seed({ catalog: { tracks: { [name]: entry } }, documents: new Map([[entry.manifestUrl, JSON.stringify(manifest)]]) });
+  await hub.webSocketMessage(joiner, JSON.stringify({ ...hello, role: 'Player' }));
+  const state = joinedMessages.find(value => value.type === 'STATE');
+  assert.deepEqual(state.selectedTrackRef, pin);
+  assert.deepEqual(state.queuedTrackRef, pin);
+  const catalog = await (await f.request(LIBRARY_CATALOG_PATH)).json();
+  assert.equal(catalog.tracks[name].versionId, entry.versionId);
+  const calls = [];
+  const fetchImpl = async url => {
+    calls.push(url);
+    if (url.startsWith('/api/library/')) return f.request(url);
+    return f.request(`/api/library/media${new URL(url).pathname}`);
+  };
+  // Simulate separate browsers whose catalogs both now point at the new version.
+  for (const received of [messages.find(value => value.type === 'SET_TRACK').trackRef, state.selectedTrackRef, state.queuedTrackRef]) {
+    const repository = createTrackRepository({ source: 'remote', validateManifest, fetchImpl });
+    const data = await repository.loadTrack(name, received);
+    assert.equal(data.versionId, original.versionId);
+    assert.equal(data.entry.defaultDisplayName, name);
+    assert.equal(Object.keys(data.clips).length, 1);
+    assert(!calls.at(-1).includes(entry.versionId));
+  }
+  // Explicitly promoting the historical queued version must not follow current.
+  await hub.webSocketMessage(director, JSON.stringify({ type: 'SET_TRACK_REQUEST', name, trackRef: state.queuedTrackRef }));
+  assert.deepEqual(hub.roomState.get('pinned').selectedTrackRef, pin);
+  f.sqlite.prepare("UPDATE library_tracks SET visibility = 'private' WHERE id = ?").run(original.id);
+  await hub.webSocketMessage(director, JSON.stringify({ type: 'SET_TRACK_REQUEST', name, trackRef: pin }));
+  assert.equal(messages.at(-1).code, 'TRACK_UNAVAILABLE');
+  const repository = createTrackRepository({ source: 'remote', validateManifest, fetchImpl: async url => url === LIBRARY_CATALOG_PATH ? Response.json(catalog) : f.request(url) });
+  await assert.rejects(repository.loadTrack(name, pin), /404/);
 });
 
 test('remote Vite source ships validation but emits no local catalog or manifests', async () => {

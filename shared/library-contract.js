@@ -20,10 +20,6 @@ export function libraryVersionLocation(mediaBase, trackId, versionId) {
   return { basePath, manifestUrl: `${basePath}/manifest.json`, manifestKey: `${prefix}/manifest.json`, prefix };
 }
 
-export function assertTrackSourceSession(source, onlineEnabled) {
-  if (source === 'remote' && onlineEnabled) throw new Error('Remote library preview requires Private Session until room version pinning is implemented.');
-}
-
 export function assertRemoteBuildConfiguration({ source, command, catalogUrl, mediaBaseUrl }) {
   if (source !== 'remote' || command !== 'build') return;
   for (const [name, value] of [['VITE_GIZMAGICK_CATALOG_URL', catalogUrl], ['VITE_GIZMAGICK_MEDIA_BASE_URL', mediaBaseUrl]]) {

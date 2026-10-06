@@ -73,7 +73,7 @@ Manifest mode generates validated metadata directly from the original JSON/audio
 
 For standalone exports, run `npm run tracks:migrate` for a dry run or add `-- --write` to export manifests into the ignored `.track-manifests` directory.
 
-Phase 4 adds the D1 catalog schema, read-only Worker API, and remote repository. The Worker configuration now targets the verified existing `gizmagick-worker`, binds `gizmagick-library` and `gizmagick-media`, and preserves `ROOM_HUB`. See the [local D1/R2 setup and rollout guide](docs/cloudflare-library.md). It includes a local-only seed command; no production import or admin write endpoints are enabled. Remote preview requires Private Session until room version pinning is implemented. Default production loading is unchanged.
+Phase 4 adds the D1 catalog schema, read-only Worker API, and remote repository. The Worker configuration targets the verified existing `gizmagick-worker`, binds `gizmagick-library` and `gizmagick-media`, and preserves `ROOM_HUB`. See the [local D1/R2 setup and rollout guide](docs/cloudflare-library.md). It includes a local-only seed command; no production import or admin write endpoints are enabled. Remote online rooms now use [version-pinned synchronization](docs/room-library-protocol.md), including queued tracks and reconnects. Default production loading is unchanged.
 
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 

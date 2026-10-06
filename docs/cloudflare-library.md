@@ -1,6 +1,6 @@
 # Gizmagick library: Phase 4 foundation
 
-The code now supports a D1-backed catalog and versioned R2 manifests/audio. This change was tested with local simulated resources; it does not migrate the remote database, upload music, deploy the Worker, or change the live frontend's track source. Admin login, upload APIs, private drafts, and room version pinning are separate work.
+The code now supports a D1-backed catalog, versioned R2 manifests/audio, and version-pinned online rooms. These changes were tested with local simulated resources; they do not migrate the remote database, upload music, deploy the Worker, or change the live frontend's track source. Admin login, upload APIs, and private drafts are separate work.
 
 ## Resources and schema
 
@@ -56,7 +56,7 @@ In another terminal:
 npm run dev:remote
 ```
 
-Open the Vite URL and select **Private Session**. Default local routing is frontend `/api/library` → Worker port 8787, and R2 media → `http://127.0.0.1:8787/api/library/media`. Vite's local proxy is not a production Pages function. Ports 5173 and 5180 are allowed in the API CORS configuration. Ensure port 8787 is free and check Wrangler's actual startup URL.
+Open the Vite URL and select **Private Session**, or an online room with `VITE_ONLINE_MODE=true` and `VITE_WS_URL=/ws`. Default local routing is frontend `/api/library` and `/ws` → Worker port 8787, and R2 media → `http://127.0.0.1:8787/api/library/media`. The catalog, media, and WebSocket must use the same configured backend. Vite's local proxy is not a production Pages function. Ports 5173 and 5180 are allowed in the API CORS configuration. Ensure port 8787 is free and check Wrangler's actual startup URL.
 
 If an existing service occupies 8787, leave it running and start a separate Worker explicitly on 8788:
 
@@ -69,21 +69,22 @@ For the matching preview in PowerShell:
 ```powershell
 $env:VITE_GIZMAGICK_CATALOG_URL = 'http://127.0.0.1:8788/api/library/catalog'
 $env:VITE_GIZMAGICK_MEDIA_BASE_URL = 'http://127.0.0.1:8788/api/library/media'
+$env:VITE_WS_URL = 'ws://127.0.0.1:8788/ws'
 npm run dev:remote -- --host 127.0.0.1 --port 5180 --strictPort
 ```
 
 Those environment values affect only that terminal. Clear them before a production build. A shell variable overrides env files; `.env.local` may also override a mode file. Restart after configuration or source-data changes. Run the seed again after source music changes to create local versions, then reload the player for a fresh catalog snapshot.
 
-Remote source is **Private Session only** for now: choosing a room displays an explicit warning, blocks track loading, and does not connect its WebSocket. The existing name-based room protocol cannot safely pin an immutable version across republishing; this restriction must not be removed without implementing version-pinned synchronization. Legacy/manifest room playback remains enabled.
+Remote online rooms require the `gizmagick-library-v1` handshake and carry published track/version IDs. Active and queued tracks, readiness, transport commands, late joins, and sync snapshots are pinned. Historical version reads do not consult the current catalog, and unavailable versions never fall back to new or legacy audio. Legacy/manifest room playback remains enabled, but cannot share a room with remote-source clients. See the [room protocol and rollout notes](room-library-protocol.md).
 
 ## Production rollout remains pending
 
-Do not switch the live Pages build to `remote` yet. Complete audio-probed production import/publication, admin authorization for writes, and room track/version pinning first. Keep the original catalog and audio as rollback material.
+Do not switch the live Pages build to `remote` yet. Complete audio-probed production import/publication and admin authorization for writes first. Version-pinned room code is implemented locally, but needs a deployed two-client check before frontend cutover. Keep the original catalog and audio as rollback material.
 
 When rollout is explicitly authorized, apply the migration to **remote** D1, prepare/verify immutable R2 objects and update D1 pointers last, then deploy this Worker configuration to the existing `gizmagick-worker`. Do not create a new Worker or edit bindings only in the dashboard. Check `/health`, catalog contents, version reads, audio/CORS and two-client version-pinned playback before frontend cutover. Remote D1 is still empty until these steps run.
 
 A remote frontend build requires explicit production `VITE_GIZMAGICK_CATALOG_URL` (the deployed API's full catalog URL) and `VITE_GIZMAGICK_MEDIA_BASE_URL=https://media.gizmagick.com`, alongside `VITE_TRACK_SOURCE=remote`. `npm run build:remote` rejects missing/non-HTTPS/localhost URLs; `.env.remote` intentionally contains only local preview defaults. The normal build continues using the existing source unless overridden. Rollback removes the remote source override and rebuilds; do not delete source assets during rollout.
 
-Verified: 95 tests pass, lint passes, legacy/manifest builds and a remote build with explicit production URLs succeed, and Worker deployment packaging passes a dry run (not a deployment). A remote build without production configuration is rejected. The actual local seed writes 13 tracks/189 objects; an identical rerun writes zero objects. API/schema tests cover visibility, historical reads, immutable versions, foreign keys, interrupted uploads and database publication/retries, escaped audio filenames, CORS, errors, and remote media URL substitution.
+Verified: 105 tests pass, lint passes, legacy/manifest builds and a remote build with explicit production URLs succeed, and Worker deployment packaging passes a dry run (not a deployment). A remote build without production configuration is rejected. The actual local seed writes 13 tracks/189 objects; an identical rerun writes zero objects. API/schema tests cover visibility, historical reads, immutable versions, foreign keys, interrupted uploads and database publication/retries, escaped audio filenames, CORS, errors, and remote media URL substitution. Room tests cover republishing while selected/queued, historical loads, mixed protocols, exact-version readiness, stale commands, concurrent selection ordering, and Durable Object hibernation.
 
-Browser checks passed for Lena's Home playback/pause/seek/resume, queued preloading into Testing Time and its Q1 transition, BleepBloop mode switching, Database section/mode previews, and the remote-room restriction. Existing React `onSelectStart` warnings remain unrelated to this integration. No remote migrations, music uploads or deployments were performed.
+Private-session browser checks passed for Lena's Home playback/pause/seek/resume, queued preloading into Testing Time and its Q1 transition, BleepBloop mode switching, and Database section/mode previews. Two local remote-source clients also verified Lena's Home playback, late joining, queued promotion to Testing Time, Q1 transitions, BleepBloop mode changes, and reconnect synchronization while playing and paused. Resume after a paused reconnect worked in both clients. Existing React `onSelectStart` warnings remain unrelated to this integration. No remote migrations, music uploads or deployments were performed.

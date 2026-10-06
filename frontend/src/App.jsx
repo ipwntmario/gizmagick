@@ -19,7 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback  } f
 import { AudioEngine } from "./audio/audioEngine";
 import { useMusicData } from "./data/useMusicData";
 import { gizmagickRepository } from './data/gizmagickRepository.js';
-import { assertTrackSourceSession } from '../../shared/library-contract.js';
+import { validTrackRef, sameTrackRef, trackRefOf, trackAssetKey } from '../../shared/room-library.js';
 import { normalizeTrackFilters } from "./data/trackOrdering";
 import { findSelectableEndSection, getAutoLockedTargets } from "./data/sectionTransitions";
 import { replacementRemainingSeconds } from "./data/replacementTiming";
@@ -48,7 +48,9 @@ import { heldStopFadeSeconds } from "./audio/stopFade";
 import { resolveLogo } from "./logos";
 
 export default function App() {
-  const { tracks, loading, error: dataError } = useMusicData();  // <- only rely on tracks here
+  const { tracks: catalogTracks, loading, error: dataError } = useMusicData();
+  const [roomEntries, setRoomEntries] = useState({});
+  const tracks = useMemo(() => ({ ...catalogTracks, ...roomEntries }), [catalogTracks, roomEntries]);
   const [clips, setClips] = useState({});
   const [sections, setSections] = useState({});
 
@@ -114,6 +116,10 @@ export default function App() {
 
   // Mirrors of state for engine callbacks (avoid stale closures)
   const selectedTrackRef = useRef(null);
+  const selectedVersionRef = useRef(null);
+  const loadedVersionRef = useRef(null);
+  const selectedRoomSeedRef = useRef(null);
+  const queuedVersionRef = useRef(null);
   const playingTrackNameRef = useRef(null);
   const autoplayRef = useRef(true);
   const isActiveRoleRef = useRef(true);
@@ -345,8 +351,7 @@ export default function App() {
     catch { /* Storage may be disabled. */ }
   }, [userVolumeOpen]);
 
-  const remoteRoomBlocked = gizmagickRepository.source === 'remote' && onlineEnabled;
-  const displayedStatus = loading ? "Loading data…" : dataError || (remoteRoomBlocked ? 'Remote library preview requires Private Session until room version pinning is implemented.' : status);
+  const displayedStatus = loading ? "Loading data…" : dataError || status;
   useEffect(() => {
     setStatusHistory(previous => {
       if (previous.at(-1)?.text === displayedStatus) return previous;
@@ -438,14 +443,16 @@ export default function App() {
           const queued = queuedTrackRef.current;
           if (queued) {
             const playAfterRelease = skipNextAutoplay ? false : (queuedTrackPlayAfterReleaseRef.current ?? autoplayRef.current);
+            const trackRef = queuedVersionRef.current;
             queuedTrackRef.current = null;
+            queuedVersionRef.current = null;
             queuedTrackPlayAfterReleaseRef.current = null;
             setQueuedTrack(null);
             dropUndoActions("track");
             if (roomRef.current?.onlineActive && isActiveRoleRef.current) {
               roomRef.current.requestClearTrackQueue?.();
             }
-            setReleasedQueuedTrack({ name: queued, shouldPlay: playAfterRelease, id: Date.now() });
+            setReleasedQueuedTrack({ name: queued, trackRef, shouldPlay: playAfterRelease, id: Date.now() });
             return;
           }
         }
@@ -772,17 +779,58 @@ export default function App() {
 
   useEffect(() => {
     if (!releasedQueuedTrack) return;
-    const { name, shouldPlay } = releasedQueuedTrack;
-    handleSelectTrack(name);
-    if (roomRef.current?.onlineActive && isActiveRole) roomRef.current.requestSetTrack?.(name);
+    const { name, trackRef, shouldPlay } = releasedQueuedTrack;
+    if (roomRef.current?.onlineActive && gizmagickRepository.source === 'remote') {
+      // Only the director promotes the queued, already-pinned version. Other
+      // clients wait for SET_TRACK rather than loading the catalog's version.
+      if (isActiveRole) roomRef.current.requestSetTrack?.(name, { trackRef });
+    } else {
+      handleSelectTrack(name);
+      if (roomRef.current?.onlineActive && isActiveRole) roomRef.current.requestSetTrack?.(name);
+    }
     if (shouldPlay && (!roomRef.current?.onlineActive || isActiveRole)) requestPlaybackAfterLoad(name);
     setReleasedQueuedTrack(null);
   }, [releasedQueuedTrack, handleSelectTrack, requestPlaybackAfterLoad, isActiveRole]);
 
   // Called when server sends STATE { name, seed, ... }.
   // It should ONLY select/preload, never start playback here.
-  const onSetTrack = useCallback(({ name, seed }) => {
+  const onSetTrack = useCallback(({ name, seed, trackRef }) => {
     if (!name) return;
+    if (gizmagickRepository.source === 'remote') {
+      if (!validTrackRef(trackRef)) return;
+      const sameVersion = sameTrackRef(loadedVersionRef.current, trackRef) && playingTrackNameRef.current === name;
+      const sameSelection = sameTrackRef(selectedVersionRef.current, trackRef) && selectedRoomSeedRef.current === seed;
+      selectedVersionRef.current = trackRef;
+      selectedRoomSeedRef.current = seed;
+      if (sameVersion && sameSelection && engine.isPreloaded) {
+        roomRef.current?.setReady(true, { trackRef, selectionId: seed });
+        return;
+      }
+      // Same display name can now mean different musical data. Cancel pending
+      // loads/scheduled commands and reset the engine before selecting the pin.
+      playbackGenerationRef.current += 1;
+      scheduledCommandsRef.current.forEach(clearTimeout);
+      scheduledCommandsRef.current.clear();
+      engine.resetForSession();
+      loadedVersionRef.current = null;
+      loadBusyRef.current = false;
+      setIsLoadingTrack(false);
+      setPlayingTrackName(null);
+      playingTrackNameRef.current = null;
+      setClips({});
+      setSections({});
+      setRoomEntries({});
+      queuedSectionRef.current = null;
+      queuedModeRef.current = null;
+      setQueuedSectionName(null);
+      setQueuedModeName(null);
+      setCurrentSectionName(null);
+      setCurrentModeName('base');
+      if (seed != null) engine.setRandomSeed?.(seed >>> 0);
+      handleSelectTrack(name);
+      setLoadAttempt(attempt => attempt + 1);
+      return;
+    }
 
     // If already on this track, do nothing unless we're idle.
     const local = engine.getNowPlaying?.(); // {trackName, ...} or null
@@ -806,43 +854,47 @@ export default function App() {
   }, [engine, selectedTrack, handleSelectTrack, isPlaying]);
 
 
-  const getTrackAssets = useCallback(async (name) => {
-    assertTrackSourceSession(gizmagickRepository.source, onlineEnabled);
-    const cached = preparedTracksRef.current.get(name);
+  const getTrackAssets = useCallback(async (name, pin = null) => {
+    const requestedPin = pin || (roomRef.current?.onlineActive && selectedTrackRef.current === name ? selectedVersionRef.current : null);
+    const key = trackAssetKey(name, requestedPin || trackRefOf(catalogTracks[name]));
+    const cached = preparedTracksRef.current.get(key);
     if (cached) return cached;
-    const pending = trackAssetPromisesRef.current.get(name);
+    const pending = trackAssetPromisesRef.current.get(key);
     if (pending) return pending;
 
     const request = (async () => {
-      const metadata = await gizmagickRepository.loadTrack(name);
+      const metadata = await gizmagickRepository.loadTrack(name, requestedPin);
       const assets = {
         ...metadata,
         buffersReady: false,
       };
-      preparedTracksRef.current.set(name, assets);
+      preparedTracksRef.current.set(key, assets);
       return assets;
     })();
 
-    trackAssetPromisesRef.current.set(name, request);
+    trackAssetPromisesRef.current.set(key, request);
     try {
       return await request;
     } finally {
-      trackAssetPromisesRef.current.delete(name);
+      trackAssetPromisesRef.current.delete(key);
     }
-  }, [onlineEnabled]);
+  }, [catalogTracks]);
 
   const loadTrackAssets = useCallback(async (name) => {
     if (!name || engine.isPlaying || loadBusyRef.current) return;
     const generation = playbackGenerationRef.current;
+    const pin = roomRef.current?.onlineActive && gizmagickRepository.source === 'remote' ? selectedVersionRef.current : null;
+    const selectionId = selectedRoomSeedRef.current;
+    if (roomRef.current?.onlineActive && gizmagickRepository.source === 'remote' && !validTrackRef(pin)) return;
     loadBusyRef.current = true;
     setIsLoadingTrack(true);
-    roomRef.current?.setReady(false, { loading: true });
+    roomRef.current?.setReady(false, { loading: true, trackRef: pin, selectionId });
     let loaded = false;
     try {
-      const assets = await getTrackAssets(name);
+      const assets = await getTrackAssets(name, pin);
       if (generation !== playbackGenerationRef.current || selectedTrackRef.current !== name) return;
       const { clips: nextClips, sections: nextSections, basePath } = assets;
-      engine.setData({ clips: nextClips, sections: nextSections, tracks });
+      engine.setData({ clips: nextClips, sections: nextSections, tracks: { ...tracks, [name]: assets.entry } });
       await engine.preloadTrack(name, {
         trackVolume: loadSavedTrackVolume(name),
         basePath,
@@ -856,11 +908,13 @@ export default function App() {
       }
       setClips(nextClips);
       setSections(nextSections);
+      loadedVersionRef.current = trackRefOf(assets);
+      if (pin) setRoomEntries({ [name]: assets.entry });
       setPlayingTrackName(name);
       setClipProgress(0);
       failedLoadRef.current = null;
       loaded = true;
-      roomRef.current?.setReady(true);
+      roomRef.current?.setReady(true, { trackRef: loadedVersionRef.current, selectionId });
       if (pendingPlayRef.current?.trackName === name) {
         pendingPlayRef.current = null;
         roomRef.current?.requestSync();
@@ -871,7 +925,7 @@ export default function App() {
       setStatus(`Failed to load ${name}: ${err.message}. Select the track again to retry.`);
     } finally {
       if (generation === playbackGenerationRef.current) {
-        if (!loaded) roomRef.current?.setReady(false);
+        if (!loaded) roomRef.current?.setReady(false, { trackRef: pin, selectionId });
         loadBusyRef.current = false;
         setIsLoadingTrack(false);
       }
@@ -909,6 +963,11 @@ export default function App() {
     verifyingRef.current = false;
     pendingPlayRef.current = null;
     selectedTrackRef.current = null;
+    selectedVersionRef.current = null;
+    loadedVersionRef.current = null;
+    selectedRoomSeedRef.current = null;
+    queuedVersionRef.current = null;
+    setRoomEntries({});
     playingTrackNameRef.current = null;
     queuedTrackRef.current = null;
     queuedTrackPlayAfterReleaseRef.current = null;
@@ -1025,9 +1084,11 @@ export default function App() {
     dropUndoActions("mode");
   }, [engine, dropUndoActions]);
 
-  const onQueueTrackMsg = useCallback((name, playAfterRelease = null) => {
+  const onQueueTrackMsg = useCallback((name, playAfterRelease = null, pin = null) => {
     if (!name) return;
-    const alreadyQueued = queuedTrackRef.current === name;
+    const alreadyQueued = queuedTrackRef.current === name && (gizmagickRepository.source !== 'remote' || sameTrackRef(queuedVersionRef.current, pin));
+    if (gizmagickRepository.source === 'remote' && !validTrackRef(pin)) return;
+    queuedVersionRef.current = pin;
     queuedTrackRef.current = name;
     queuedTrackPlayAfterReleaseRef.current = typeof playAfterRelease === "boolean" ? playAfterRelease : null;
     setQueuedTrack(name);
@@ -1035,7 +1096,7 @@ export default function App() {
     if (alreadyQueued) return;
     void (async () => {
       try {
-        const assets = await getTrackAssets(name);
+        const assets = await getTrackAssets(name, pin);
         await engine.cacheTrackBuffers(name, assets.clips, { basePath: assets.basePath });
         assets.buffersReady = true;
       } catch (queueError) {
@@ -1046,6 +1107,7 @@ export default function App() {
 
   const onClearTrackQueueMsg = useCallback(() => {
     queuedTrackRef.current = null;
+    queuedVersionRef.current = null;
     queuedTrackPlayAfterReleaseRef.current = null;
     setQueuedTrack(null);
     dropUndoActions("track");
@@ -1075,6 +1137,7 @@ export default function App() {
 
     const state = {
       ...snapshot,              // {trackName, sectionName, modeName, clipName, offsetSeconds, seed, ...}
+      ...(gizmagickRepository.source === 'remote' ? { trackRef: loadedVersionRef.current, selectionId: selectedRoomSeedRef.current, paused: engine.isPaused } : {}),
       volume: trackVolume ?? 1, // include current room volume for the joiner
       rngDrawCount: drawCount,  // for debugging / fallback
       rngNext: drawCount + 1,   // <- the next draw the GM will consume at the next boundary
@@ -1125,6 +1188,20 @@ export default function App() {
   }, [engine, clips]); // NOTE: no `room` and no `onSyncStateMsg` here
 
   const onSyncStateMsg = useCallback((snapshot) => {
+    if (gizmagickRepository.source === 'remote' && (!sameTrackRef(snapshot?.trackRef, loadedVersionRef.current)
+        || snapshot?.selectionId !== selectedRoomSeedRef.current)) {
+      pendingPlayRef.current = { trackName: snapshot?.trackName };
+      return; // Exact pin must finish loading before a precise sync can act.
+    }
+    if (gizmagickRepository.source === 'remote' && snapshot?.paused === true) {
+      verifyingRef.current = false;
+      clearTimeout(verifyTimer1Ref.current);
+      clearTimeout(verifyTimer2Ref.current);
+      if (Number.isFinite(snapshot.seed)) engine.setRandomSeed?.(snapshot.seed);
+      engine.fastForwardRng?.(snapshot.rngDrawCount | 0);
+      engine.restorePausedPosition(snapshot);
+      return;
+    }
     // (A) If the snapshot happens to include queued fields, never enact them here.
     //     We only *display* queues on the GM and we execute queues via explicit QUEUE_* events.
     if (snapshot?.queuedSection || snapshot?.queuedMode) {
@@ -1252,16 +1329,24 @@ export default function App() {
   ]);
 
   const room = useRoom({
-    onlineEnabled: onlineEnabled && gizmagickRepository.source !== 'remote',
+    onlineEnabled,
+    trackSource: gizmagickRepository.source,
     roomId,
     displayName,
     role,
     onSetTrack,
-    onPlay: ({ trackName, sectionName, serverMs }) => {
+    onPlay: ({ trackName, sectionName, serverMs, trackRef, selectionId, syncOnly = false }) => {
+      if (gizmagickRepository.source === 'remote' && (!sameTrackRef(trackRef, selectedVersionRef.current) || selectionId !== selectedRoomSeedRef.current)) return;
       // Late-join friendliness:
       // 1) If assets not ready, ensure selection + preload first.
       // 2) After preload, schedule at max(serverMs, serverNow + 1500ms) so everyone lines up.
-      const needPreload = !playingTrackName || playingTrackName !== trackName;
+      const needPreload = !playingTrackName || playingTrackName !== trackName
+        || (gizmagickRepository.source === 'remote' && !sameTrackRef(trackRef, loadedVersionRef.current));
+      if (syncOnly) {
+        if (needPreload || isLoadingTrack) pendingPlayRef.current = { trackName };
+        else roomRef.current?.requestSync();
+        return;
+      }
       // Snap the UI track selector if needed (no load yet)
       if (trackName && trackName !== selectedTrack) handleSelectTrack(trackName);
       if (!sectionName || !serverMs) return;
@@ -1290,7 +1375,11 @@ export default function App() {
     onSyncRequest: onSyncRequestMsg,
     onSyncState: onSyncStateMsg,
   });
+  const remoteRoomBlocked = gizmagickRepository.source === 'remote' && onlineEnabled && !room.libraryReady;
   useEffect(() => { roomRef.current = room; }, [room]);
+  useEffect(() => {
+    if (room.lastError) setStatus(`${room.lastError.message}${room.lastError.notReady?.length ? ` (${room.lastError.notReady.join(', ')})` : ''}`);
+  }, [room.lastError]);
 
   const handleSeek = useCallback((positionSeconds) => {
     if (!Number.isFinite(positionSeconds)) return;
@@ -1383,6 +1472,12 @@ export default function App() {
   };
 
   function selectTrackForRoom(name) {
+    if (gizmagickRepository.source === 'remote' && room.onlineActive) {
+      if (isActiveRole && room.libraryReady) room.requestSetTrack?.(name, { trackRef: trackRefOf(catalogTracks[name]) });
+      return;
+    }
+    selectedVersionRef.current = null;
+    selectedRoomSeedRef.current = null;
     handleSelectTrack(name);
     if (room.onlineActive && isActiveRole) {
       room.requestSetTrack?.(name);
@@ -1444,6 +1539,7 @@ export default function App() {
 
   function clearTrackQueue({ broadcast = false, pruneHistory = true } = {}) {
     queuedTrackRef.current = null;
+    queuedVersionRef.current = null;
     queuedTrackPlayAfterReleaseRef.current = null;
     setQueuedTrack(null);
     if (pruneHistory) dropUndoActions("track");
@@ -1493,7 +1589,7 @@ export default function App() {
   }, [isActiveRole, undoHistory.length]);
 
   async function requestTrackPlayback(name, { alwaysStop = false, shouldPlay = true } = {}) {
-    if (!name || (!isActiveRole && room.onlineActive)) return;
+    if (!name || remoteRoomBlocked || (!isActiveRole && room.onlineActive)) return;
     await engine.unlockAudio?.();
     if (engine.getAudioState?.() === "running") setAudioLocked(false);
     if (!isActive) {
@@ -1546,18 +1642,20 @@ export default function App() {
   }
 
   async function addTrackToQueue(name, { recordUndo = true, broadcast = true, playAfterRelease = null } = {}) {
-    if (!name || (!isActiveRole && room.onlineActive)) return;
+    if (!name || remoteRoomBlocked || (!isActiveRole && room.onlineActive)) return;
+    const pin = gizmagickRepository.source === 'remote' && room.onlineActive ? trackRefOf(catalogTracks[name]) : null;
     const previous = queuedTrackRef.current;
     const previousPlayAfterRelease = queuedTrackPlayAfterReleaseRef.current;
     if (previous === name && previousPlayAfterRelease === playAfterRelease) return;
     if (recordUndo) pushUndoAction({ kind: "track", previous, next: name, previousPlayAfterRelease, nextPlayAfterRelease: playAfterRelease });
     queuedTrackRef.current = name;
+    queuedVersionRef.current = pin;
     queuedTrackPlayAfterReleaseRef.current = playAfterRelease;
     setQueuedTrack(name);
-    if (broadcast && room.onlineActive && isActiveRole) room.requestQueueTrack?.(name, { playAfterRelease });
+    if (broadcast && room.onlineActive && isActiveRole) room.requestQueueTrack?.(name, { playAfterRelease, trackRef: pin });
     if (previous === name) return;
     try {
-      const assets = await getTrackAssets(name);
+      const assets = await getTrackAssets(name, pin);
       await engine.cacheTrackBuffers(name, assets.clips, { basePath: assets.basePath });
       assets.buffersReady = true;
     } catch (error) {
@@ -1644,7 +1742,7 @@ export default function App() {
         onMutedChange={setUserMuted}
       />
 
-      {remoteRoomBlocked && <p role="alert">Remote library preview requires Private Session until room version pinning is implemented.</p>}
+      {remoteRoomBlocked && <p role="alert">{room.lastError?.message || 'Connecting to a version-pinned library room…'}</p>}
 
       {!isReadOnlyRole && (
         <>

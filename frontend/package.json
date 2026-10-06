@@ -10,7 +10,7 @@
     "build": "vite build",
     "build:manifest": "vite build --mode manifest",
     "build:remote": "vite build --mode remote",
-    "lint": "eslint .",
+    "lint": "eslint . && npm --prefix ../worker run lint:auth",
     "test": "node --test tests/*.test.mjs",
     "tracks:migrate": "node scripts/track-manifests.mjs migrate",
     "tracks:validate": "node scripts/track-manifests.mjs validate",

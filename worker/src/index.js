@@ -1,5 +1,6 @@
 // src/index.js
 import { handleLibraryRequest } from './library.js';
+import { handleAdminRequest } from './admin.js';
 import { ROOM_LIBRARY_PROTOCOL, validTrackRef, sameTrackRef } from '../../shared/room-library.js';
 
 export default {
@@ -13,9 +14,14 @@ export default {
     const libraryResponse = await handleLibraryRequest(req, env);
     if (libraryResponse) return libraryResponse;
 
+    const adminResponse = await handleAdminRequest(req, env);
+    if (adminResponse) return adminResponse;
+
     if (url.pathname === "/ws") {
       // Log to confirm we’re receiving the Upgrade request
-      console.log("[worker] /ws request headers:", Object.fromEntries(req.headers));
+      // Access cookies may also accompany public /ws requests. Never log the
+      // complete headers (cookies, JWT assertions or Authorization credentials).
+      console.log("[worker] /ws request:", { upgrade: req.headers.get("Upgrade"), origin: req.headers.get("Origin") });
 
       if (req.headers.get("Upgrade") !== "websocket") {
         return new Response("Expected WebSocket", { status: 426 });

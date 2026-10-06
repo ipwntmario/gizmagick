@@ -1,5 +1,11 @@
 {
   "name": "gizmagick-worker",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "lint:auth": "node ../frontend/node_modules/eslint/bin/eslint.js --config ../frontend/eslint.config.js src/admin-auth.js src/admin.js"
+  },
+  "dependencies": {
+    "jose": "6.2.12"
+  }
 }

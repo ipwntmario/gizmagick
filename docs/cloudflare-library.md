@@ -1,6 +1,6 @@
 # Gizmagick library: Phase 4 foundation
 
-The code now supports a D1-backed catalog, versioned R2 manifests/audio, and version-pinned online rooms. These changes were tested with local simulated resources; they do not migrate the remote database, upload music, deploy the Worker, or change the live frontend's track source. Admin login, upload APIs, and private drafts are separate work.
+The code now supports a D1-backed catalog, versioned R2 manifests/audio, and version-pinned online rooms. These changes were tested with local simulated resources; they do not migrate the remote database, upload music, deploy the Worker, or change the live frontend's track source. Phase 5 adds the [admin-authentication foundation](admin-authentication.md), with real Cloudflare login provisioning still pending. Upload APIs and private drafts are separate work.
 
 ## Resources and schema
 
@@ -36,6 +36,7 @@ Use Node.js 22.12+; schema tests use Node's built-in SQLite API (currently marke
 
 ```sh
 npm ci
+npm ci --prefix ../worker
 npm run library:migrate:local
 npm run library:seed:local
 ```

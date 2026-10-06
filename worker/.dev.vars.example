@@ -1,0 +1,6 @@
+# Local configuration only. Copy to worker/.dev.vars (ignored).
+# These examples grant no access: a real, signed Access app token is required.
+GIZMAGICK_ACCESS_TEAM_DOMAIN="https://your-team.cloudflareaccess.com"
+GIZMAGICK_ACCESS_AUD="REPLACE_WITH_YOUR_APPLICATION_64_CHARACTER_AUD_TAG"
+GIZMAGICK_ADMIN_ORIGIN="http://127.0.0.1:8787"
+GIZMAGICK_ADMIN_EMAILS="admin@example.invalid"

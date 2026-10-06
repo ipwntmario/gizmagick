@@ -1,6 +1,6 @@
 # TrackManifestV2 contract and migration
 
-Phase 1 defines the playback contract; Phase 2 provides validation, conversion and an engine compatibility adapter. Phase 3 connects the local player and previews through a shared Gizmagick repository, with manifest loading selectable and legacy loading available for rollback. No Cloudflare resources, upload endpoints or authentication are created in these phases.
+Phase 1 defines the playback contract; Phase 2 provides validation, conversion and an engine compatibility adapter. Phase 3 connects the local player and previews through a shared Gizmagick repository, with manifest loading selectable and legacy loading available for rollback. Phase 4 adds the D1 catalog and remote loader, verified using local simulated D1/R2. The cloud resources have been provisioned separately; remote migrations, publication, admin write endpoints and authentication are not enabled by these local changes.
 
 The authoritative structural contract is [`shared/track-manifest.schema.json`](../shared/track-manifest.schema.json), using [JSON Schema Draft 7](https://json-schema.org/draft-07). Semantic rules are in [`shared/track-manifest.js`](../shared/track-manifest.js). [`examples/track-manifest-v2.json`](examples/track-manifest-v2.json) is a validated illustrative track, not a playable audio package.
 
@@ -12,7 +12,7 @@ One track version has one `manifest.json` containing `schemaVersion`, `versionId
 | --- | --- | --- |
 | Track ID, owner, visibility, draft/published status, current version pointer, timestamps | D1 | Server controls permissions and catalog queries |
 | Immutable manifest and audio | R2 version directory | Player downloads a complete, consistent snapshot |
-| Mutable draft manifest | Future authenticated draft API; backing store decided in Phase 4 | Draft must not change a published version |
+| Mutable draft manifest | Future authenticated draft API and private storage, not the public media bucket | Draft must not change a published version |
 | Graph positions, zoom, collapsed groups | Future editor sidecar document | Editor layout can change independently of musical behavior |
 
 Expected object layout: `tracks/{trackId}/versions/{versionId}/manifest.json` and `tracks/{trackId}/versions/{versionId}/audio/*.ogg`. Publication should verify the uploaded objects first and update D1's pointer last. An interrupted upload must leave the old pointer active. Ownership and publication status inside an uploaded file cannot grant access and are intentionally absent from the manifest.
@@ -120,4 +120,4 @@ Repository tests compare all 13 tracks across both sources, including duration p
 
 Phase 3 browser smoke checks covered Lena's Home playback/pause/seek, Testing Time section transitions, Database section/mode previews, and two local clients synchronizing BleepBloop with Modes, a mode change, queued Lena's Home, pause and seek. The room protocol remains name-based in this phase; these checks do not establish remote version pinning.
 
-Phase 4 can now provision R2/D1 and add a remote catalog/repository using the same manifest contract. Keep the original catalog/assets as rollback material until remote loading and synchronized version pinning have been verified. Public playback need not use the admin upload workflow until its authentication and write APIs are ready.
+Phase 4's schema, read-only catalog/version API, remote repository and local-only importer are described in the [Cloudflare library guide](cloudflare-library.md). Keep the original catalog/assets as rollback material. Production migration, an audio-probed publication/import workflow, and room track/version pinning remain pending. Remote loading is therefore opt-in and restricted to Private Session for now.

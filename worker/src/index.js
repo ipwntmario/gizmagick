@@ -1,12 +1,16 @@
 // src/index.js
+import { handleLibraryRequest } from './library.js';
 
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
 
     if (url.pathname === "/health") {
-      return json({ ok: true, worker: "wizamp-worker" });
+      return json({ ok: true, worker: "gizmagick-worker" });
     }
+
+    const libraryResponse = await handleLibraryRequest(req, env);
+    if (libraryResponse) return libraryResponse;
 
     if (url.pathname === "/ws") {
       // Log to confirm we’re receiving the Upgrade request

@@ -1,0 +1,5 @@
+{
+  "name": "gizmagick-worker",
+  "private": true,
+  "type": "module"
+}

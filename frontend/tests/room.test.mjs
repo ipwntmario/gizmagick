@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-
-const source = await readFile(new URL('../../worker/src/index.js', import.meta.url));
-const { RoomHub } = await import(`data:text/javascript;base64,${source.toString('base64')}`);
+import { RoomHub } from '../../worker/src/index.js';
 
 function fixture(role = 'GM', ready = true) {
   const hub = new RoomHub({}, {});

@@ -5,9 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', '.track-manifests']),
   {
-    files: ['scripts/track-manifests.mjs', 'scripts/gizmagick-manifests-plugin.mjs', 'scripts/lib/*.mjs', 'tests/trackManifest.test.mjs', 'tests/trackRepository.test.mjs'],
+    files: ['scripts/track-manifests.mjs', 'scripts/gizmagick-*.mjs', 'scripts/lib/*.mjs', 'tests/trackManifest.test.mjs', 'tests/trackRepository.test.mjs', 'tests/library.test.mjs'],
     extends: [js.configs.recommended],
     languageOptions: { ecmaVersion: 'latest', globals: globals.node, sourceType: 'module' },
     rules: { 'no-unused-vars': ['error', { varsIgnorePattern: '^_' }] },

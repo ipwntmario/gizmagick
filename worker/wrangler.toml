@@ -1,6 +1,20 @@
-name = "wizamp-worker"
+name = "gizmagick-worker"
 main = "src/index.js"
 compatibility_date = "2024-09-01"
+
+[[d1_databases]]
+binding = "GIZMAGICK_DB"
+database_name = "gizmagick-library"
+database_id = "bb2ac5dd-05af-4e2f-8a4b-51120fac5da4"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "GIZMAGICK_MEDIA"
+bucket_name = "gizmagick-media"
+
+[vars]
+GIZMAGICK_MEDIA_BASE_URL = "https://media.gizmagick.com"
+GIZMAGICK_APP_ORIGINS = "https://gizmagick.com,https://www.gizmagick.com,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5180,http://127.0.0.1:5180"
 
 [durable_objects]
 bindings = [

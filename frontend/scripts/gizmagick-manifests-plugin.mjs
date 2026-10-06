@@ -4,7 +4,7 @@ const validatorModule = 'virtual:gizmagick-manifest-validator';
 const resolvedValidator = `\0${validatorModule}`;
 
 export function gizmagickManifestsPlugin({ source, publicRoot }) {
-  if (!['legacy', 'manifest'].includes(source)) throw new Error(`Unknown VITE_TRACK_SOURCE: ${source}. Use legacy or manifest.`);
+  if (!['legacy', 'manifest', 'remote'].includes(source)) throw new Error(`Unknown VITE_TRACK_SOURCE: ${source}. Use legacy, manifest or remote.`);
   let snapshot;
   let building = false;
   return {
@@ -12,7 +12,7 @@ export function gizmagickManifestsPlugin({ source, publicRoot }) {
     configResolved(config) { building = config.command === 'build'; },
     resolveId(id) { if (id === validatorModule) return resolvedValidator; },
     load(id) {
-      if (id === resolvedValidator) return source === 'manifest' ? createManifestValidatorSource() : 'export default null;';
+      if (id === resolvedValidator) return source !== 'legacy' ? createManifestValidatorSource() : 'export default null;';
     },
     async buildStart() {
       if (source !== 'manifest' || !building) return;

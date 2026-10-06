@@ -19,6 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback  } f
 import { AudioEngine } from "./audio/audioEngine";
 import { useMusicData } from "./data/useMusicData";
 import { gizmagickRepository } from './data/gizmagickRepository.js';
+import { assertTrackSourceSession } from '../../shared/library-contract.js';
 import { normalizeTrackFilters } from "./data/trackOrdering";
 import { findSelectableEndSection, getAutoLockedTargets } from "./data/sectionTransitions";
 import { replacementRemainingSeconds } from "./data/replacementTiming";
@@ -344,7 +345,8 @@ export default function App() {
     catch { /* Storage may be disabled. */ }
   }, [userVolumeOpen]);
 
-  const displayedStatus = loading ? "Loading data…" : dataError || status;
+  const remoteRoomBlocked = gizmagickRepository.source === 'remote' && onlineEnabled;
+  const displayedStatus = loading ? "Loading data…" : dataError || (remoteRoomBlocked ? 'Remote library preview requires Private Session until room version pinning is implemented.' : status);
   useEffect(() => {
     setStatusHistory(previous => {
       if (previous.at(-1)?.text === displayedStatus) return previous;
@@ -805,6 +807,7 @@ export default function App() {
 
 
   const getTrackAssets = useCallback(async (name) => {
+    assertTrackSourceSession(gizmagickRepository.source, onlineEnabled);
     const cached = preparedTracksRef.current.get(name);
     if (cached) return cached;
     const pending = trackAssetPromisesRef.current.get(name);
@@ -826,7 +829,7 @@ export default function App() {
     } finally {
       trackAssetPromisesRef.current.delete(name);
     }
-  }, []);
+  }, [onlineEnabled]);
 
   const loadTrackAssets = useCallback(async (name) => {
     if (!name || engine.isPlaying || loadBusyRef.current) return;
@@ -1249,7 +1252,7 @@ export default function App() {
   ]);
 
   const room = useRoom({
-    onlineEnabled,
+    onlineEnabled: onlineEnabled && gizmagickRepository.source !== 'remote',
     roomId,
     displayName,
     role,
@@ -1641,6 +1644,8 @@ export default function App() {
         onMutedChange={setUserMuted}
       />
 
+      {remoteRoomBlocked && <p role="alert">Remote library preview requires Private Session until room version pinning is implemented.</p>}
+
       {!isReadOnlyRole && (
         <>
           <aside className={`track-library-shell ${effectiveMobileView === "library" ? "is-mobile-active" : ""}`}>
@@ -1652,7 +1657,7 @@ export default function App() {
               queuedTrack={queuedTrack}
               queuedTrackProgress={queuedTrackProgress}
               undoEffect={undoEffect}
-              disabled={!isActiveRole && room.onlineActive}
+              disabled={remoteRoomBlocked || (!isActiveRole && room.onlineActive)}
               sortMode={librarySort}
               onChangeSort={setLibrarySort}
               getTrackAssets={getTrackAssets}

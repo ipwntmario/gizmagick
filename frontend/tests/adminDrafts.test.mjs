@@ -8,11 +8,14 @@ import { DRAFT_LIMITS, checkOggIntake, readBoundedBody } from '../../worker/src/
 import { handleLibraryRequest } from '../../worker/src/library.js';
 import { createManifestValidatorSource } from '../scripts/lib/gizmagick-local-library.mjs';
 import { convertLegacyTrack } from '../scripts/lib/track-manifests.mjs';
+import { probeManifest, createProbeReport } from '../scripts/lib/audio-probe.mjs';
+import { REVIEW_POLICY, createReviewReport } from '../../shared/draft-review.js';
+import { fileURLToPath } from 'node:url';
 
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -42,7 +45,8 @@ function fixture(t) {
   const objects = new Map();
   let failWrites = false;
   const bucket = {
-    head: async key => objects.has(key) ? { size: objects.get(key).bytes.length, customMetadata: objects.get(key).customMetadata } : null,
+    head: async key => objects.has(key) ? { size: objects.get(key).bytes.length, customMetadata: objects.get(key).customMetadata,
+      etag: objects.get(key).etag ?? hash(objects.get(key).bytes), checksums: { sha256: Uint8Array.from(Buffer.from(objects.get(key).sha256, 'hex')).buffer } } : null,
     get: async key => objects.has(key) ? { ...(await bucket.head(key)), body: new Response(objects.get(key).bytes).body } : null,
     put: async (key, bytes, options) => {
       if (failWrites) throw new Error('private storage error containing credentials');
@@ -55,7 +59,7 @@ function fixture(t) {
   };
   const env = { GIZMAGICK_DB: { prepare }, GIZMAGICK_DRAFTS: bucket,
     GIZMAGICK_MEDIA: { put: () => { throw new Error('Public bucket must never receive drafts'); } },
-    GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true' };
+    GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true' };
   const handle = principal => createAdminHandler(async () => principal);
   const request = (path = '/api/admin/drafts', { method = 'GET', body, principal = owner, headers = {} } = {}) => handle(principal)(new Request(`https://admin.example.com${path}`, {
     method, headers: { ...(body !== undefined ? { 'Content-Type': typeof body === 'object' && !(body instanceof Uint8Array) ? 'application/json' : 'application/octet-stream' } : {}), ...headers },
@@ -67,7 +71,163 @@ function fixture(t) {
 }
 
 test('the Worker structural validator is generated from the current canonical schema', async () => {
-  assert.equal(await read('../../worker/src/generated/manifest-validator.js'), '// Generated from shared/track-manifest.schema.json; freshness is checked by tests.\n' + createManifestValidatorSource() + '\n');
+  const normalize = value => value.replaceAll('\r\n', '\n');
+  assert.equal(normalize(await read('../../worker/src/generated/manifest-validator.js')), normalize('// Generated from shared/track-manifest.schema.json; freshness is checked by tests.\n' + createManifestValidatorSource() + '\n'));
+});
+
+// Synthetic measurements exercise the human-attestation contract; they are not
+// presented as decoder proof. A real decoded-file round trip is tested below.
+async function readyReview(f) {
+  const draft = await (await f.create()).json();
+  await f.upload(draft);
+  const jobResponse = await f.request(`/api/admin/drafts/${draft.id}/review-package`, { method: 'POST' });
+  assert.equal(jobResponse.status, 200, await jobResponse.clone().text());
+  const job = await jobResponse.json(), asset = job.snapshot.assets[0];
+  const report = await createReviewReport(job, { trackId: draft.manifest.track.id, versionId: draft.manifest.versionId,
+    decoderVersions: { opus: '1.7.5', vorbis: '0.1.20' }, valid: true, errors: [], measurements: {
+      [asset.assetId]: { codec: 'opus', channels: 2, sampleRate: 48000, sampleCount: 8640000,
+        containerSampleCount: 8640000, initialOverlapSamples: 0, durationSeconds: 180,
+        byteLength: asset.byteLength, sha256: asset.sha256 },
+    } });
+  return { draft, job, report, attest: (body = { report, policy: REVIEW_POLICY, provenanceConfirmed: true }, principal = owner) =>
+    f.request(`/api/admin/drafts/${draft.id}/attest-review`, { method: 'POST', body, principal }) };
+}
+
+test('review package requires complete private audio and is retryable without multiplying stored jobs', async t => {
+  const f = fixture(t), draft = await (await f.create()).json(), path = `/api/admin/drafts/${draft.id}/review-package`;
+  assert.equal((await f.request(path, { method: 'POST' })).status, 409);
+  await f.upload(draft);
+  const first = await (await f.request(path, { method: 'POST' })).json();
+  const retry = await (await f.request(path, { method: 'POST' })).json();
+  assert.deepEqual(retry, first);
+  assert.equal(first.snapshot.draftId, draft.id);
+  assert.deepEqual(first.snapshot.manifest, draft.manifest);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_jobs').get().n, 1);
+});
+
+test('explicit administrator attestation is durable, idempotent, and never marks audio server-decoded or publishes it', async t => {
+  const f = fixture(t), r = await readyReview(f);
+  assert.equal((await r.attest({ report: r.report })).status, 400);
+  assert.equal((await r.attest()).status, 201);
+  assert.equal((await r.attest()).status, 200);
+  const detail = await (await f.request(`/api/admin/drafts/${r.draft.id}`)).json();
+  assert.equal(detail.review.scope, 'administrator-attested');
+  assert.equal(detail.review.approvedBy, owner.id);
+  assert.equal(detail.review.serverDecoded, false);
+  assert.equal(detail.audioProbed, false); assert.equal(detail.publishing, false);
+  assert.deepEqual(detail.manifest, r.draft.manifest);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 0);
+  assert.equal((await f.request(`/api/admin/drafts/${r.draft.id}/review-package`, { method: 'POST' })).status, 409);
+  r.report.measurements[Object.keys(r.report.measurements)[0]].channels = 1;
+  assert.equal((await r.attest()).status, 409);
+});
+
+test('owner isolation, admin-only review, origin/JWT guard routing and disabled rollout stay enforced', async t => {
+  const f = fixture(t), r = await readyReview(f);
+  assert.equal((await r.attest(undefined, other)).status, 404);
+  assert.equal((await r.attest(undefined, { ...owner, role: 'contributor' })).status, 403);
+  assert.equal((await f.request(`/api/admin/drafts/${r.draft.id}/review-package`, { method: 'POST', principal: other })).status, 404);
+  assert.equal((await f.request(`/api/admin/drafts/${r.draft.id}/review-package`)).status, 405);
+  f.env.GIZMAGICK_DRAFT_REVIEWS_ENABLED = 'false';
+  // An old deployment without migration 0003 must still support ordinary intake.
+  f.sql.exec('DROP TABLE admin_draft_reviews; DROP TABLE admin_draft_review_jobs;');
+  assert.equal((await r.attest()).status, 503);
+  assert.equal((await f.request(`/api/admin/drafts/${r.draft.id}`)).status, 200);
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.reviews, false);
+});
+
+for (const [name, mutate] of [
+  ['wrong version', report => { report.versionId = crypto.randomUUID(); }],
+  ['wrong draft', report => { report.draftId = crypto.randomUUID(); }],
+  ['wrong job', report => { report.jobId = crypto.randomUUID(); }],
+  ['wrong snapshot', report => { report.snapshotSha256 = '0'.repeat(64); }],
+  ['wrong metadata hash', report => { report.manifestSha256 = '0'.repeat(64); }],
+  ['ordinary local-only report', report => { report.scope = 'local-only'; }],
+  ['failed decode', report => { report.valid = false; }],
+  ['partial measurements', report => { report.measurements = {}; }],
+  ['extra measurement', report => { report.measurements.extra = {}; }],
+  ['client trust flag', report => { report.audioProbed = true; }],
+  ['wrong decoder', report => { report.decoderVersions.opus = '0.0.0'; }],
+  ['mismatched bytes', report => { Object.values(report.measurements)[0].sha256 = '0'.repeat(64); }],
+  ['inconsistent samples', report => { Object.values(report.measurements)[0].sampleCount++; }],
+  ['unsupported codec', report => { Object.values(report.measurements)[0].codec = 'mp3'; }],
+  ['non-finite duration', report => { Object.values(report.measurements)[0].durationSeconds = null; }],
+  ['unsupported channels', report => { Object.values(report.measurements)[0].channels = 6; }],
+  ['unknown measurement fields', report => { Object.values(report.measurements)[0].trusted = true; }],
+  ['duration past clip endpoint', report => { const m = Object.values(report.measurements)[0]; m.durationSeconds = 1; m.sampleCount = m.containerSampleCount = 48000; }],
+]) test(`review rejects ${name} without recording an attestation`, async t => {
+  const f = fixture(t), r = await readyReview(f); mutate(r.report);
+  assert([409, 422].includes((await r.attest()).status));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+for (const state of ['expired', 'archived', 'metadata', 'missing object', 'etag', 'checksum', 'allocation']) test(`review rejects ${state} snapshots`, async t => {
+  const f = fixture(t), r = await readyReview(f), key = [...f.objects.keys()][0];
+  if (state === 'expired') f.sql.prepare('UPDATE admin_draft_review_jobs SET expires_at = 0').run();
+  if (state === 'archived') await f.request(`/api/admin/drafts/${r.draft.id}/archive`, { method: 'POST' });
+  if (state === 'metadata') { const m = structuredClone(r.draft.manifest); m.track.title += '!'; f.sql.prepare('UPDATE admin_drafts SET manifest_json = ?').run(JSON.stringify(m)); }
+  if (state === 'missing object') f.objects.delete(key);
+  if (state === 'etag') f.objects.get(key).etag = 'different';
+  if (state === 'checksum') f.objects.get(key).sha256 = '0'.repeat(64);
+  if (state === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+  assert.equal((await r.attest()).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('expired packages renew in place and old reports cannot approve the replacement job', async t => {
+  const f = fixture(t), r = await readyReview(f);
+  f.sql.prepare('UPDATE admin_draft_review_jobs SET expires_at = 0').run();
+  const next = await (await f.request(`/api/admin/drafts/${r.draft.id}/review-package`, { method: 'POST' })).json();
+  assert.notEqual(next.jobId, r.job.jobId);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_jobs').get().n, 1);
+  assert.equal((await r.attest()).status, 409);
+});
+
+test('concurrent same-report confirmations converge on one audit record', async t => {
+  const f = fixture(t), r = await readyReview(f);
+  const responses = await Promise.all([r.attest(), r.attest()]);
+  assert(responses.every(response => [200, 201].includes(response.status)));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 1);
+});
+
+test('missing native R2 checksum fails closed even when custom metadata still matches', async t => {
+  const f = fixture(t), r = await readyReview(f), head = f.env.GIZMAGICK_DRAFTS.head;
+  f.env.GIZMAGICK_DRAFTS.head = async key => ({ ...await head(key), checksums: {} });
+  assert.equal((await r.attest()).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('review MIME type, bounded bodies, and extra approval fields are rejected before recording', async t => {
+  const f = fixture(t), r = await readyReview(f), path = `/api/admin/drafts/${r.draft.id}/attest-review`;
+  assert.equal((await f.request(path, { method: 'POST', body: '{' })).status, 415);
+  assert.equal((await f.request(path, { method: 'POST', body: '{', headers: { 'Content-Type': 'application/json' } })).status, 400);
+  assert.equal((await f.request(path, { method: 'POST', body: 'x'.repeat(264193), headers: { 'Content-Type': 'application/json' } })).status, 413);
+  assert.equal((await r.attest({ report: r.report, policy: REVIEW_POLICY, provenanceConfirmed: true, approvedBy: other.id })).status, 400);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('archival between snapshot read and conditional approval prevents the write', async t => {
+  const f = fixture(t), r = await readyReview(f), prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    if (query.startsWith('INSERT INTO admin_draft_reviews')) f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+    return prepare(query);
+  };
+  assert.equal((await r.attest()).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('real Lena’s Home decoder report binds to private uploaded bytes, not repository track names', async t => {
+  const f = fixture(t), draft = await (await f.create()).json(), root = new URL(`../public${entry.basePath}/`, import.meta.url);
+  const bytes = new Uint8Array(await readFile(new URL("audio/Lena's Home.ogg", root)));
+  assert.equal((await f.upload(draft, bytes)).status, 200);
+  const job = await (await f.request(`/api/admin/drafts/${draft.id}/review-package`, { method: 'POST' })).json();
+  const decoded = await probeManifest(job.snapshot.manifest, fileURLToPath(root));
+  const report = await createReviewReport(job, createProbeReport(job.snapshot.manifest, decoded));
+  assert.equal(report.valid, true);
+  const response = await f.request(`/api/admin/drafts/${draft.id}/attest-review`, { method: 'POST', body: { report, policy: REVIEW_POLICY, provenanceConfirmed: true } });
+  assert.equal(response.status, 201, await response.clone().text());
+  assert.equal((await response.json()).audioProbed, false);
 });
 
 test('canonical draft creation assigns private identities and stable request retries without public rows', async t => {

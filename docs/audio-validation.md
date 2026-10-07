@@ -75,7 +75,8 @@ Review those separately before exposing any development tooling.
 
 ## What the report means
 
-Reports carry `scope: "local-only"`, `publishing: false`, input track/version IDs,
+The original `--track`/`--manifest` reports carry `scope: "local-only"`,
+`publishing: false`, input track/version IDs,
 an input-manifest SHA-256, decoder versions, limits, per-asset measured
 fingerprints/durations, graph warnings/errors, and an `enrichedManifest` only on
 complete success. The input manifest is unchanged.
@@ -127,13 +128,16 @@ local decoder dependencies do not enter its production bundle.
 
 ## Next checkpoint
 
-Connect the local-first workflow to a guarded **administrator review/attestation**
-step. It must verify report provenance, exact draft/version/metadata and private
-R2 asset fingerprints, refuse stale/partial/archived results, record who approved
-what, and keep ordinary uploaders unable to assert trusted results. Only after
-that gate exists should immutable publication, audit records, and staged catalog
-import proceed. A future automated decoder needs a separate trust boundary and
-resource/retention policy; browser decoding alone cannot replace that gate.
+The [Phase 6D administrator review implementation](admin-review.md) now connects
+this runner to an exact draft/package snapshot with `--review-package` and an
+explicit personal-run confirmation. It records human provenance under verified
+admin identity, **not cryptographic proof of decoder execution**. Ordinary
+`local-only` reports remain ineligible; the server neither accepts those as
+trusted measurements nor flips `audioProbed`. This subsequent feature is tested
+locally and disabled in cloud pending migration 0003 and rollout verification.
+Immutable publication and staged import remain later work. A future automated
+decoder needs a separate trust boundary and resource/retention policy; browser
+decoding alone cannot replace it.
 
 Commit this local foundation on the feature branch with a message such as
 `feat: add local audio decoding and timing validation`. Do not stage generated

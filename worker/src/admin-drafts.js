@@ -2,6 +2,7 @@ import checkStructure from './generated/manifest-validator.js';
 import { validateManifestWithStructure } from '../../shared/track-manifest.js';
 import { convertLegacyDocument } from '../../shared/legacy-manifest.js';
 import { UUID_PATTERN } from '../../shared/library-contract.js';
+import { getDraftReview, handleReviewRequest } from './admin-reviews.js';
 
 export const DRAFT_LIMITS = Object.freeze({ metadataBytes: 262144, audioBytes: 16777216,
   draftBytes: 268435456, ownerBytes: 536870912, activeDrafts: 20, assets: 256, clips: 2048, sections: 128 });
@@ -86,13 +87,14 @@ async function ownDraft(db, id, owner) {
   return row;
 }
 
-async function detail(db, row) {
+async function detail(env, row) {
+  const db = env.GIZMAGICK_DB;
   const { results } = await db.prepare('SELECT asset_id, byte_length, sha256, state FROM admin_draft_assets WHERE draft_id = ? ORDER BY asset_id').bind(row.id).all();
   const manifest = JSON.parse(row.manifest_json);
   const uploaded = new Set(results.filter(asset => asset.state === 'uploaded').map(asset => asset.asset_id));
   return { id: row.id, title: row.title, status: row.status, createdAt: row.created_at, manifest,
     uploads: results, missingAssets: Object.keys(manifest.assets).filter(id => !uploaded.has(id)),
-    audioProbed: false, publishing: false,
+    audioProbed: false, publishing: false, review: await getDraftReview(env, row.id),
     warnings: validateManifestWithStructure(manifest, checkStructure).warnings.slice(0, 30) };
 }
 
@@ -144,7 +146,7 @@ async function uploadAsset(request, env, principal, row, assetId) {
 
 export async function handleDraftRequest(request, env, principal, reply, headers) {
   const path = new URL(request.url).pathname;
-  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest))?$/);
+  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest|review-package|attest-review))?$/);
   if (path !== '/api/admin/drafts' && !route) return null;
   if (!draftsEnabled(env)) return reply({ error: 'Private draft storage is not enabled.', code: 'DRAFT_NOT_CONFIGURED' }, 503);
   try {
@@ -172,14 +174,18 @@ export async function handleDraftRequest(request, env, principal, reply, headers
           existing = await env.GIZMAGICK_DB.prepare('SELECT * FROM admin_drafts WHERE owner_id = ? AND request_id = ?').bind(principal.id, input.requestId).first();
           if (!existing) fail(409, 'DRAFT_QUOTA', 'Active draft limit reached. Archive a draft before creating another.');
           if (existing.input_sha256 !== inputHash) fail(409, 'DRAFT_REQUEST_CONFLICT', 'This requestId was already used for different data.');
-          return reply(await detail(env.GIZMAGICK_DB, existing), changed(saved) ? 201 : 200);
+          return reply(await detail(env, existing), changed(saved) ? 201 : 200);
         }
         if (existing.input_sha256 !== inputHash) fail(409, 'DRAFT_REQUEST_CONFLICT', 'This requestId was already used for different data.');
-        return reply(await detail(env.GIZMAGICK_DB, existing));
+        return reply(await detail(env, existing));
       }
     } else {
       const row = await ownDraft(env.GIZMAGICK_DB, route[1], principal.id);
-      if (!route[2] && ['GET', 'HEAD'].includes(request.method)) return reply(await detail(env.GIZMAGICK_DB, row));
+      if (!route[2] && ['GET', 'HEAD'].includes(request.method)) return reply(await detail(env, row));
+      if (['review-package', 'attest-review'].includes(route[2])) {
+        if (request.method !== 'POST') headers.set('Allow', 'POST');
+        return await handleReviewRequest(request, env, principal, row, route[2], reply);
+      }
       if (route[2] === 'archive' && request.method === 'POST') {
         await env.GIZMAGICK_DB.prepare(`UPDATE admin_drafts SET status = 'archived', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND owner_id = ?`).bind(row.id, principal.id).run();
         return reply({ id: row.id, status: 'archived', filesDeleted: false });

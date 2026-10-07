@@ -225,8 +225,11 @@ archival does not stop storage charges.
 
 The subsequent [Phase 6C local validation foundation](audio-validation.md) fully
 decodes local Opus/Vorbis files and checks measured durations, following the
-administrator's local-first choice. It does not change cloud draft trust flags
-or accept unsigned reports. Next connect guarded admin review/attestation.
+administrator's local-first choice. [Phase 6D administrator review](admin-review.md)
+now connects exact private snapshots to explicit human attestation and an
+immutable review/audit record. It is tested locally and disabled in cloud until
+migration 0003 and rollout verification. It never claims server decoding or
+changes cloud draft trust flags merely because a local report exists.
 Following increments: metadata editing; reviewed ownership mapping, immutable
 publication and audit records; staged
 library import and frontend cutover. The visual graph editor and ordinary-user

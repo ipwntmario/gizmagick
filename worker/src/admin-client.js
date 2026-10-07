@@ -2,13 +2,20 @@
 // storage, and no client-side role/ownership decisions.
 export function adminClient() {
   const byId = id => document.getElementById(id);
-  let current = null, selectedFiles = [], creationBody = null, busy = false;
+  let current = null, selectedFiles = [], creationBody = null, busy = false, reviewReport = null;
   const status = message => { byId('status').textContent = message; };
   const setBusy = value => {
     busy = value;
     for (const control of document.querySelectorAll('button,input,select')) control.disabled = value;
     byId('upload').disabled = value || !current || current.status !== 'draft' || !selectedFiles.length;
     byId('archive').disabled = value || !current || current.status !== 'draft';
+    if (byId('review-package')) {
+      const cannotReview = value || !current || current.status !== 'draft' || current.missingAssets.length > 0 || Boolean(current.review);
+      byId('review-package').disabled = cannotReview;
+      byId('review-report').disabled = cannotReview;
+      byId('review-confirm').disabled = cannotReview || !reviewReport;
+      byId('attest-review').disabled = cannotReview || !reviewReport || !byId('review-confirm').checked;
+    }
   };
   async function api(path, method = 'GET', body) {
     const response = await fetch(path, { method, credentials: 'same-origin', cache: 'no-store', headers: {
@@ -26,10 +33,19 @@ export function adminClient() {
       selectedFiles = [];
       byId('audio-files').value = '';
       byId('file-selection').textContent = 'No files selected.';
+      reviewReport = null;
+      if (byId('review-report')) {
+        byId('review-report').value = '';
+        byId('review-confirm').checked = false;
+        byId('review-summary').textContent = 'Choose a successful report to inspect its measurements.';
+      }
     }
     current = draft;
     byId('draft-title').textContent = draft.title;
     byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT audio-probed · NOT published`;
+    if (byId('review-state')) byId('review-state').textContent = draft.review
+      ? `Administrator-attested by ${draft.review.approvedBy} at ${draft.review.approvedAt}. NOT server-decoded / NOT published. Report SHA-256: ${draft.review.reportSha256}`
+      : 'No administrator attestation recorded.';
     byId('manifest-view').textContent = JSON.stringify(draft.manifest, null, 2);
     byId('manifest-download').href = `${pathFor(draft.id)}/manifest`;
     byId('draft-detail').hidden = false;
@@ -62,7 +78,7 @@ export function adminClient() {
       button.textContent = `${draft.title} · ${draft.status}`;
       button.addEventListener('click', () => work(async () => {
         showDraft(await api(pathFor(draft.id)));
-        status(current.missingAssets.length ? 'Private draft loaded. Choose its missing audio files to continue.' : 'Private draft loaded. All referenced files are stored privately; audio probing and publication are still disabled.');
+        status(current.missingAssets.length ? 'Private draft loaded. Choose its missing audio files to continue.' : 'Private draft loaded. All referenced files are stored privately; server decoding and publication remain disabled.');
       }));
       item.append(button); list.append(item);
     }
@@ -148,6 +164,37 @@ export function adminClient() {
       await refreshList(); status('Draft archived. No files were deleted.');
     });
   });
+  byId('review-package')?.addEventListener('click', () => work(async () => {
+    const job = await api(`${pathFor(current.id)}/review-package`, 'POST');
+    const url = URL.createObjectURL(new Blob([JSON.stringify(job, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = 'draft-review-package.json';
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    status('Review package downloaded. Run the local validator against its exact private audio files; no approval has been recorded.');
+  }));
+  byId('review-report')?.addEventListener('change', () => work(async () => {
+    reviewReport = null; byId('review-confirm').checked = false;
+    byId('review-summary').textContent = 'No successful report selected.';
+    const report = await readJSON(byId('review-report'));
+    if (report.scope !== 'administrator-review-candidate' || report.valid !== true || report.publishing !== false
+        || report.draftId !== current.id || report.versionId !== current.manifest.versionId
+        || !Array.isArray(report.errors) || report.errors.length || !report.measurements || typeof report.measurements !== 'object') {
+      throw new Error('Choose a successful review-package report for this exact draft. Ordinary local-only reports cannot be attested.');
+    }
+    byId('review-summary').textContent = `Draft: ${report.draftId}\nVersion: ${report.versionId}\nPackage: ${report.jobId}\nSnapshot SHA-256: ${report.snapshotSha256}\n\n`
+      + Object.entries(report.measurements).map(([id, asset]) => `${current.manifest.assets[id]?.path || id}: ${asset.durationSeconds} s · ${asset.codec} · ${asset.channels} channel(s) · ${asset.sampleRate} Hz\n${asset.byteLength} bytes · SHA-256 ${asset.sha256}`).join('\n\n');
+    reviewReport = report;
+    status('Inspect the measurements and graph warnings, then confirm that you ran the validator yourself. The server will check the exact package and stored files again.');
+  }));
+  byId('review-confirm')?.addEventListener('change', () => setBusy(busy));
+  byId('attest-review')?.addEventListener('click', () => work(async () => {
+    if (!reviewReport || !byId('review-confirm').checked) throw new Error('A report and explicit administrator confirmation are required.');
+    await api(`${pathFor(current.id)}/attest-review`, 'POST', JSON.stringify({ report: reviewReport, policy: 'gizmagick-local-admin-v1', provenanceConfirmed: true }));
+    reviewReport = null; byId('review-confirm').checked = false;
+    showDraft(await api(pathFor(current.id)));
+    status('Administrator attestation recorded for the exact private draft. NOT server-decoded / NOT published.');
+  }));
   byId('refresh').addEventListener('click', () => work(refreshList));
   setBusy(false);
   work(async () => { await refreshList(); status('Private draft intake is ready. Publishing is disabled.'); });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { convertLegacyTrack } from '../scripts/lib/track-manifests.mjs';
+import { REVIEW_POLICY } from '../../shared/draft-review.js';
 
 async function bundledWorker(packager) {
   if (packager === 'wrangler') {
@@ -59,10 +60,14 @@ async function verifyBrowserInitialization(html) {
   assert.equal(element('draft-list').textContent, 'No drafts yet.');
   assert.equal(element('upload').disabled, true);
   assert.equal(element('archive').disabled, true);
+  assert.equal(element('review-package').disabled, true);
+  assert.equal(element('attest-review').disabled, true);
   assert(element('sections-file').listeners.has('change'));
   assert(element('create-draft').listeners.has('submit'));
   assert(element('audio-files').listeners.has('change'));
   assert(element('upload').listeners.has('click'));
+  assert(element('review-report').listeners.has('change'));
+  assert(element('attest-review').listeners.has('click'));
   assert.deepEqual(calls.map(call => [call.path, call.options.method]), [['/api/admin/drafts', 'GET']]);
 }
 
@@ -85,7 +90,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS'],
-    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -95,9 +100,11 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   }));
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
-    const draftMigration = await readFile(new URL('../../worker/migrations/0002_gizmagick_drafts.sql', import.meta.url), 'utf8');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    await db.exec(draftMigration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
+    for (const name of ['0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql']) {
+      const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
+      await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
+    }
     const token = issue('admin@example.com');
     const request = (path, jwt = token, extra = {}) => mf.dispatchFetch(`https://admin.example.com${path}`, {
       ...extra, headers: { ...(jwt ? { 'Cf-Access-Jwt-Assertion': jwt } : {}), ...extra.headers },
@@ -106,6 +113,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(allowed.status, 200);
     const body = await allowed.json();
     assert.equal(body.principal.email, 'admin@example.com');
+    assert.equal(body.capabilities.reviews, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -141,6 +149,48 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal((await request(uploadUrl, issue('member@example.com'))).status, 403);
     const resumed = await request(`/api/admin/drafts/${draft.id}`);
     assert.equal((await resumed.json()).missingAssets.length, 0);
+    const packageUrl = `/api/admin/drafts/${draft.id}/review-package`;
+    assert.equal((await request(packageUrl, null, { method: 'POST', headers: writeHeaders })).status, 401);
+    assert.equal((await request(packageUrl, token, { method: 'POST' })).status, 403);
+    assert.equal((await request(packageUrl, issue('member@example.com'), { method: 'POST', headers: writeHeaders })).status, 403);
+    const jobResponse = await request(packageUrl, token, { method: 'POST', headers: writeHeaders });
+    assert.equal(jobResponse.status, 200, await jobResponse.clone().text());
+    const job = await jobResponse.json();
+    assert.equal(job.snapshot.assets[0].byteLength, bytes.length);
+    // Run the actual local CLI against a package minted by the actual bundled
+    // Worker and R2/D1 simulator, not a fabricated report or bypassed handler.
+    const directory = await mkdtemp(join(tmpdir(), 'gizmagick-review-cli-'));
+    let report;
+    try {
+      const packageFile = join(directory, 'review-package.json');
+      await writeFile(packageFile, JSON.stringify(job));
+      const cli = fileURLToPath(new URL('../scripts/gizmagick-audio-probe.mjs', import.meta.url));
+      const trackRoot = fileURLToPath(new URL(`../public${track.basePath}/`, import.meta.url));
+      const args = [cli, '--review-package', packageFile, '--track-root', trackRoot];
+      const { stdout } = await promisify(execFile)(process.execPath, args, { timeout: 30000 });
+      report = JSON.parse(stdout);
+      assert.equal(report.valid, true); assert.equal(report.draftId, draft.id);
+      await writeFile(packageFile, JSON.stringify({ ...job, expiresAt: 0 }));
+      await assert.rejects(promisify(execFile)(process.execPath, args), error => error.code === 1 && error.stderr.includes('expired'));
+      const altered = structuredClone(job); altered.snapshot.manifest.track.title += '!';
+      await writeFile(packageFile, JSON.stringify(altered));
+      await assert.rejects(promisify(execFile)(process.execPath, args), error => error.code === 1 && error.stderr.includes('altered'));
+    } finally { await rm(directory, { recursive: true, force: true }); }
+    const attestUrl = `/api/admin/drafts/${draft.id}/attest-review`;
+    const bodyForReview = JSON.stringify({ report, policy: REVIEW_POLICY, provenanceConfirmed: true });
+    assert.equal((await request(attestUrl, null, { method: 'POST', headers: writeHeaders, body: bodyForReview })).status, 401);
+    assert.equal((await request(attestUrl, token, { method: 'POST', body: bodyForReview })).status, 403);
+    assert.equal((await request(attestUrl, token, { method: 'POST', headers: { ...writeHeaders, Origin: 'https://evil.example.com' }, body: bodyForReview })).status, 403);
+    assert.equal((await request(attestUrl, issue('member@example.com'), { method: 'POST', headers: writeHeaders, body: bodyForReview })).status, 403);
+    const approved = await request(attestUrl, token, { method: 'POST', headers: writeHeaders, body: bodyForReview });
+    assert.equal(approved.status, 201, await approved.clone().text());
+    const approvedBody = await approved.json();
+    assert.equal(approvedBody.review.scope, 'administrator-attested');
+    assert.equal(approvedBody.review.serverDecoded, false); assert.equal(approvedBody.publishing, false);
+    const reopened = await (await request(`/api/admin/drafts/${draft.id}`)).json();
+    assert.equal(reopened.review.reportSha256, approvedBody.review.reportSha256);
+    assert.equal(reopened.audioProbed, false);
+    assert.equal((await request(attestUrl, token, { method: 'POST', headers: writeHeaders, body: bodyForReview })).status, 200);
     assert.equal((await request('/api/admin/publish', token, { method: 'POST', headers: writeHeaders })).status, 405);
     assert.equal(outbound.length, 1);
   } finally { await mf.dispose(); }

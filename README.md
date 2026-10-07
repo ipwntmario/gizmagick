@@ -82,6 +82,8 @@ Phase 6A implements private new-track intake, and Phase 6B deploys it with the s
 
 Phase 6C adds a [free local audio-validation runner](docs/audio-validation.md): `npm run tracks:probe -- --track "Lena's Home"` from `frontend` fully decodes Ogg audio and checks measured durations against clip timings. It also supports downloaded canonical draft manifests. Reports are local-only review candidates, not server-trusted approval or publication; no cloud state or source music/data changes occur. The catalog sweep passes 12 of 13 tracks, including all 129 Testing Time assets, and records an existing out-of-bounds endpoint in `BleepBloop UglyOnPurpose` without changing it.
 
+Phase 6D connects that runner to a [private administrator review workflow](docs/admin-review.md): a server-issued draft/file snapshot package, exact local fingerprint and timing checks, and an explicit human provenance confirmation stored as an immutable D1 audit record. It is labeled administrator-attested, never server-decoded; report selection alone grants no approval. Tested locally, with cloud review explicitly disabled until migration 0003 and a verified rollout. Publication and live frontend cutover remain pending.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

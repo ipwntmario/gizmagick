@@ -1,19 +1,73 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { runInNewContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { convertLegacyTrack } from '../scripts/lib/track-manifests.mjs';
 
-test('the bundled Worker verifies signed admin tokens in the actual local Workers runtime', async () => {
+async function bundledWorker(packager) {
+  if (packager === 'wrangler') {
+    const directory = await mkdtemp(join(tmpdir(), 'gizmagick-admin-test-'));
+    try {
+      await promisify(execFile)(process.execPath, [
+        fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js', import.meta.url)),
+        'deploy', '--dry-run', '--outdir', directory, '--config',
+        fileURLToPath(new URL('../../worker/wrangler.toml', import.meta.url)),
+      ], { env: { ...process.env, WRANGLER_SEND_METRICS: 'false' }, timeout: 60000 });
+      return await readFile(join(directory, 'index.js'), 'utf8');
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  }
   const result = await build({
     configFile: false, logLevel: 'silent',
     build: { write: false, minify: true, lib: { entry: fileURLToPath(new URL('../../worker/src/index.js', import.meta.url)), formats: ['es'] } },
   });
   const output = Array.isArray(result) ? result[0].output : result.output;
-  const code = output.find(chunk => chunk.type === 'chunk' && chunk.isEntry).code;
+  return output.find(chunk => chunk.type === 'chunk' && chunk.isEntry).code;
+}
+
+async function verifyBrowserInitialization(html) {
+  const scripts = [...html.matchAll(/<script nonce="[^"]+">([\s\S]*?)<\/script>/g)];
+  assert.equal(scripts.length, 1);
+  const elements = new Map();
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, {
+      textContent: '', disabled: false, listeners: new Map(),
+      addEventListener(event, callback) { this.listeners.set(event, callback); },
+      replaceChildren() {},
+    });
+    return elements.get(id);
+  };
+  const calls = [];
+  // Execute the emitted page script, not its unbundled source. Browser globals
+  // are explicit; no Worker/esbuild helpers are available in this fresh realm.
+  runInNewContext(scripts[0][1], {
+    document: { getElementById: element, querySelectorAll: () => [] },
+    fetch: async (path, options) => {
+      calls.push({ path, options });
+      return { ok: true, redirected: false, headers: { get: () => 'application/json' }, json: async () => ({ drafts: [] }) };
+    },
+  }, { timeout: 1000 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(element('status').textContent, 'Private draft intake is ready. Publishing is disabled.');
+  assert.equal(element('draft-list').textContent, 'No drafts yet.');
+  assert.equal(element('upload').disabled, true);
+  assert.equal(element('archive').disabled, true);
+  assert(element('sections-file').listeners.has('change'));
+  assert(element('create-draft').listeners.has('submit'));
+  assert(element('audio-files').listeners.has('change'));
+  assert(element('upload').listeners.has('click'));
+  assert.deepEqual(calls.map(call => [call.path, call.options.method]), [['/api/admin/drafts', 'GET']]);
+}
+
+for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worker verifies tokens, boots its browser script, and stores private audio`, async () => {
+  const code = await bundledWorker(packager);
   const issuer = 'https://gizmagick-runtime-test.cloudflareaccess.com';
   const audience = 'b'.repeat(64);
   const keys = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -55,7 +109,9 @@ test('the bundled Worker verifies signed admin tokens in the actual local Worker
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
-    assert((await page.text()).includes('Administrator verified'));
+    const html = await page.text();
+    assert(html.includes('Administrator verified'));
+    await verifyBrowserInitialization(html);
     assert.equal((await request('/api/admin/session', null)).status, 401);
     assert.equal((await request('/api/admin/session', issue('member@example.com'))).status, 403);
     assert.equal((await request('/api/admin/session', `${token.slice(0, -20)}invalidsignature`)).status, 401);

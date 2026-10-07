@@ -5,8 +5,9 @@ Implemented/tested locally in Phase 6A and deployed in Phase 6B on October 6,
 The separate `gizmagick-drafts` bucket is verified private, both D1 migrations
 are applied, and the Worker has its project-configured draft binding and enable
 flag. Production library import, trusted audio probing, publication, and live
-frontend cutover remain disabled/pending. **Fresh signed-in cloud upload testing
-is pending the administrator's Access login.** See the rollout record below.
+frontend cutover remain disabled/pending. **Real signed-in cloud creation,
+audio upload, and resumption after reload are verified.** See the rollout record
+below for the retained private test draft and the packaging fix it exposed.
 
 ## What works
 
@@ -97,8 +98,11 @@ npm run lint
 npm run build
 ```
 
-The tests cover signed authorization in the minified Worker simulator using real
-Lena's Home bytes, private R2 writes/downloads, both migrations, owner isolation,
+The tests cover signed authorization in both the minified Vite bundle and actual
+Wrangler dry-run bundle using real Lena's Home bytes. Each emitted admin-page
+script is executed in a fresh browser-like realm to verify initialization,
+event registration, and a read-only initial draft listing without Worker build
+helpers. They also cover private R2 writes/downloads, both migrations, owner isolation,
 unsafe requests, graph validation, size/type/fingerprint errors, retries,
 concurrency, interrupted writes, active-draft/storage quotas, and separation
 from public storage/catalog rows. Worker packaging is checked with Wrangler's
@@ -171,14 +175,43 @@ Anonymous post-deployment checks:
   deliberately extracted or recorded.
 - A draft-shaped public media path: 404.
 
-The deployed admin browser requested a fresh email-code sign-in. Per the
-computer-use skill, the administrator completes authentication themselves;
-no code, cookie, or JWT is requested or copied. The administrator separately
-authorized one private Lena's Home smoke-test upload (its JSON pair plus
-3,961,537-byte Ogg), but it has not been performed while sign-in is pending.
-Real signed-in creation/upload/resumption, sign-out, and denied-account browser
-checks remain pending. Do not mistake the earlier local simulated login/upload
-walkthrough for these production checks.
+The administrator completed the fresh email-code sign-in themselves, as required
+by the computer-use skill; no code, cookie, or JWT was requested or copied. The
+cloud walkthrough exposed `ReferenceError: __name is not defined`: Wrangler's
+name-preservation transform inserted helper calls into the serialized admin
+function, but those Worker-scoped helpers were absent from the page script.
+`keep_names = false` now keeps that client self-contained. See
+[Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/).
+The regression test now executes the emitted page script from the actual
+Wrangler bundle, rather than only checking that the response contains HTML.
+An isolated local check with the old name-preservation setting reproduces the
+exact `__name is not defined` failure; restoring the fix passes the same test.
+All **171 tests**, lint, and the normal frontend build pass. The corrected Worker
+was deployed as `bb261147-f084-4169-b365-5aaf6940bb7b`; deployed metadata confirms
+the same D1/public/private R2 bindings, admin secret name, and `ROOM_HUB` namespace.
+
+With the administrator's explicit authorization, the deployed admin page created
+exactly one private smoke-test draft from Lena's Home's existing JSON pair, with
+first section `Lena's Home`, Simple enabled, and Test disabled:
+
+- Title: `Lena's Home (private upload check)`.
+- Draft ID: `cc8e145a-1baf-43c1-aa26-b4d2782a6886`.
+- Audio: `Lena's Home.ogg`, 3,961,537 bytes, uploaded privately.
+- The server-computed SHA-256 matches the local source file:
+  `954d31b74c8c6db4409d673b277b48c887c26d09dcf9f86cd82fc1abfa81f66b`.
+- Reloading the admin page and reopening its recent-draft entry shows zero
+  missing audio files, **NOT audio-probed**, and **NOT published**.
+- Read-only remote D1 checks show one draft and one uploaded asset, with zero
+  published tracks/versions. The public catalog still returns an empty tracks
+  object. The test draft is retained; no archival or deletion was performed.
+- After the fix, public `/health` still returns 200; anonymous requests to this
+  actual draft and its uploaded audio return 302 without following Access
+  redirects. No login query strings or credentials were extracted.
+
+Real sign-out and denied-account browser checks remain pending. Automated
+authorization tests cover denial, but do not substitute for those browser
+checks. The earlier local simulated login/upload is distinct from this verified
+production creation/upload/resumption.
 
 Pages deployment history confirms `storage-and-database` pushes create previews;
 the latest production deployment remains on `main`, source `50bc859`, deployment
@@ -201,7 +234,9 @@ Do not stage secrets, `.dev.vars`, generated audio/import artifacts, or preview
 screenshots. Review the staged diff before each commit. The administrator
 authorized the agent to stage, commit, and push subsequent checkpoints to
 `storage-and-database`; main remains untouched until the overall migration is
-complete. Do not amend unrelated commits or force-push.
+complete. Do not amend unrelated commits or rewrite pushed history without
+specific approval. Use Conventional Commit prefixes (`feat:`, `fix:`, `docs:`,
+`style:`, etc.) with a lowercase opening word after the colon for new messages.
 
 1. **Completed Phase 5 deployment/configuration checkpoint** (`114e770`): included
    `README.md`, `docs/admin-authentication.md`, `docs/cloudflare-library.md`, and
@@ -218,12 +253,17 @@ complete. Do not amend unrelated commits or force-push.
    `worker/src/admin-drafts.js`, `worker/src/admin-page.js`, and
    `worker/src/generated/manifest-validator.js`.
    Message: `Add private Gizmagick draft upload intake`.
-3. **Phase 6B cloud configuration/deployment checkpoint**: stage only
+3. **Completed Phase 6B cloud configuration/deployment checkpoint** (`896a5ae`): included
    `worker/wrangler.toml`, `README.md`, `docs/admin-drafts.md`,
    `docs/admin-authentication.md`, and `docs/cloudflare-library.md`.
-   Suggested message: `Configure Gizmagick private draft storage rollout`.
-   Record outstanding real-login/upload checks honestly; their completion can
-   be a follow-up verification checkpoint.
+   Message: `feat: configure Gizmagick private draft storage rollout`.
+   The administrator explicitly approved rewording the previously pushed
+   `9fcb7da` commit; only that feature-branch commit was rewritten using an exact
+   remote-SHA `--force-with-lease`. Earlier commits and main were untouched.
+4. **Cloud intake fix/verification checkpoint**: include the name-preservation
+   configuration fix, actual-Wrangler/browser-initialization runtime regression
+   test, and updated verification notes. Suggested message:
+   `fix: initialize deployed admin upload script`.
 
 Push each completed checkpoint to your current feature branch to back it up;
 keep the merge into main for the completed, verified overall migration. A push

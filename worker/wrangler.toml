@@ -1,6 +1,9 @@
 name = "gizmagick-worker"
 main = "src/index.js"
 compatibility_date = "2024-09-01"
+# The self-contained admin client is serialized into a nonce-protected script.
+# Name-preservation helpers live outside that function and cannot travel with it.
+keep_names = false
 # Keep the existing admin/API hostname enabled independently of future routes.
 workers_dev = true
 

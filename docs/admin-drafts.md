@@ -223,8 +223,12 @@ private bytes/operations share the account's allowances and can incur charges;
 archival does not stop storage charges.
 [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/).
 
-Following increments: trusted audio decoding/duration probing; metadata editing;
-reviewed ownership mapping, immutable publication and audit records; staged
+The subsequent [Phase 6C local validation foundation](audio-validation.md) fully
+decodes local Opus/Vorbis files and checks measured durations, following the
+administrator's local-first choice. It does not change cloud draft trust flags
+or accept unsigned reports. Next connect guarded admin review/attestation.
+Following increments: metadata editing; reviewed ownership mapping, immutable
+publication and audit records; staged
 library import and frontend cutover. The visual graph editor and ordinary-user
 identity/moderation remain later work.
 

@@ -80,6 +80,8 @@ Phase 5 adds a fail-closed Cloudflare Access admin guard, a separate Worker-serv
 
 Phase 6A implements private new-track intake, and Phase 6B deploys it with the separate, verified-private `gizmagick-drafts` bucket and both D1 migrations. The admin page imports legacy JSON pairs or merged manifests, accepts bounded Ogg uploads, and resumes private drafts. See the [private draft workflow and rollout status](docs/admin-drafts.md). Trusted audio probing and publication remain disabled. The public catalog is now valid but empty; the live player still uses legacy files. Real signed-in cloud creation, audio upload, and resumption after reload are verified with one private Lena's Home test draft. All 171 automated tests pass, including browser-script initialization from the actual Wrangler bundle.
 
+Phase 6C adds a [free local audio-validation runner](docs/audio-validation.md): `npm run tracks:probe -- --track "Lena's Home"` from `frontend` fully decodes Ogg audio and checks measured durations against clip timings. It also supports downloaded canonical draft manifests. Reports are local-only review candidates, not server-trusted approval or publication; no cloud state or source music/data changes occur. The catalog sweep passes 12 of 13 tracks, including all 129 Testing Time assets, and records an existing out-of-bounds endpoint in `BleepBloop UglyOnPurpose` without changing it.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

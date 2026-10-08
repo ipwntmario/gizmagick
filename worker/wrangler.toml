@@ -25,8 +25,8 @@ bucket_name = "gizmagick-drafts"
 
 [vars]
 GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
-# Apply migration 0003 and verify a reviewed rollout before enabling in cloud.
-GIZMAGICK_DRAFT_REVIEWS_ENABLED = "false"
+# Migration 0003 is applied. Administrator attestations remain private only.
+GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 GIZMAGICK_MEDIA_BASE_URL = "https://media.gizmagick.com"
 GIZMAGICK_APP_ORIGINS = "https://gizmagick.com,https://www.gizmagick.com,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5180,http://127.0.0.1:5180"
 

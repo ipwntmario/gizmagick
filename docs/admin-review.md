@@ -1,7 +1,10 @@
 # Phase 6D: private local administrator review
 
-Implemented and tested locally. **Not deployed or enabled in cloud.** The live
-private intake, public catalog, player, and stored smoke-test draft are unchanged.
+Implemented, tested locally, and **deployed with cloud review enabled** on
+October 7, 2026. Migration 0003 is applied. Signed-in package generation and the
+administrator's personal-run confirmation remain pending; do not claim a
+completed cloud attestation yet. The public catalog, player and stored
+smoke-test draft are unchanged.
 This increment connects the free local validator to a specific uploaded draft;
 it does not implement publication, editing, cleanup, or public-user uploads.
 
@@ -119,19 +122,20 @@ contributor approval under this policy.
 
 ## Rollout and verification
 
-`worker/wrangler.toml` explicitly keeps `GIZMAGICK_DRAFT_REVIEWS_ENABLED = "false"`.
-With it disabled, existing intake works without migration 0003, review endpoints
+`worker/wrangler.toml` now records `GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"` after
+the reviewed migration/deployment. With the flag disabled, existing intake works
+without migration 0003, review endpoints
 return 503, and no review tables are queried. The local preview enables the flag
 only after applying all three migrations to ephemeral storage.
 
-Before cloud rollout, review/apply migration 0003 remotely, inspect its result,
-enable the flag in version-controlled config, deploy the existing Worker while
-preserving bindings/room namespace/secrets, and verify real signed-in review of
+The cloud rollout applied migration 0003 remotely, inspected its result, enabled
+the flag in version-controlled config and deployed the existing Worker while
+preserving bindings/room namespace/secrets. Next verify real signed-in review of
 the retained private Lena's Home smoke-test draft. No new service or signing
-secret is required. Keep publication, library import and frontend cutover out of
-that rollout. Do not claim a production review until the administrator has
-actually performed/confirmed its local run. Real browser sign-out and
-denied-account checks from the earlier intake phase remain pending.
+secret is required. Publication, library import and frontend cutover are excluded.
+Do not claim a production review until the administrator has actually
+performed/confirmed its local run. Real browser sign-out and denied-account
+checks from the earlier intake phase remain pending.
 
 Automated tests cover real Lena's Home decoding and the actual CLI against
 packages minted by both Vite- and Wrangler-bundled Workers using local D1/R2;
@@ -151,8 +155,56 @@ path-escape checks, not production credentials. Windows line-ending comparisons
 in the existing validator/secrets-ignore tests were made platform-neutral without
 weakening their content checks.
 
-Next checkpoint: cloud rollout and real admin review verification, then reviewed
+## Cloud rollout record (October 7, 2026)
+
+Read-only preflight confirmed the previously deployed version
+`bb261147-f084-4169-b365-5aaf6940bb7b`, only migration 0003 pending, one private
+draft/asset, and zero published tracks/versions. The drafts bucket still has no
+custom domain and disabled public `r2.dev` access. No security/access policy,
+bucket setting, route or domain configuration was changed.
+
+The reviewed additive migration `0003_gizmagick_draft_reviews.sql` applied
+successfully; migration listing then showed none pending. Both new review tables
+were empty, with unchanged prior draft/asset and library row counts.
+
+All 234 tests, lint, frontend build and whitespace checks passed with the review
+flag enabled. The deployment produced Worker version
+`89aa58e2-02c4-4e0b-9a9f-d3297060992e`. Deployed metadata confirms the enabled
+flag, retained `GIZMAGICK_ADMIN_EMAILS` secret name (value not read), D1
+`bb2ac5dd-05af-4e2f-8a4b-51120fac5da4`, both existing media/drafts buckets, and
+unchanged `ROOM_HUB` namespace `2cde201793224f49bf522d2e8adf4910`.
+
+Anonymous checks, with redirects disabled and only redirect hostnames recorded:
+
+- `/health`: 200, `{ "ok": true, "worker": "gizmagick-worker" }`.
+- `/api/library/catalog`: 200, `{ "schemaVersion": 2, "tracks": {} }`.
+- Non-upgrade `/ws`: 426; no new two-client or opening-handshake test was run.
+- `/admin` and both review endpoints for the retained smoke-test draft: 302 to
+  the configured Access team. No authenticated API/session token was extracted.
+- A draft-shaped public media path: 404.
+
+Pages production remains on `main`, source `076a5cc`, deployment
+`2435ec44-d022-4c7b-b40a-92f4bef6e3da`. This reflects the separately requested
+android-app theme/font merge, not a storage/library cutover. Feature-branch pushes
+are previews; this rollout did not deploy Pages or change its environment.
+
+The agent opened the protected admin page in Brave for the administrator. Access
+requires a fresh sign-in, so the computer-use skill requires user handoff;
+the agent neither entered nor requested an email code. Signed-in package download,
+native stored-checksum verification through the deployed handler, report import,
+explicit human attestation and reload/resumption remain pending. No new draft,
+review job, approval or audio upload was performed by the agent in this rollout.
+No library object/row was published or imported.
+
+To disable reviews in a future reviewed deployment, set the review flag to
+`"false"`, retaining all tables and private data. The previous Worker version is
+a rollback reference, not authorization to reverse migrations or automatically
+roll back. Do not remove the new tables or recreate the room namespace.
+
+Next checkpoint: real admin review verification, then reviewed
 metadata editing/ownership and immutable publication. Ordinary-user identity,
 moderation, audited cleanup/retention, and the visual graph editor remain later
-work. Commit this implementation with
-`feat: add private administrator audio review` and push only the feature branch.
+work. Implementation checkpoint: `15eddc0`,
+`feat: add private administrator audio review`. Record this rollout with
+`feat: enable private administrator review on Cloudflare` and push only the
+feature branch; main remains reserved for the completed migration.

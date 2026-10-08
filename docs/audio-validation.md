@@ -134,7 +134,8 @@ explicit personal-run confirmation. It records human provenance under verified
 admin identity, **not cryptographic proof of decoder execution**. Ordinary
 `local-only` reports remain ineligible; the server neither accepts those as
 trusted measurements nor flips `audioProbed`. This subsequent feature is tested
-locally and disabled in cloud pending migration 0003 and rollout verification.
+locally and deployed with migration 0003 applied and review enabled. Real
+signed-in package generation and personal-run confirmation remain pending.
 Immutable publication and staged import remain later work. A future automated
 decoder needs a separate trust boundary and resource/retention policy; browser
 decoding alone cannot replace it.

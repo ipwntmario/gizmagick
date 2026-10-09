@@ -59,7 +59,7 @@ function fixture(t) {
   };
   const env = { GIZMAGICK_DB: { prepare }, GIZMAGICK_DRAFTS: bucket,
     GIZMAGICK_MEDIA: { put: () => { throw new Error('Public bucket must never receive drafts'); } },
-    GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true' };
+    GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true' };
   const handle = principal => createAdminHandler(async () => principal);
   const request = (path = '/api/admin/drafts', { method = 'GET', body, principal = owner, headers = {} } = {}) => handle(principal)(new Request(`https://admin.example.com${path}`, {
     method, headers: { ...(body !== undefined ? { 'Content-Type': typeof body === 'object' && !(body instanceof Uint8Array) ? 'application/json' : 'application/octet-stream' } : {}), ...headers },
@@ -92,6 +92,128 @@ async function readyReview(f) {
   return { draft, job, report, attest: (body = { report, policy: REVIEW_POLICY, provenanceConfirmed: true }, principal = owner) =>
     f.request(`/api/admin/drafts/${draft.id}/attest-review`, { method: 'POST', body, principal }) };
 }
+
+const metadataInput = draft => ({ expectedManifestSha256: draft.manifestSha256, manifest: structuredClone(draft.manifest) });
+const edit = (f, draft, input = metadataInput(draft), principal = owner) => f.request(`/api/admin/drafts/${draft.id}/metadata`, { method: 'POST', body: input, principal });
+
+test('private metadata editing validates and persists musical changes without reuploading or publishing audio', async t => {
+  const f = fixture(t), draft = await (await f.create()).json();
+  assert.equal(draft.metadataEditable, true);
+  await f.upload(draft);
+  const before = [...f.objects.entries()], input = metadataInput(draft);
+  input.manifest.track.title = 'Edited private title';
+  Object.values(input.manifest.sections)[0].buttonLabel = 'New button';
+  Object.values(input.manifest.clips)[0].loopPoint = 179;
+  const response = await edit(f, draft, input);
+  assert.equal(response.status, 200, await response.clone().text());
+  const saved = await response.json();
+  assert.equal(saved.title, 'Edited private title');
+  assert.equal(saved.manifest.versionId, draft.manifest.versionId);
+  assert.notEqual(saved.manifestSha256, draft.manifestSha256);
+  assert.equal(saved.missingAssets.length, 0);
+  assert.equal(saved.audioProbed, false); assert.equal(saved.publishing, false);
+  assert.deepEqual([...f.objects.entries()], before);
+  assert.equal((await (await f.request(`/api/admin/drafts/${draft.id}`)).json()).manifestSha256, saved.manifestSha256);
+  assert.equal((await edit(f, draft, input)).status, 200); // Lost-response retry.
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 0);
+});
+
+test('metadata editing fails closed when disabled, review tables are absent, or identity is not the owner/admin', async t => {
+  const f = fixture(t), draft = await (await f.create()).json();
+  assert.equal((await edit(f, draft, metadataInput(draft), other)).status, 404);
+  assert.equal((await edit(f, draft, metadataInput(draft), { ...owner, role: 'contributor' })).status, 403);
+  f.env.GIZMAGICK_DRAFT_METADATA_ENABLED = 'false';
+  assert.equal((await edit(f, draft)).status, 503);
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.metadata, false);
+  f.env.GIZMAGICK_DRAFT_METADATA_ENABLED = 'true'; f.env.GIZMAGICK_DRAFT_REVIEWS_ENABLED = 'false';
+  f.sql.exec('DROP TABLE admin_draft_reviews; DROP TABLE admin_draft_review_jobs;');
+  assert.equal((await edit(f, draft)).status, 503);
+  assert.equal((await (await f.request(`/api/admin/drafts/${draft.id}`)).json()).metadataEditable, false);
+});
+
+for (const [name, mutate] of [
+  ['track identity', input => { input.manifest.track.id = crypto.randomUUID(); }],
+  ['version identity', input => { input.manifest.versionId = crypto.randomUUID(); }],
+  ['asset path', input => { Object.values(input.manifest.assets)[0].path = 'audio/different.ogg'; }],
+  ['asset fingerprint', input => { Object.values(input.manifest.assets)[0].sha256 = 'a'.repeat(64); }],
+  ['asset duration constraint', input => { Object.values(input.manifest.assets)[0].durationSeconds = 999; }],
+  ['new asset', input => { input.manifest.assets.extra = { path: 'audio/extra.ogg' }; }],
+  ['broken graph', input => { input.manifest.track.firstSection = 'does not exist'; }],
+  ['forged ownership', input => { input.ownerId = other.id; }],
+  ['forged approval', input => { input.manifest.serverDecoded = true; }],
+  ['coerced checksum', input => { input.expectedManifestSha256 = [input.expectedManifestSha256]; }],
+]) test(`metadata edits reject ${name} without touching the saved draft`, async t => {
+  const f = fixture(t), draft = await (await f.create()).json(), input = metadataInput(draft);
+  mutate(input);
+  assert([400, 422].includes((await edit(f, draft, input)).status));
+  const reopened = await (await f.request(`/api/admin/drafts/${draft.id}`)).json();
+  assert.equal(reopened.manifestSha256, draft.manifestSha256);
+});
+
+test('metadata edits preserve identity despite property reordering and reject stale competing edits', async t => {
+  const f = fixture(t), draft = await (await f.create()).json(), input = metadataInput(draft);
+  input.manifest.assets = Object.fromEntries(Object.entries(input.manifest.assets).reverse().map(([id, asset]) => [id, Object.fromEntries(Object.entries(asset).reverse())]));
+  input.manifest.track.title = 'First edit';
+  assert.equal((await edit(f, draft, input)).status, 200);
+  const second = metadataInput(draft); second.manifest.track.title = 'Stale overwrite';
+  assert.equal((await edit(f, draft, second)).status, 409);
+  assert.equal((await (await f.request(`/api/admin/drafts/${draft.id}`)).json()).title, 'First edit');
+});
+
+test('metadata edits invalidate packages/reports; a new package binds the saved graph', async t => {
+  const f = fixture(t), r = await readyReview(f), input = metadataInput(r.draft);
+  input.manifest.track.title = 'Changed after package';
+  assert.equal((await edit(f, r.draft, input)).status, 200);
+  assert.equal((await r.attest()).status, 409);
+  const job = await (await f.request(`/api/admin/drafts/${r.draft.id}/review-package`, { method: 'POST' })).json();
+  assert.notEqual(job.jobId, r.job.jobId);
+  assert.notEqual(job.snapshotSha256, r.job.snapshotSha256);
+  assert.equal(job.snapshot.manifest.track.title, 'Changed after package');
+  assert.equal((await r.attest()).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('attested and archived drafts cannot be edited, including no-op retries', async t => {
+  const f = fixture(t), r = await readyReview(f);
+  assert.equal((await r.attest()).status, 201);
+  assert.equal((await edit(f, r.draft)).status, 409);
+  assert.equal((await (await f.request(`/api/admin/drafts/${r.draft.id}`)).json()).metadataEditable, false);
+  const second = await (await f.create()).json();
+  await f.request(`/api/admin/drafts/${second.id}/archive`, { method: 'POST' });
+  assert.equal((await edit(f, second)).status, 409);
+});
+
+test('concurrent metadata save and attestation cannot both commit against the old graph', async t => {
+  const f = fixture(t), r = await readyReview(f), input = metadataInput(r.draft);
+  input.manifest.track.title = 'Racing save';
+  const [saved, attested] = await Promise.all([edit(f, r.draft, input), r.attest()]);
+  assert(!(saved.status === 200 && attested.status === 201));
+  assert([200, 409].includes(saved.status)); assert([201, 409].includes(attested.status));
+  const row = f.sql.prepare('SELECT * FROM admin_draft_reviews').get();
+  if (row) assert.equal(JSON.parse(f.sql.prepare('SELECT manifest_json FROM admin_drafts').get().manifest_json).track.title, r.draft.title);
+});
+
+test('archival at the metadata UPDATE prevents a stale save', async t => {
+  const f = fixture(t), draft = await (await f.create()).json(), input = metadataInput(draft), prepare = f.env.GIZMAGICK_DB.prepare;
+  input.manifest.track.title = 'Must not save';
+  f.env.GIZMAGICK_DB.prepare = query => {
+    if (query.startsWith('UPDATE admin_drafts SET title')) f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+    return prepare(query);
+  };
+  assert.equal((await edit(f, draft, input)).status, 409);
+  assert.equal(f.sql.prepare('SELECT title FROM admin_drafts').get().title, draft.title);
+});
+
+test('metadata requests bound bytes, require JSON/checksum, and advertise POST only', async t => {
+  const f = fixture(t), draft = await (await f.create()).json(), path = `/api/admin/drafts/${draft.id}/metadata`;
+  const get = await f.request(path); assert.equal(get.status, 405); assert.equal(get.headers.get('Allow'), 'POST');
+  assert.equal((await f.request(path, { method: 'POST', body: '{}' })).status, 415);
+  assert.equal((await f.request(path, { method: 'POST', body: '{', headers: { 'Content-Type': 'application/json' } })).status, 400);
+  assert.equal((await f.request(path, { method: 'POST', body: 'x'.repeat(262145), headers: { 'Content-Type': 'application/json' } })).status, 413);
+  const input = metadataInput(draft); delete input.expectedManifestSha256;
+  assert.equal((await edit(f, draft, input)).status, 400);
+});
 
 test('review package requires complete private audio and is retryable without multiplying stored jobs', async t => {
   const f = fixture(t), draft = await (await f.create()).json(), path = `/api/admin/drafts/${draft.id}/review-package`;

@@ -84,6 +84,8 @@ Phase 6C adds a [free local audio-validation runner](docs/audio-validation.md): 
 
 Phase 6D connects that runner to a [private administrator review workflow](docs/admin-review.md): a server-issued draft/file snapshot package, exact local fingerprint and timing checks, and an explicit human provenance confirmation stored as an immutable D1 audit record. It is labeled administrator-attested, never server-decoded; report selection alone grants no approval. All 234 tests pass. Migration 0003 is applied and cloud review is enabled/deployed. Real signed-in package generation, the administrator's personal local run and confirmation, and reload persistence are verified with the private Lena's Home test draft. The browser download delivery itself remains unconfirmed; the walkthrough used an equivalent package saved from its exact D1 job. Publication and live frontend cutover remain pending.
 
+Phase 6E adds a [private draft JSON metadata editor](docs/admin-metadata.md), implemented/tested locally but disabled in production configuration. It validates graph edits, preserves uploaded audio and identity, rejects stale saves, clears outdated review selections, and locks attested/archived drafts. It does not edit published tracks, transfer ownership, publish files, or change the live player. A browser walkthrough and reviewed cloud enablement remain pending.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

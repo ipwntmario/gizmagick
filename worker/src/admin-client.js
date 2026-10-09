@@ -4,17 +4,31 @@ export function adminClient() {
   const byId = id => document.getElementById(id);
   let current = null, selectedFiles = [], creationBody = null, busy = false, reviewReport = null;
   const status = message => { byId('status').textContent = message; };
+  const metadataDirty = () => Boolean(current && byId('metadata-editor') && byId('metadata-editor').value !== JSON.stringify(current.manifest, null, 2));
+  function clearReview() {
+    reviewReport = null;
+    if (byId('review-report')) {
+      byId('review-report').value = '';
+      byId('review-confirm').checked = false;
+      byId('review-summary').textContent = 'Choose a successful report to inspect its measurements.';
+    }
+  }
   const setBusy = value => {
     busy = value;
-    for (const control of document.querySelectorAll('button,input,select')) control.disabled = value;
-    byId('upload').disabled = value || !current || current.status !== 'draft' || !selectedFiles.length;
+    for (const control of document.querySelectorAll('button,input,select,textarea')) control.disabled = value;
+    byId('upload').disabled = value || !current || current.status !== 'draft' || !selectedFiles.length || metadataDirty();
     byId('archive').disabled = value || !current || current.status !== 'draft';
     if (byId('review-package')) {
-      const cannotReview = value || !current || current.status !== 'draft' || current.missingAssets.length > 0 || Boolean(current.review);
+      const cannotReview = value || !current || current.status !== 'draft' || current.missingAssets.length > 0 || Boolean(current.review) || metadataDirty();
       byId('review-package').disabled = cannotReview;
       byId('review-report').disabled = cannotReview;
       byId('review-confirm').disabled = cannotReview || !reviewReport;
       byId('attest-review').disabled = cannotReview || !reviewReport || !byId('review-confirm').checked;
+    }
+    if (byId('metadata-editor')) {
+      byId('metadata-editor').disabled = value || !current?.metadataEditable;
+      byId('save-metadata').disabled = value || !current?.metadataEditable || !metadataDirty();
+      byId('reset-metadata').disabled = value || !current || !metadataDirty();
     }
   };
   async function api(path, method = 'GET', body) {
@@ -29,16 +43,18 @@ export function adminClient() {
   }
   const pathFor = id => `/api/admin/drafts/${encodeURIComponent(id)}`;
   function showDraft(draft) {
+    const metadataChanged = current?.id !== draft.id || current?.manifestSha256 !== draft.manifestSha256;
     if (current?.id !== draft.id) {
       selectedFiles = [];
       byId('audio-files').value = '';
       byId('file-selection').textContent = 'No files selected.';
-      reviewReport = null;
-      if (byId('review-report')) {
-        byId('review-report').value = '';
-        byId('review-confirm').checked = false;
-        byId('review-summary').textContent = 'Choose a successful report to inspect its measurements.';
-      }
+    }
+    if (metadataChanged) clearReview();
+    if (byId('metadata-editor')) {
+      if (metadataChanged) byId('metadata-editor').value = JSON.stringify(draft.manifest, null, 2);
+      byId('metadata-state').textContent = draft.metadataEditable
+        ? 'Unreviewed private draft. Saves validate the graph and invalidate earlier review packages.'
+        : 'Editing locked: this draft is attested, archived, or metadata editing is disabled.';
     }
     current = draft;
     byId('draft-title').textContent = draft.title;
@@ -77,7 +93,9 @@ export function adminClient() {
       button.type = 'button';
       button.textContent = `${draft.title} · ${draft.status}`;
       button.addEventListener('click', () => work(async () => {
+        if (metadataDirty() && !confirm('Discard unsaved metadata edits and reopen this draft? Copy your edits first if you want to keep them.')) return;
         showDraft(await api(pathFor(draft.id)));
+        if (byId('metadata-editor')) byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
         status(current.missingAssets.length ? 'Private draft loaded. Choose its missing audio files to continue.' : 'Private draft loaded. All referenced files are stored privately; server decoding and publication remain disabled.');
       }));
       item.append(button); list.append(item);
@@ -114,6 +132,7 @@ export function adminClient() {
   byId('create-draft').addEventListener('submit', event => {
     event.preventDefault();
     work(async () => {
+      if (metadataDirty() && !confirm('Creating another draft will discard unsaved metadata edits. Copy or save them first. Continue?')) return;
       if (!creationBody) {
         const input = { requestId: crypto.randomUUID() };
         if (byId('source').value === 'legacy') {
@@ -141,6 +160,7 @@ export function adminClient() {
     if (!busy) chooseFiles(event.dataTransfer.files);
   });
   byId('upload').addEventListener('click', () => work(async () => {
+    if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before uploading audio.');
     const byName = new Map();
     const expected = new Map(Object.entries(current.manifest.assets).map(([id, asset]) => [asset.path.slice(6), id]));
     for (const file of selectedFiles) {
@@ -164,7 +184,28 @@ export function adminClient() {
       await refreshList(); status('Draft archived. No files were deleted.');
     });
   });
+  byId('metadata-editor')?.addEventListener('input', () => { clearReview(); setBusy(busy); });
+  byId('reset-metadata')?.addEventListener('click', () => {
+    if (!current || !confirm('Discard unsaved metadata edits? The saved draft will not change.')) return;
+    byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
+    clearReview(); setBusy(busy);
+    status('Unsaved edits discarded. The saved private draft is unchanged.');
+  });
+  byId('save-metadata')?.addEventListener('click', () => work(async () => {
+    if (!current?.metadataEditable) throw new Error('This draft cannot be edited. Attested and archived drafts are immutable.');
+    let manifest;
+    try { manifest = JSON.parse(byId('metadata-editor').value); } catch { throw new Error('Draft manifest JSON is invalid. Your unsaved text has been kept.'); }
+    const body = JSON.stringify({ expectedManifestSha256: current.manifestSha256, manifest });
+    if (new TextEncoder().encode(body).length > 262144) throw new Error('Metadata request exceeds 256 KiB. Your unsaved text has been kept.');
+    clearReview();
+    const saved = await api(`${pathFor(current.id)}/metadata`, 'POST', body);
+    showDraft(saved);
+    byId('metadata-editor').value = JSON.stringify(saved.manifest, null, 2);
+    await refreshList();
+    status('Private metadata saved. Download a fresh review package and rerun local validation before attesting. Nothing was published.');
+  }));
   byId('review-package')?.addEventListener('click', () => work(async () => {
+    if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before requesting a review package.');
     const job = await api(`${pathFor(current.id)}/review-package`, 'POST');
     const url = URL.createObjectURL(new Blob([JSON.stringify(job, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a');
@@ -176,9 +217,11 @@ export function adminClient() {
   byId('review-report')?.addEventListener('change', () => work(async () => {
     reviewReport = null; byId('review-confirm').checked = false;
     byId('review-summary').textContent = 'No successful report selected.';
+    if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before selecting a report.');
     const report = await readJSON(byId('review-report'));
     if (report.scope !== 'administrator-review-candidate' || report.valid !== true || report.publishing !== false
         || report.draftId !== current.id || report.versionId !== current.manifest.versionId
+        || report.manifestSha256 !== current.manifestSha256
         || !Array.isArray(report.errors) || report.errors.length || !report.measurements || typeof report.measurements !== 'object') {
       throw new Error('Choose a successful review-package report for this exact draft. Ordinary local-only reports cannot be attested.');
     }
@@ -189,7 +232,7 @@ export function adminClient() {
   }));
   byId('review-confirm')?.addEventListener('change', () => setBusy(busy));
   byId('attest-review')?.addEventListener('click', () => work(async () => {
-    if (!reviewReport || !byId('review-confirm').checked) throw new Error('A report and explicit administrator confirmation are required.');
+    if (metadataDirty() || !reviewReport || !byId('review-confirm').checked) throw new Error('Saved metadata, a report and explicit administrator confirmation are required.');
     await api(`${pathFor(current.id)}/attest-review`, 'POST', JSON.stringify({ report: reviewReport, policy: 'gizmagick-local-admin-v1', provenanceConfirmed: true }));
     reviewReport = null; byId('review-confirm').checked = false;
     showDraft(await api(pathFor(current.id)));

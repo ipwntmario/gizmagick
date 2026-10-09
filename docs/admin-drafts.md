@@ -228,10 +228,12 @@ decodes local Opus/Vorbis files and checks measured durations, following the
 administrator's local-first choice. [Phase 6D administrator review](admin-review.md)
 now connects exact private snapshots to explicit human attestation and an
 immutable review/audit record. It is tested locally and deployed with migration
-0003 applied and reviews enabled; real signed-in review verification remains
-pending. It never claims server decoding or
+0003 applied and reviews enabled; real signed-in review and reload persistence
+are verified. It never claims server decoding or
 changes cloud draft trust flags merely because a local report exists.
-Following increments: metadata editing; reviewed ownership mapping, immutable
+The [Phase 6E private metadata editor](admin-metadata.md) is now implemented
+and tested locally, but disabled in production configuration. Attested drafts
+remain immutable. Following increments: reviewed ownership mapping, immutable
 publication and audit records; staged
 library import and frontend cutover. The visual graph editor and ordinary-user
 identity/moderation remain later work.

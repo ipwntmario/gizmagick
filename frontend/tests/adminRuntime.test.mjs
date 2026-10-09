@@ -62,12 +62,15 @@ async function verifyBrowserInitialization(html) {
   assert.equal(element('archive').disabled, true);
   assert.equal(element('review-package').disabled, true);
   assert.equal(element('attest-review').disabled, true);
+  assert.equal(element('metadata-editor').disabled, true);
+  assert.equal(element('save-metadata').disabled, true);
   assert(element('sections-file').listeners.has('change'));
   assert(element('create-draft').listeners.has('submit'));
   assert(element('audio-files').listeners.has('change'));
   assert(element('upload').listeners.has('click'));
   assert(element('review-report').listeners.has('change'));
   assert(element('attest-review').listeners.has('click'));
+  assert(element('save-metadata').listeners.has('click'));
   assert.deepEqual(calls.map(call => [call.path, call.options.method]), [['/api/admin/drafts', 'GET']]);
 }
 
@@ -90,7 +93,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS'],
-    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -114,6 +117,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     const body = await allowed.json();
     assert.equal(body.principal.email, 'admin@example.com');
     assert.equal(body.capabilities.reviews, true);
+    assert.equal(body.capabilities.metadata, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -134,7 +138,18 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     const created = await request('/api/admin/drafts', token, { method: 'POST', headers: writeHeaders,
       body: JSON.stringify({ requestId: crypto.randomUUID(), manifest }) });
     assert.equal(created.status, 201, await created.clone().text());
-    const draft = await created.json();
+    let draft = await created.json();
+    const metadataUrl = `/api/admin/drafts/${draft.id}/metadata`;
+    const edits = { expectedManifestSha256: draft.manifestSha256, manifest: structuredClone(draft.manifest) };
+    edits.manifest.track.title = 'Runtime edited private draft';
+    assert.equal((await request(metadataUrl, null, { method: 'POST', headers: writeHeaders, body: JSON.stringify(edits) })).status, 401);
+    assert.equal((await request(metadataUrl, token, { method: 'POST', body: JSON.stringify(edits) })).status, 403);
+    assert.equal((await request(metadataUrl, issue('member@example.com'), { method: 'POST', headers: writeHeaders, body: JSON.stringify(edits) })).status, 403);
+    const edited = await request(metadataUrl, token, { method: 'POST', headers: writeHeaders, body: JSON.stringify(edits) });
+    assert.equal(edited.status, 200, await edited.clone().text());
+    draft = await edited.json();
+    assert.equal(draft.title, 'Runtime edited private draft');
+    assert.equal((await (await request(`/api/admin/drafts/${draft.id}`)).json()).manifestSha256, draft.manifestSha256);
     const assetId = Object.keys(draft.manifest.assets)[0];
     const bytes = new Uint8Array(await readFile(new URL(`../public${track.basePath}/${draft.manifest.assets[assetId].path}`, import.meta.url)));
     const uploadUrl = `/api/admin/drafts/${draft.id}/assets/${assetId}`;

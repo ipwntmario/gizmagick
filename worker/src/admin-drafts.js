@@ -2,7 +2,8 @@ import checkStructure from './generated/manifest-validator.js';
 import { validateManifestWithStructure } from '../../shared/track-manifest.js';
 import { convertLegacyDocument } from '../../shared/legacy-manifest.js';
 import { UUID_PATTERN } from '../../shared/library-contract.js';
-import { getDraftReview, handleReviewRequest } from './admin-reviews.js';
+import { getDraftReview, handleReviewRequest, reviewsEnabled } from './admin-reviews.js';
+import { jsonSha256 } from '../../shared/draft-review.js';
 
 export const DRAFT_LIMITS = Object.freeze({ metadataBytes: 262144, audioBytes: 16777216,
   draftBytes: 268435456, ownerBytes: 536870912, activeDrafts: 20, assets: 256, clips: 2048, sections: 128 });
@@ -15,6 +16,9 @@ const isObject = value => value && typeof value === 'object' && !Array.isArray(v
 const digest = async bytes => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), b => b.toString(16).padStart(2, '0')).join('');
 export const draftsEnabled = env => env.GIZMAGICK_DRAFT_UPLOADS_ENABLED === 'true'
   && Boolean(env.GIZMAGICK_DB && env.GIZMAGICK_DRAFTS) && env.GIZMAGICK_DRAFTS !== env.GIZMAGICK_MEDIA;
+// Editing must be able to detect immutable attestations (migration 0003).
+export const metadataEnabled = env => draftsEnabled(env) && reviewsEnabled(env)
+  && env.GIZMAGICK_DRAFT_METADATA_ENABLED === 'true';
 
 function requireKeys(value, keys) {
   if (!isObject(value) || Object.keys(value).some(key => !keys.includes(key))) fail(400, 'DRAFT_INPUT', 'Unsupported draft fields. Ownership and publication are server-controlled.');
@@ -92,10 +96,48 @@ async function detail(env, row) {
   const { results } = await db.prepare('SELECT asset_id, byte_length, sha256, state FROM admin_draft_assets WHERE draft_id = ? ORDER BY asset_id').bind(row.id).all();
   const manifest = JSON.parse(row.manifest_json);
   const uploaded = new Set(results.filter(asset => asset.state === 'uploaded').map(asset => asset.asset_id));
+  const review = await getDraftReview(env, row.id);
   return { id: row.id, title: row.title, status: row.status, createdAt: row.created_at, manifest,
+    manifestSha256: await jsonSha256(manifest), metadataEditable: metadataEnabled(env) && row.status === 'draft' && !review,
     uploads: results, missingAssets: Object.keys(manifest.assets).filter(id => !uploaded.has(id)),
-    audioProbed: false, publishing: false, review: await getDraftReview(env, row.id),
+    audioProbed: false, publishing: false, review,
     warnings: validateManifestWithStructure(manifest, checkStructure).warnings.slice(0, 30) };
+}
+
+async function updateMetadata(request, env, principal, row) {
+  if (!metadataEnabled(env)) fail(503, 'DRAFT_METADATA_DISABLED', 'Private metadata editing is not enabled.');
+  if (principal.role !== 'admin') fail(403, 'DRAFT_METADATA_ADMIN', 'Only an administrator can edit private metadata.');
+  if (row.status !== 'draft' || await getDraftReview(env, row.id)) fail(409, 'DRAFT_METADATA_LOCKED', 'Archived or attested drafts are immutable. Create a new draft instead.');
+  if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/json') fail(415, 'DRAFT_JSON', 'Send application/json.');
+  const bytes = await readBoundedBody(request, DRAFT_LIMITS.metadataBytes);
+  let input;
+  try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { fail(400, 'DRAFT_JSON', 'Invalid UTF-8 JSON.'); }
+  requireKeys(input, ['expectedManifestSha256', 'manifest']);
+  if (typeof input.expectedManifestSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.expectedManifestSha256)) fail(400, 'DRAFT_METADATA_BASE', 'The loaded manifest checksum is required.');
+  const manifest = input.manifest;
+  boundedGraph(manifest);
+  const validation = validateManifestWithStructure(manifest, checkStructure);
+  if (!validation.valid) fail(422, 'DRAFT_MANIFEST', 'Track data did not pass validation.', validation.errors.slice(0, 30));
+  const original = JSON.parse(row.manifest_json);
+  const sameAssets = Object.keys(manifest.assets).length === Object.keys(original.assets).length
+    && Object.entries(original.assets).every(([id, asset]) => Object.hasOwn(manifest.assets, id)
+      && Object.keys(asset).length === Object.keys(manifest.assets[id]).length
+      && Object.entries(asset).every(([key, value]) => manifest.assets[id][key] === value));
+  if (manifest.track.id !== original.track.id || manifest.versionId !== original.versionId || !sameAssets) {
+    fail(422, 'DRAFT_METADATA_IDENTITY', 'Keep track/version IDs and all audio asset IDs, paths and constraints unchanged. New audio requires a new draft.');
+  }
+  const document = JSON.stringify(manifest);
+  // Exact-content retry after a lost response is harmless; no old report is approved.
+  if (document === row.manifest_json) return detail(env, row);
+  if (input.expectedManifestSha256 !== await jsonSha256(original)) fail(409, 'DRAFT_METADATA_STALE', 'The draft changed in another session. Copy your edits before reopening the latest draft.');
+  const saved = await env.GIZMAGICK_DB.prepare(`UPDATE admin_drafts SET title = ?, manifest_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    WHERE id = ? AND owner_id = ? AND status = 'draft' AND manifest_json = ?
+    AND NOT EXISTS (SELECT 1 FROM admin_draft_reviews WHERE draft_id = ?)`)
+    .bind(manifest.track.title, document, row.id, principal.id, row.manifest_json, row.id).run();
+  if (!changed(saved)) fail(409, 'DRAFT_METADATA_STALE', 'The draft changed, was archived, or was attested while saving. Copy your edits before reopening it.');
+  // Keep historical pending packages. Their snapshot hashes no longer match;
+  // regeneration replaces the old job and reports cannot attest stale metadata.
+  return detail(env, await ownDraft(env.GIZMAGICK_DB, row.id, principal.id));
 }
 
 // Container/codec identification is an intake check, NOT decoding/duration
@@ -146,7 +188,7 @@ async function uploadAsset(request, env, principal, row, assetId) {
 
 export async function handleDraftRequest(request, env, principal, reply, headers) {
   const path = new URL(request.url).pathname;
-  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest|review-package|attest-review))?$/);
+  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest|metadata|review-package|attest-review))?$/);
   if (path !== '/api/admin/drafts' && !route) return null;
   if (!draftsEnabled(env)) return reply({ error: 'Private draft storage is not enabled.', code: 'DRAFT_NOT_CONFIGURED' }, 503);
   try {
@@ -182,6 +224,7 @@ export async function handleDraftRequest(request, env, principal, reply, headers
     } else {
       const row = await ownDraft(env.GIZMAGICK_DB, route[1], principal.id);
       if (!route[2] && ['GET', 'HEAD'].includes(request.method)) return reply(await detail(env, row));
+      if (route[2] === 'metadata' && request.method === 'POST') return reply(await updateMetadata(request, env, principal, row));
       if (['review-package', 'attest-review'].includes(route[2])) {
         if (request.method !== 'POST') headers.set('Allow', 'POST');
         return await handleReviewRequest(request, env, principal, row, route[2], reply);
@@ -212,7 +255,7 @@ export async function handleDraftRequest(request, env, principal, reply, headers
         }
       }
     }
-    headers.set('Allow', path === '/api/admin/drafts' ? 'GET, HEAD, POST' : route?.[3] ? 'GET, HEAD, PUT' : route?.[2] === 'archive' ? 'POST' : 'GET, HEAD');
+    headers.set('Allow', path === '/api/admin/drafts' ? 'GET, HEAD, POST' : route?.[3] ? 'GET, HEAD, PUT' : ['archive', 'metadata'].includes(route?.[2]) ? 'POST' : 'GET, HEAD');
     return reply({ error: 'Method not allowed', code: 'DRAFT_METHOD' }, 405);
   } catch (error) {
     if (error instanceof DraftError) return reply({ error: error.message, code: error.code, ...(error.details ? { details: error.details } : {}) }, error.status);

@@ -51,7 +51,7 @@ origin = `http://127.0.0.1:${server.address().port}`;
 try {
   mf = new Miniflare(convertV4MiniflareOptions({ modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS'],
-    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer,
+    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer,
       GIZMAGICK_ACCESS_AUD: audience, GIZMAGICK_ADMIN_EMAILS: 'preview@example.invalid', GIZMAGICK_ADMIN_ORIGIN: origin },
     outboundService: request => {
       if (request.url !== `${issuer}/cdn-cgi/access/certs`) return new Response(null, { status: 503 });

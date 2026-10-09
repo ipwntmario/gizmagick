@@ -170,7 +170,7 @@ test('session endpoint returns only the verified principal, is private/non-cache
   const body = await response.json();
   assert.equal(body.authenticated, true);
   assert.equal(body.principal.role, 'admin');
-  assert.deepEqual(body.capabilities, { uploads: false, reviews: false, publishing: false });
+  assert.deepEqual(body.capabilities, { uploads: false, reviews: false, metadata: false, publishing: false });
   assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
   assert.equal(response.headers.get('Set-Cookie'), null);
   assert.equal(response.headers.get('Access-Control-Allow-Origin'), null);

@@ -1,10 +1,10 @@
 # Phase 6D: private local administrator review
 
 Implemented, tested locally, and **deployed with cloud review enabled** on
-October 7, 2026. Migration 0003 is applied. Signed-in package generation and the
-administrator's personal-run confirmation remain pending; do not claim a
-completed cloud attestation yet. The public catalog, player and stored
-smoke-test draft are unchanged.
+October 7, 2026. Migration 0003 is applied. Real signed-in package generation,
+the administrator's personal local run and confirmation, and persistence after
+reload are verified on October 8, 2026. The retained private smoke-test draft
+now has one administrator attestation; the public catalog and player are unchanged.
 This increment connects the free local validator to a specific uploaded draft;
 it does not implement publication, editing, cleanup, or public-user uploads.
 
@@ -130,12 +130,12 @@ only after applying all three migrations to ephemeral storage.
 
 The cloud rollout applied migration 0003 remotely, inspected its result, enabled
 the flag in version-controlled config and deployed the existing Worker while
-preserving bindings/room namespace/secrets. Next verify real signed-in review of
-the retained private Lena's Home smoke-test draft. No new service or signing
-secret is required. Publication, library import and frontend cutover are excluded.
-Do not claim a production review until the administrator has actually
-performed/confirmed its local run. Real browser sign-out and denied-account
-checks from the earlier intake phase remain pending.
+preserving bindings/room namespace/secrets. Real signed-in review of the retained
+private Lena's Home smoke-test draft is now verified (see the October 8 record
+below). No new service or signing secret is required. Publication, library import
+and frontend cutover are excluded. The administrator personally performed and
+confirmed the local run. Real browser sign-out and denied-account checks from
+the earlier intake phase remain pending.
 
 Automated tests cover real Lena's Home decoding and the actual CLI against
 packages minted by both Vite- and Wrangler-bundled Workers using local D1/R2;
@@ -201,10 +201,47 @@ To disable reviews in a future reviewed deployment, set the review flag to
 a rollback reference, not authorization to reverse migrations or automatically
 roll back. Do not remove the new tables or recreate the room namespace.
 
-Next checkpoint: real admin review verification, then reviewed
-metadata editing/ownership and immutable publication. Ordinary-user identity,
-moderation, audited cleanup/retention, and the visual graph editor remain later
+## Cloud administrator review verification (October 8, 2026, Eastern)
+
+The administrator signed in to the deployed admin page. Its review-package
+handler created job `87da610f-1e4f-4277-a702-1e95c9ae326f` for the retained
+private Lena's Home draft `cc8e145a-1baf-43c1-aa26-b4d2782a6886`, verifying
+native stored R2 checksums and the complete snapshot. The browser reported
+download initiation, but its download event/file could not be confirmed. The
+agent therefore saved an equivalent package from that exact D1 job into the
+ignored local artifacts directory, without changing the job or recording approval.
+This verifies server-side package generation, not reliable browser-download delivery.
+
+A local rehearsal passed, and the administrator then personally reran the
+documented CLI, selected the report, reviewed the measurements/warnings,
+confirmed provenance, and recorded the private attestation. The report is valid
+with no errors: one 3,961,537-byte stereo Opus file, 48,000 Hz, 8,640,000 samples,
+and 180 seconds, matching the exact private asset fingerprint. Graph warnings
+were empty. No agent action substituted for the personal-run confirmation.
+
+The recorded audit timestamp is `2026-10-09T02:36:06.394Z` (October 8 in Eastern
+time). Its report SHA-256 is
+`159a54dc722c00c5f754b6058dc0aa6f7222312e0cfea8ae4ce7489d1318a6b8` and snapshot
+SHA-256 is `d693253b38f314514f111ff7acfce5ed7f068f59f84984b54eef1b9390805c80`.
+Reloading the page and reopening the draft fetched the same saved attestation;
+the package, report-selection, and attestation controls were disabled. The draft
+still explicitly says **NOT audio-probed / NOT server-decoded / NOT published**.
+
+Read-only remote D1 checks confirmed one draft, one uploaded asset, one job, one
+`administrator-attested` review under `gizmagick-local-admin-v1`, and zero library
+tracks/versions. The initial D1 query received Cloudflare error 7403; after
+Wrangler confirmed the expected OAuth account and D1 permission, the retry
+succeeded without credential or configuration changes. The public catalog
+still returns `{ "schemaVersion": 2, "tracks": {} }`.
+
+This verification made no new draft, upload, publication, deployment, route,
+bucket, Access-policy, or frontend change. Local packages/reports stay ignored;
+no credentials are included in this checkpoint. Browser sign-out and
+denied-account checks remain pending.
+
+Next checkpoint: reviewed metadata editing/ownership and immutable publication.
+Ordinary-user identity, moderation, audited cleanup/retention, and the visual graph editor remain later
 work. Implementation checkpoint: `15eddc0`,
-`feat: add private administrator audio review`. Record this rollout with
-`feat: enable private administrator review on Cloudflare` and push only the
-feature branch; main remains reserved for the completed migration.
+`feat: add private administrator audio review`. Rollout checkpoint: `6458959`,
+`feat: enable private administrator review on Cloudflare`. Push checkpoints only
+to the feature branch; main remains reserved for the completed migration.

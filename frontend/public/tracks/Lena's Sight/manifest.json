@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "f4a9fe66-b466-5b3f-ad41-3df79d173955",
+    "slug": "lena-s-sight",
+    "title": "Lena's Sight",
+    "firstSection": "Lena's Sight",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "83aa30fd-1697-5f26-82ce-2f6398599979": {
+      "path": "audio/Lena's Sight.ogg",
+      "byteLength": 4009322,
+      "sha256": "b389261fbb767a97534082e8ed0383e7a1af8f4b8e915cd0fe074df7326c40af"
+    }
+  },
+  "clips": {
+    "Lena's Sight": {
+      "assetsByMode": {
+        "base": "83aa30fd-1697-5f26-82ce-2f6398599979"
+      },
+      "loopStart": 0,
+      "loopPoint": 192,
+      "clipEnd": 192,
+      "transitions": [
+        {
+          "to": "Lena's Sight",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "Lena's Sight": {
+      "title": "Lena's Sight",
+      "firstClip": "Lena's Sight",
+      "clips": [
+        "Lena's Sight"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "77b4661c-4b2a-5d6c-ace3-b5be15085a03"
+}

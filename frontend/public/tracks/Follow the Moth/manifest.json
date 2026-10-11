@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "cb17e18d-95ab-5759-b947-464238f13297",
+    "slug": "follow-the-moth",
+    "title": "Follow the Moth",
+    "firstSection": "Follow the Moth",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "683634e4-54f7-5157-a584-538d7f4c25ef": {
+      "path": "audio/Follow the Moth.ogg",
+      "byteLength": 2238004,
+      "sha256": "1a97a2e417d3a077807bd6c03c376b93af17b1279143eae01cb78ffecd73b170"
+    }
+  },
+  "clips": {
+    "Follow the Moth": {
+      "assetsByMode": {
+        "base": "683634e4-54f7-5157-a584-538d7f4c25ef"
+      },
+      "loopStart": 0,
+      "loopPoint": 116.170227,
+      "clipEnd": 116.170227,
+      "transitions": [
+        {
+          "to": "Follow the Moth",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "Follow the Moth": {
+      "title": "Follow the Moth",
+      "firstClip": "Follow the Moth",
+      "clips": [
+        "Follow the Moth"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "07081549-ef41-549f-b163-4fbe9d2f64e9"
+}

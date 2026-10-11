@@ -1,0 +1,4364 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "7031282b-1a1f-5b39-ba9e-1415052d3aad",
+    "slug": "testing-time",
+    "title": "Testing Time",
+    "firstSection": "Intro",
+    "simple": false,
+    "test": false
+  },
+  "assets": {
+    "081397b4-f664-521f-8e55-a1d780baa3d1": {
+      "path": "audio/Intro.ogg",
+      "byteLength": 260736,
+      "sha256": "a45435d76544524c3f80f96df267bf6a79807e162168505a48e0981c9e406b2c"
+    },
+    "b574f9ad-04ce-5450-9d02-b027cef1b187": {
+      "path": "audio/PreQ_a1.ogg",
+      "byteLength": 173116,
+      "sha256": "293dedc0c40151dd24c0f657d6a3c60007addc92d0a07fa6dd2ef6c979bed5d2"
+    },
+    "1204f3d2-aeba-5c7f-8dcf-8848a52a7c94": {
+      "path": "audio/PreQ_a2.ogg",
+      "byteLength": 79859,
+      "sha256": "57e2720502228bdc423082ba987c1aaca0c1141dcdd9698892dea6bfd8d05d73"
+    },
+    "88052e04-2012-5d4d-bd7b-21c706def438": {
+      "path": "audio/PreQ_a3.ogg",
+      "byteLength": 166106,
+      "sha256": "259eb8988e5e470fec180c0cdf4c5293c70d7173940aae6bf1e1f9f5d4fb6a1a"
+    },
+    "03ed96ab-5824-5835-8c14-c41acfd49e7d": {
+      "path": "audio/PreQ_a4.ogg",
+      "byteLength": 93562,
+      "sha256": "36ee6aa4d3231d2f5c42aa289b241487837070004f96bb21ca0f7d7e76e05ba5"
+    },
+    "984147e3-7084-5e4c-80f1-d115ee8a35f3": {
+      "path": "audio/PreQ_a5.ogg",
+      "byteLength": 169243,
+      "sha256": "1234cf51e479eb7d426392edc3102facbc6611fcd4a205a4591d4d556209fc8b"
+    },
+    "f98ab9af-a588-5c61-b898-e71f56d7541d": {
+      "path": "audio/PreQ_a6.ogg",
+      "byteLength": 86880,
+      "sha256": "187c42fabc11992e6089b6538d95d24fcdf41a7825c64686bb98b73c0930495e"
+    },
+    "7e85eb5a-5cb7-5549-8506-f6ee8e092602": {
+      "path": "audio/PreQ_a7.ogg",
+      "byteLength": 168007,
+      "sha256": "938edd2997277c08a9b905cdd812ad8d559befc0bc014d7908c882325b883af9"
+    },
+    "a9780cf2-4d6f-5edd-9f18-9daeab80f339": {
+      "path": "audio/PreQ_a8.ogg",
+      "byteLength": 80564,
+      "sha256": "17a50af68698052988e1f64c053e7f55e3691d8c7b58fcb39eec41de7b869660"
+    },
+    "5d38b5d9-c6c2-5355-a5fd-27cc4d94971f": {
+      "path": "audio/PreQ_a9.ogg",
+      "byteLength": 171557,
+      "sha256": "334c7dd836eed17d4f04f550b1b9ac000e0c979ef4f7fa8b8c628aa2125f902b"
+    },
+    "8145123f-e12e-5f4d-9815-a4453cd5cb4e": {
+      "path": "audio/PreQ_a10.ogg",
+      "byteLength": 93522,
+      "sha256": "8bbfb85d62e9b4533472ffeea55c84ffe2dd0d454ac95c5044747a143f90abcb"
+    },
+    "48d500df-b029-5580-a2f6-1cfa03ab645e": {
+      "path": "audio/PreQ_a11.ogg",
+      "byteLength": 166959,
+      "sha256": "9e6f5daf81423dca48df23fed9c815ca74a463d52d8b710c760c9f97e6a6da61"
+    },
+    "d9ee455f-12df-545f-ae84-a9b589825251": {
+      "path": "audio/PreQ_a12.ogg",
+      "byteLength": 79442,
+      "sha256": "a2df5c869021f9e0a836891cbb606cff753ed4a74f711e3090e39887c1b26430"
+    },
+    "43a456b0-bef5-5755-948a-ac06993a7381": {
+      "path": "audio/PreQ_b1.ogg",
+      "byteLength": 177963,
+      "sha256": "bb9313add51b3a0504bb1d3c43c96ae3731f79611981f1262fc69de2f720c252"
+    },
+    "8824f72a-d53c-5ac1-b92c-c19419e3c415": {
+      "path": "audio/PreQ_b2.ogg",
+      "byteLength": 80603,
+      "sha256": "9f44981a212990bc8b0678429c7b9d1aba2b4cce95af3fa0c4dcef99467a9fcc"
+    },
+    "6ad228e9-b083-5236-9d1c-94c6f7d61987": {
+      "path": "audio/PreQ_b3.ogg",
+      "byteLength": 167596,
+      "sha256": "7d7fdc7f2c8f3fd9fb611b53a63d0e750a52e824f0ca09e9a9983a74c1c2c1d5"
+    },
+    "973a869c-f978-5454-a74d-503d1b546ab9": {
+      "path": "audio/PreQ_b4.ogg",
+      "byteLength": 96836,
+      "sha256": "dfbaacc9c736df473a13d2746c67b0749effeffe67c7774e48dc74acf8ed38c0"
+    },
+    "2a25e6c3-1a5e-567d-a676-b76fb76c93a6": {
+      "path": "audio/PreQ_b5.ogg",
+      "byteLength": 171799,
+      "sha256": "2f6896ba1ff25fb6ee3bf5a965cee67ef219f5879fa3242480e75da133d19c9f"
+    },
+    "cbec6952-e57a-5d0d-bc6c-f6f4cf3a04df": {
+      "path": "audio/PreQ_b6.ogg",
+      "byteLength": 80163,
+      "sha256": "06e6779c8e6e2bd91a7ea954648fa56afeec1a47bedf506367be7e6a705c4f9b"
+    },
+    "f5608129-ecf0-5dad-aa47-6ae074eb6ff4": {
+      "path": "audio/PreQ_b7.ogg",
+      "byteLength": 170370,
+      "sha256": "f77cdbb68648faf1c89bc6e96d789999282180412ead2bfb328db1b7a51df43e"
+    },
+    "4aa47d98-c3a0-5bc3-9095-74d1cfbebe61": {
+      "path": "audio/PreQ_b8.ogg",
+      "byteLength": 81188,
+      "sha256": "e7367eb943651ace66e2a6b44bf3e1f516e0a5715386a2db103c4409f0b5dc39"
+    },
+    "c71f4b6c-cc6d-5845-a427-dc8d844f1992": {
+      "path": "audio/PreQ_b9.ogg",
+      "byteLength": 174109,
+      "sha256": "16cceb8bd711671e6032caa3b4c9c8404c42e5ab063a33b1b6a792d383fe9e62"
+    },
+    "723b2a8b-5a0e-53ee-b28c-9e03ea12c8f0": {
+      "path": "audio/PreQ_b10.ogg",
+      "byteLength": 96623,
+      "sha256": "ce6c25882191f9c464da9fd81db563f94e9d85c3fff5986b6c3e418207d82e55"
+    },
+    "16e909f9-0422-5bd6-951c-f9380d152c99": {
+      "path": "audio/PreQ_b11.ogg",
+      "byteLength": 168198,
+      "sha256": "54fd4abda8e2267e00de91f393fe62b298f740cbb71e9240774dd01004ed4c5e"
+    },
+    "6152767c-17a2-560f-87d6-78333bb1ee8b": {
+      "path": "audio/PreQ_b12.ogg",
+      "byteLength": 79993,
+      "sha256": "5eec389e585c51ebcdfcc44fa860dcfc62bd70d7e8021ce0bfb97bca8035763c"
+    },
+    "3210fbf2-4389-5af3-84f9-9ada72aadbfe": {
+      "path": "audio/PreQ_c1.ogg",
+      "byteLength": 182180,
+      "sha256": "a23f7850401239234e316518277f80317deeda03809df1f03751d41ef28e4390"
+    },
+    "f39df616-7dc4-59a5-a283-3b1f19694bc7": {
+      "path": "audio/PreQ_c2.ogg",
+      "byteLength": 77057,
+      "sha256": "da1f3d35b0a489884b27719867a2ac64df5a4244534454e9539caea8e19d3ee7"
+    },
+    "2944100d-3088-5826-91f3-795dd611f865": {
+      "path": "audio/PreQ_c3.ogg",
+      "byteLength": 168002,
+      "sha256": "e75eb1290084a958fa9d700d6ef36e055a0ef0a4bfa398297011b7fcbea9ef10"
+    },
+    "a67d32a8-f136-5329-9ffa-b207fbdbe988": {
+      "path": "audio/PreQ_c4.ogg",
+      "byteLength": 98474,
+      "sha256": "2677116240340c5a8c0821baab8f1bf72bd25742e8d48b6a9f3ab61b30efc041"
+    },
+    "c6eb16aa-8bb9-5969-bf46-6b395bfe86d0": {
+      "path": "audio/PreQ_c5.ogg",
+      "byteLength": 171580,
+      "sha256": "0b5b393707a15c2486ef8f498192830dfeaac6599df94fdc5f55b9a2a2d1ee55"
+    },
+    "ee6fa3d1-ac7c-5592-af0e-ab2efff1e390": {
+      "path": "audio/PreQ_c6.ogg",
+      "byteLength": 76176,
+      "sha256": "e2a6c30687f5893afaeae9a2ea7fc18346146fce8e30a79113671aa3a50d4cd2"
+    },
+    "bf82fc4d-5b57-53dd-bed8-3a68a3d38dd7": {
+      "path": "audio/PreQ_c7.ogg",
+      "byteLength": 173779,
+      "sha256": "11bed5f9518c1266dd50cf9710040b545fcf8f565ef177532ba6af026c77e81b"
+    },
+    "103ef5d7-64ba-5d7a-9f3b-1b6e32e78df3": {
+      "path": "audio/PreQ_c8.ogg",
+      "byteLength": 78591,
+      "sha256": "acc35a3dd875c2fa8f7e7a9fc22de7c748e1b807eab11ad77087a9adcd994990"
+    },
+    "62edd854-78cb-5c86-b5ac-1bf01788fe1f": {
+      "path": "audio/PreQ_c9.ogg",
+      "byteLength": 174032,
+      "sha256": "4f708799ee576004643812390e664a89af4cd279a85095eaa0b6eb81bba23e6b"
+    },
+    "fbf86165-22a4-5dbc-9a34-876af07700ac": {
+      "path": "audio/PreQ_c10.ogg",
+      "byteLength": 100346,
+      "sha256": "1b5b34e5045524017a31d9cb93dbefff787f37815d5b455d3988f9cc31e643d7"
+    },
+    "d0d92d93-af8e-543c-8079-256e5cb51f20": {
+      "path": "audio/PreQ_c11.ogg",
+      "byteLength": 168886,
+      "sha256": "dc565d379d0e65a6fb2dbec437160c1a1db2a6746dda42e42fc48e0fc1ff86a9"
+    },
+    "d749ce7c-4f06-5381-9666-349d515b4d6e": {
+      "path": "audio/PreQ_c12.ogg",
+      "byteLength": 77677,
+      "sha256": "af1a4a4d7866ebc6e2d2337cc03b4c0374c089a7b7a7666e78cb555c9fd0f691"
+    },
+    "087ba146-1792-5060-9e0b-5120888e2827": {
+      "path": "audio/PreQ_d1.ogg",
+      "byteLength": 179601,
+      "sha256": "4f46bbd621da86fcdf226f12c1c33628fc1feb3b081961afa0dedd3b0103e852"
+    },
+    "e8916a1e-91ec-5f53-b322-a70c3fe3c2be": {
+      "path": "audio/PreQ_d2.ogg",
+      "byteLength": 79354,
+      "sha256": "d30eadffc5c6ea6f3462afee687cf35d63a80d97fd7f4eb8f99b0e305d574b50"
+    },
+    "a5df3ff6-3473-52cc-84df-e9308f8a9105": {
+      "path": "audio/PreQ_d3.ogg",
+      "byteLength": 168106,
+      "sha256": "a6cf20c3c317b5d462301fd1950ade1f56976182007871848531b0c6c0160c17"
+    },
+    "287fa30c-b3c9-517f-b38e-0c096f72e35b": {
+      "path": "audio/PreQ_d4.ogg",
+      "byteLength": 95151,
+      "sha256": "8eb2b3d9a7e56c05f4dfffc4cb151f77c2bcc113d3c98aedbe1c77bd5e02f19d"
+    },
+    "4134f1e1-8d3c-50ea-8669-728d1ba82408": {
+      "path": "audio/PreQ_d5.ogg",
+      "byteLength": 173226,
+      "sha256": "f1eee8b41af078752afe7d97e55962441b8098b625b2dc98e2d7a55ca41091a6"
+    },
+    "a6fd4da8-eb76-513d-ac72-622cc65735ce": {
+      "path": "audio/PreQ_d6.ogg",
+      "byteLength": 78566,
+      "sha256": "cd64765e8bbb0dcfac1adabb8506739530c6866599b64573d38a3efe9a3d0659"
+    },
+    "a21173b3-ceb1-5976-9293-1bb44616da74": {
+      "path": "audio/PreQ_d7.ogg",
+      "byteLength": 169338,
+      "sha256": "a2a8a97ca297cb036849d91e1c8a62c1cc8178bafb106e9b4150a702b72418d6"
+    },
+    "8cd59a2b-237d-5468-aaef-82a3d22ec5f7": {
+      "path": "audio/PreQ_d8.ogg",
+      "byteLength": 79889,
+      "sha256": "4b0fb4685c4bb6509b7439fc01ac96ee7c7b8bbe7469cba5224b842f17b9c5b8"
+    },
+    "1fc441c0-d64a-5285-8109-255ee2da32ef": {
+      "path": "audio/PreQ_d9.ogg",
+      "byteLength": 173315,
+      "sha256": "53103f43fe82f009f8e22b1112c42a5ce4cbf61575f0e45b4279ebe8bc39779c"
+    },
+    "e34e5343-9c45-567c-8ba2-fab9cbe7d2e2": {
+      "path": "audio/PreQ_d10.ogg",
+      "byteLength": 93718,
+      "sha256": "883f719afacd7cf39f1aad7eeef5061ec9598046d7446252964e5d3368ed60eb"
+    },
+    "0c0656e9-d5df-5231-bdaf-f304d37e550c": {
+      "path": "audio/PreQ_d11.ogg",
+      "byteLength": 168223,
+      "sha256": "54164a8089275503a5c97bf0b7a97e8878b60f581ae1059cfd79647a6dfff177"
+    },
+    "8ab06f6d-d13e-53d3-b3e6-56d4aaa1bf50": {
+      "path": "audio/PreQ_d12.ogg",
+      "byteLength": 79134,
+      "sha256": "2adffc5c47b2e9ce18afb3959826318560685a01e5e034fb3f116581c71c128f"
+    },
+    "446b07ef-94bd-5b89-880a-347d30f0a18e": {
+      "path": "audio/Q1.ogg",
+      "byteLength": 196700,
+      "sha256": "b1c61e38b04b472b32c53586a2e304953bd4d7413be8725c1dbb429b3dabbb14"
+    },
+    "bb268cf3-e306-5694-a6a2-6506ad83ecd0": {
+      "path": "audio/Q2.ogg",
+      "byteLength": 209541,
+      "sha256": "77f3aa3551fa1c2c7b48a89614c9b63979d79b37e7f76b486f3fa02bf058bc45"
+    },
+    "ef6193e3-4574-50bd-b27d-bb71904ab93f": {
+      "path": "audio/Q3.ogg",
+      "byteLength": 216159,
+      "sha256": "b9760f34a1308c89d97b3a09a30af644d1f4888f61cb356e66387f56b07715b0"
+    },
+    "86ac60b7-f470-561a-8ec6-6e8d177cee4e": {
+      "path": "audio/Q4.ogg",
+      "byteLength": 209097,
+      "sha256": "07bc3cc960c5f328f285853cd2c1a6146fc1b05ee1407e38fae8afc7b1afe860"
+    },
+    "0270a53f-913b-5d05-ba79-49165320e6d7": {
+      "path": "audio/Q5.ogg",
+      "byteLength": 200917,
+      "sha256": "85e99651f7f6e853db01e1a8c4fdc1d5417fe28a143c58f78dacb13367dacaa6"
+    },
+    "97aa092e-bf73-5121-9a22-2c813a4701d8": {
+      "path": "audio/Q6.ogg",
+      "byteLength": 226544,
+      "sha256": "f187c099a8256cdca320d2e29a472926e2675b6cd3e4c4316e55036f3a2d9f5b"
+    },
+    "fe12c403-d360-58ea-b97d-ff8dd78275b5": {
+      "path": "audio/PostQ1and2and6_1.ogg",
+      "byteLength": 173053,
+      "sha256": "cd27d79a83d6188e1048dd0a69b19a08d06f248073de3502285d8e61ce0c0e46"
+    },
+    "f10fb7df-f780-57b5-8b25-e7fe0d08d2e3": {
+      "path": "audio/PostQ1and2and6_2.ogg",
+      "byteLength": 93140,
+      "sha256": "5111f9c174bc48ad42d258e8fa6da8ea83c9ef1b0c20c5f426982060bdf2c243"
+    },
+    "6581326b-c79a-566b-bf92-32e60a754547": {
+      "path": "audio/PostQ1and2and6_3.ogg",
+      "byteLength": 171760,
+      "sha256": "9b175990acdfc85e8b0bf4d8a41b50ea3aa159cb9c362d7032c7e6c553c0207f"
+    },
+    "b001576f-367d-541e-9ab5-a228d10d77a4": {
+      "path": "audio/PostQ1and2and6_4.ogg",
+      "byteLength": 92295,
+      "sha256": "dec591103f410994afb233fbe8b88a167731e075f2af09ba9106da45cd188b7a"
+    },
+    "a41d2031-18ee-5c95-942c-777fb2a35712": {
+      "path": "audio/PostQ1and2and6_5.ogg",
+      "byteLength": 175120,
+      "sha256": "3ea060d62fcee26b808f14776df4ad3dfd29f0d5eda666f298d3798e3c363120"
+    },
+    "6378db06-cad9-5561-9632-666363444e95": {
+      "path": "audio/PostQ1and2and6_6.ogg",
+      "byteLength": 94501,
+      "sha256": "2fa09be76b75a64cb7e772b7e50e3286cc9c98dcdac89294ef958be1dd25591a"
+    },
+    "e6ac3d76-f973-517a-938b-e98addc9d7a0": {
+      "path": "audio/PostQ1and2_7.ogg",
+      "byteLength": 164603,
+      "sha256": "8a044ca872f289a6d57ee95e5c08d7271db6bc49f2d494baef0b0969f0de9571"
+    },
+    "f278e18f-1db7-5821-9e2b-db2c88ed2d59": {
+      "path": "audio/PostQ1and2_8.ogg",
+      "byteLength": 91549,
+      "sha256": "cb1b5915d5941a106adf71f41a201b95eb86ea0b2136832c13af8872399ae5dc"
+    },
+    "f5f9d7de-9e4d-5a7a-b44c-577c8f3d9ba7": {
+      "path": "audio/PostQ1and2and6_9.ogg",
+      "byteLength": 175834,
+      "sha256": "d96101886d5b99935a135859d1db794db2be8d014fe4faf5f141fa05b853e6b4"
+    },
+    "6d527ff5-a38f-5638-88f3-f641b4d55851": {
+      "path": "audio/PostQ1and2and6_10.ogg",
+      "byteLength": 90374,
+      "sha256": "4d22aa92e5e8279c0ab2c6ba00c925f6ab47c034c2ade67d80fb14335b02e424"
+    },
+    "967627cf-6a21-5b6e-bff5-f8fba60b5cd7": {
+      "path": "audio/PostQ1and2and6_11.ogg",
+      "byteLength": 171493,
+      "sha256": "76d5944904ec22d1b7cb9d2618558f1f267bf1804aa43d8ee05dd3bb702604a0"
+    },
+    "d4296439-8726-5509-884e-de9b51647268": {
+      "path": "audio/PostQ1and2and6_12.ogg",
+      "byteLength": 92014,
+      "sha256": "daae4e18adb08353325070a9ff962b0d784f7662aea539fc3cb49560c2c3c00e"
+    },
+    "f46cdd41-6b8b-5d54-b97b-64553b0df670": {
+      "path": "audio/PostQ3and4_1.ogg",
+      "byteLength": 175729,
+      "sha256": "62341c041b3d0c0efb99299e0a94b02ce9fad3ae77b0d8e5aa6260a89b6129c8"
+    },
+    "1069d748-df0f-5b77-80a3-ded8698c878b": {
+      "path": "audio/PostQ3and4_2.ogg",
+      "byteLength": 94486,
+      "sha256": "540f7c8cfd0e7a4d5cb1b77e4ed4cfbc5603dd040dd051de0bcd20eff2349c5a"
+    },
+    "e335d58a-277c-57f2-a23c-b92c43b29da7": {
+      "path": "audio/PostQ3and4_3.ogg",
+      "byteLength": 177855,
+      "sha256": "f127c63d0abb3f2dc4cbfc8aaec0e2bc5c668fca116e5c2bc2c2981404780905"
+    },
+    "19fa6ee4-1561-5072-b31b-4c8222ebe6d4": {
+      "path": "audio/PostQ3and4_4.ogg",
+      "byteLength": 91827,
+      "sha256": "f1057192cbfd751dec1748d619c6090d45676b1873693fb7a9fa0110e347eccf"
+    },
+    "7758e132-bddf-5c29-b600-3bdf1a378265": {
+      "path": "audio/PostQ3and4_5.ogg",
+      "byteLength": 177473,
+      "sha256": "5abe10c487c8bf294ecf5f9f69eefe43242858daed9c1e13e187f0ac8f2d7771"
+    },
+    "ee5aa137-7990-5c2f-8135-22931b4b64dd": {
+      "path": "audio/PostQ3and4_6.ogg",
+      "byteLength": 94578,
+      "sha256": "5717c5215a0826ff702e27bef40a7f3044de684606214437b651a29fefa72d0b"
+    },
+    "f53f34ac-bbb6-5a69-994f-4bc969363f64": {
+      "path": "audio/PostQ3_7.ogg",
+      "byteLength": 167484,
+      "sha256": "1a6cc3bada91b825ffcda4dec127a7cfb7b07cbaf54a64edefc50e6d8922c585"
+    },
+    "2ea47916-2136-5e31-aff7-7d611bdd5ea8": {
+      "path": "audio/PostQ3and4_8.ogg",
+      "byteLength": 88792,
+      "sha256": "687082a4b20216634b6fab5e2fabf39320db1973022bb5a9a90c2c63470355c5"
+    },
+    "91b4ab85-40cc-54da-858b-6943bebf824e": {
+      "path": "audio/PostQ3and4_9.ogg",
+      "byteLength": 179799,
+      "sha256": "37f790ba1b66fb3a2ca940f06ac984286686dd3e56d745da923fa3f8ef35c51c"
+    },
+    "96a68934-0548-56a0-83a8-dfe87d242949": {
+      "path": "audio/PostQ3and4_10.ogg",
+      "byteLength": 93303,
+      "sha256": "9911169336698e19b8f051e7441840b52ffefb504453b11ca0e4d02ea154d7d3"
+    },
+    "ac3790ca-1f72-5821-9605-238a8dceca2f": {
+      "path": "audio/PostQ3and4_11.ogg",
+      "byteLength": 178102,
+      "sha256": "c24f58ba653e05d247b9bd3735b586126aa82fe462640e449d75944e9a9ff7af"
+    },
+    "fa194157-b0e8-5dde-957d-61923b259e23": {
+      "path": "audio/PostQ3and4_12.ogg",
+      "byteLength": 95341,
+      "sha256": "b4b9ee8e1d859a1b5ba1d77aca8fab5f3fd8f53ad0649c8d25382111d099c248"
+    },
+    "d1799f08-4010-5282-9250-fa5471bf5749": {
+      "path": "audio/PostQ4_7.ogg",
+      "byteLength": 166038,
+      "sha256": "fa150141f60aff4cd3eeb70b6512ff751a3eaa9df610dca88bc7b3db185e9b2a"
+    },
+    "9005a9d1-161b-51ad-8780-3dc677fedf43": {
+      "path": "audio/PostQ5_1.ogg",
+      "byteLength": 168123,
+      "sha256": "3e87cd3c77c5271dd0926838d55dcd9c4076e4d6b5a8750d509eab8a363033ac"
+    },
+    "c6f2f5f9-f5bc-5e38-a237-180f933b11ed": {
+      "path": "audio/PostQ5_2.ogg",
+      "byteLength": 89600,
+      "sha256": "e5df032a20d1cfa1b87c6cfbb69daeb82287b73862be4461cb7ed50ca14b43b1"
+    },
+    "f4ed2c42-d9f1-5d6a-836f-f9a336f52af6": {
+      "path": "audio/PostQ5_3.ogg",
+      "byteLength": 171426,
+      "sha256": "0121ded358bd2214e351448a66f566472c4f7221fd138969a83e556a4b43d8a0"
+    },
+    "67627fb9-5f9f-5689-bde0-e2d616c5d2ef": {
+      "path": "audio/PostQ5_4.ogg",
+      "byteLength": 86547,
+      "sha256": "0554a94687c1d15e6b592e306e4b940c2ab91f82ecda74c5f8fd46366310e34d"
+    },
+    "99ce4b88-83a5-51bd-b70d-718d9d96ef21": {
+      "path": "audio/PostQ5_5.ogg",
+      "byteLength": 173138,
+      "sha256": "e12a7b8fd4582a92255f48c405c74ec3410d68d20b6e594bec8055055ae0465e"
+    },
+    "eb08bca1-d582-579f-beae-d6c3606f19f1": {
+      "path": "audio/PostQ5_6.ogg",
+      "byteLength": 92411,
+      "sha256": "99b727c904c772dbb2e81aaf376f84f26e6a158a2c0b2a03cd664d07bbe71218"
+    },
+    "1b1a8cdf-c285-5126-b087-bee0668777cb": {
+      "path": "audio/PostQ5_7.ogg",
+      "byteLength": 161439,
+      "sha256": "01a28f36cb7d2eae8775e92b8398bb4761d4e9510f4905f85d7fe641ec12360c"
+    },
+    "425f364d-01b3-57fe-b4f2-25d97d4c0bb7": {
+      "path": "audio/PostQ5_8.ogg",
+      "byteLength": 89326,
+      "sha256": "02bf3e6a86b9b0bb9df95c7407a67dc3084970f52c3accfec9ea202fd3dfe67e"
+    },
+    "005f6e47-bcb1-59ea-a5a1-474e9878ea84": {
+      "path": "audio/PostQ5_9.ogg",
+      "byteLength": 175032,
+      "sha256": "eea82c1aea806e791dfafca9e5ac3f0b1b3fb92ed2f7dc352cda4095d5840288"
+    },
+    "379ed4df-0b48-5159-997d-95f033f44532": {
+      "path": "audio/PostQ5_10.ogg",
+      "byteLength": 85146,
+      "sha256": "49e80a26979ad9d415cabc1aaa330c3659606957578bb98b3dac0875acf657e8"
+    },
+    "853bdd8a-690a-594e-8ce0-163fe40990e4": {
+      "path": "audio/PostQ5_11.ogg",
+      "byteLength": 171410,
+      "sha256": "ddff1e92535bad8635775e53a35a67383e82f1911e06d110cfd838b2bd341289"
+    },
+    "9717a5c1-f9fe-5389-b3b0-2324b5305ec3": {
+      "path": "audio/PostQ5_12.ogg",
+      "byteLength": 90463,
+      "sha256": "505e901b1149401b0cac232726c03e4171680cae5988945745b39c940510818e"
+    },
+    "055acc47-67b2-583b-a870-73d1d0218f03": {
+      "path": "audio/PostQ6_7.ogg",
+      "byteLength": 169029,
+      "sha256": "11dbf8323d47ff88850b7ca5d146da6e76a1e4827750b9c9cf154abee948c9a2"
+    },
+    "4c69150d-3ef3-5275-bc48-22094b502a14": {
+      "path": "audio/PostQ6_8.ogg",
+      "byteLength": 89973,
+      "sha256": "4a13088c4e3dbb1389eb60a8c6047935d97fd6989a8518e6dc46d4804555b370"
+    },
+    "d3cd0676-5e71-50b3-a723-258fae4d85ed": {
+      "path": "audio/PostQ1and2and6-transition-A1.ogg",
+      "byteLength": 180328,
+      "sha256": "a559afc4d85f5828bbf8bc30e021e0ec7cb39f50baba1dc2e7c393a6b3b6cc2d"
+    },
+    "01742235-a5b4-5f95-8724-63c3d8b7b18e": {
+      "path": "audio/PostQ1and2and6-transition-A2.ogg",
+      "byteLength": 180436,
+      "sha256": "dab8cffcac595cf9a6ee800a15c3eece429bf73dd38c052ce72504b383fb2856"
+    },
+    "fd7a6bcd-1add-52ff-8363-8fe3e6f4f0a9": {
+      "path": "audio/PostQ1and2and6-transition-A3.ogg",
+      "byteLength": 180413,
+      "sha256": "9fa09b7f3043f51a3713e2b9ce8c2a79d05b0615d5c45b45f6923e303cae0224"
+    },
+    "7896d97e-65e7-585f-a37a-92e65306d1e1": {
+      "path": "audio/PostQ1and2and6-transition-A4.ogg",
+      "byteLength": 176445,
+      "sha256": "8d6dfbd6e7f7d67e9d46bdc8df4e71109d020fc71f3765a8a6fa8bfbe8f9e64a"
+    },
+    "b4b74ebe-50ee-5de7-a585-a394a782747e": {
+      "path": "audio/PostQ1and2and6-transition-A5.ogg",
+      "byteLength": 175368,
+      "sha256": "31960fd74656d6f7fb473f8dd39f6a537e6221135fb704ac3a2c78bb7d494aa5"
+    },
+    "8c824b14-f83b-5baa-97c8-261baa763753": {
+      "path": "audio/PostQ1and2and6-transition-ABig.ogg",
+      "byteLength": 177582,
+      "sha256": "ae0c32dabbed70cd16cd16681f70f382f3ce0347196686c233ed830128937741"
+    },
+    "3234624b-976b-5242-a9ee-13b6ec13e768": {
+      "path": "audio/PostQ3and4-transition-A1.ogg",
+      "byteLength": 181555,
+      "sha256": "e1a788005de28fa71c187db69f4740841a8f98fbe7fe3657472a7e0544aa2298"
+    },
+    "fab002be-50d9-5c2b-8cff-34bcee141b74": {
+      "path": "audio/PostQ3and4-transition-A2.ogg",
+      "byteLength": 176575,
+      "sha256": "355111d9a1bb80ebc4c46f99e2b4a4057ff1fe6d0fe2cdf5c1f2ce2cbb1d4ec9"
+    },
+    "ff23b51c-ae3d-54ee-89a1-4bdf9f7cbccd": {
+      "path": "audio/PostQ3and4-transition-A3.ogg",
+      "byteLength": 180167,
+      "sha256": "3d13806818f7bc03563ddbbf98b6c21f165bcf0d117de72d245318397ca2a9a2"
+    },
+    "ec6ef938-628c-560c-b793-bf45289bf1c7": {
+      "path": "audio/PostQ3and4-transition-A4.ogg",
+      "byteLength": 177144,
+      "sha256": "df81fe6716c4dd8cbadf1c8c07f4d811b93a13363154bafd7bf6c1b90169af14"
+    },
+    "ddf04d35-1afc-56a1-a00a-5e641aed3d49": {
+      "path": "audio/PostQ3and4-transition-A5.ogg",
+      "byteLength": 175926,
+      "sha256": "9b3efb1bb12dcea68c0cdb5f2a83adb6440981ec54e4c5824ce06c98d34ec421"
+    },
+    "3b250ed8-703c-5348-b528-32a8d2e0b710": {
+      "path": "audio/PostQ3and4-transition-ABig.ogg",
+      "byteLength": 178202,
+      "sha256": "99464dd1995b6d7fd6405c25a5461b7aa3c4800422180333f48ae5426ac3b8eb"
+    },
+    "bfd706bf-dc5b-5f21-a6bb-59e9fc2c2657": {
+      "path": "audio/PostQ5-transition-A1.ogg",
+      "byteLength": 181061,
+      "sha256": "7c11e53b379b24ac2dcfe9eb19e10a861e5925962513ca3bf21a7b64bd3e81e7"
+    },
+    "99617161-d9ea-52f8-bce5-77cfa1524268": {
+      "path": "audio/PostQ5-transition-A2.ogg",
+      "byteLength": 177047,
+      "sha256": "969c7dfda8fa14f6aee4364c4e334e3ba0fab8c14effd7700c3be7b149bf3754"
+    },
+    "6952b9a7-fa58-55a6-aaaf-656d659677f6": {
+      "path": "audio/PostQ5-transition-A3.ogg",
+      "byteLength": 179912,
+      "sha256": "66f307ded6ebc08a17f69bf0bb1d66481161c3c45786549e1c9ba161095f2616"
+    },
+    "93658d93-96d0-508c-854d-ee6d54a30edc": {
+      "path": "audio/PostQ5-transition-A4.ogg",
+      "byteLength": 176001,
+      "sha256": "aa3d2335343847d2bae8151158057c11c7aefea73c5ef26f2a8a0564ff387db8"
+    },
+    "06bbaa0f-3fee-5128-9abd-0d2852abeba8": {
+      "path": "audio/PostQ5-transition-A5.ogg",
+      "byteLength": 175902,
+      "sha256": "ac8ea3d5c2882de24b6e74968e39699fb06d3dd161d32c62114734c08df8fdb2"
+    },
+    "9e05d9da-fbf0-508f-8356-6d4a9c8bdb46": {
+      "path": "audio/PostQ5-transition-ABig.ogg",
+      "byteLength": 175689,
+      "sha256": "ef00b97fea79b3de3daaebcc9ff7165aadf3c7fc7af5e5812d51953efd4d96c1"
+    },
+    "92e50198-aa22-5714-8e8f-f4d520735978": {
+      "path": "audio/Fail1.ogg",
+      "byteLength": 246349,
+      "sha256": "31a71426f7bccfa4e7bf450918fd3208f368517fcd1f78f87bd52e3e345f17c9"
+    },
+    "2c8e4f86-ee40-5b95-9ea9-c062b2e724ec": {
+      "path": "audio/Fail2.ogg",
+      "byteLength": 314708,
+      "sha256": "ad53aa78c3be3e745c8b808d4f188aef708fe93bd376b6657f31548111012c3a"
+    },
+    "ebda0985-8da1-5b68-be5f-fa0b7024cd37": {
+      "path": "audio/Fail3.ogg",
+      "byteLength": 329088,
+      "sha256": "50f680c8dfc67cabe0cf543005587b6cdcfc5dfcf34a32d55853e1c484e86e7b"
+    },
+    "503232a2-c334-5271-8b8e-b941420410d8": {
+      "path": "audio/Fail4.ogg",
+      "byteLength": 312133,
+      "sha256": "7a1d04d2fe99d9c3ebe53079a5e488617235b60ad688d1bd075cdcef226c7c52"
+    },
+    "c4836a2f-c0ea-5591-b3d1-6f00b4f0099e": {
+      "path": "audio/Fail5.ogg",
+      "byteLength": 296610,
+      "sha256": "08e1ffc775a41422990262f6f68292e6eab8900d5ab8cca7733a00112480d22f"
+    },
+    "7c579d44-9de4-5e15-804b-f3cf37f5ac2e": {
+      "path": "audio/FailBig.ogg",
+      "byteLength": 540815,
+      "sha256": "43a10366a00cba9a97d23d2b5c40e958f89a66c53f49722c843b433e7f9c9bdb"
+    },
+    "bd0e0554-2186-52f5-93be-585407665f48": {
+      "path": "audio/Partial1.ogg",
+      "byteLength": 189499,
+      "sha256": "bf7fd55dfa5f29a112d86caa58a42d98bff78ceb627660fe6ac3de79773e8ae7"
+    },
+    "e214afeb-a9a0-5d5f-939b-6422f2714dcd": {
+      "path": "audio/Partial2.ogg",
+      "byteLength": 271800,
+      "sha256": "0473dcfe0ab73b47972930052367c921919662ae150d4dfa277b8adaab0ae9c4"
+    },
+    "abf3f470-f69b-5375-9247-848c1df81b87": {
+      "path": "audio/Partial3.ogg",
+      "byteLength": 270185,
+      "sha256": "5690096a34a8bb74198dfd9d04a73f8d563ada31ce61aa8fe11126475c92f7cb"
+    },
+    "836c4e9e-fcb0-5209-8154-50c72dc984b9": {
+      "path": "audio/Partial4.ogg",
+      "byteLength": 252628,
+      "sha256": "4bfe4ebc6078d5f62cfeba95f4589b221a6fdacef44b83b54ec0c31dad7a2dff"
+    },
+    "9f1e5ca3-0fce-5ef2-a13a-bee63e3ac873": {
+      "path": "audio/Partial5.ogg",
+      "byteLength": 238599,
+      "sha256": "a99ee596115549f3d2d7c38dce011a2b80cceb2c6342be0187489596cc104716"
+    },
+    "2474eeda-013d-5c41-85c3-cbdda6828c28": {
+      "path": "audio/Success1.ogg",
+      "byteLength": 298814,
+      "sha256": "77f219cb0e9541322e63410fe2f5c4e4e41dd2a11714ea564591c22b435334a4"
+    },
+    "1fb3fa8f-3fad-55ef-9175-ca55a2eedeaf": {
+      "path": "audio/Success2.ogg",
+      "byteLength": 380780,
+      "sha256": "82bdb545c3244a16519ae6fbefb623bd9484f747776ab02e1e6139ed4d581e1c"
+    },
+    "4a259d96-0429-5ec0-85d7-5375b5239138": {
+      "path": "audio/Success3.ogg",
+      "byteLength": 382555,
+      "sha256": "f096f5b39645f39ba8e3ae1824490b6c893b08f36b9600114b68d9e157167939"
+    },
+    "07c4fe47-075d-519e-9af7-8399b134fb41": {
+      "path": "audio/Success4.ogg",
+      "byteLength": 365973,
+      "sha256": "d02a363ed265fe3956c2a0054156ce5574c5dc6621426a9444b28a316314d50d"
+    },
+    "416596d0-a055-5c8d-aac9-ff66e5d6a409": {
+      "path": "audio/Success5.ogg",
+      "byteLength": 349851,
+      "sha256": "2507385cce76d0b0b0847b7802b89a4a0aba99b3ac6fbe78f87380320f4c839d"
+    },
+    "80ade665-0bdb-577f-9679-fde3df816a1e": {
+      "path": "audio/SuccessBig.ogg",
+      "byteLength": 596577,
+      "sha256": "d216078182596d790796a9de297899a3d57a5934e19934e2429f5f12c7d2e9cd"
+    }
+  },
+  "clips": {
+    "Intro": {
+      "assetsByMode": {
+        "base": "081397b4-f664-521f-8e55-a1d780baa3d1"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.956531,
+      "clipEnd": 15.652177,
+      "transitions": [
+        {
+          "to": "Intro",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a1": {
+      "assetsByMode": {
+        "base": "b574f9ad-04ce-5450-9d02-b027cef1b187"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a2",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_a3",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_a2": {
+      "assetsByMode": {
+        "base": "1204f3d2-aeba-5c7f-8dcf-8848a52a7c94"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_a3",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a3": {
+      "assetsByMode": {
+        "base": "88052e04-2012-5d4d-bd7b-21c706def438"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a4",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a4": {
+      "assetsByMode": {
+        "base": "03ed96ab-5824-5835-8c14-c41acfd49e7d"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a5",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_a6",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_a5": {
+      "assetsByMode": {
+        "base": "984147e3-7084-5e4c-80f1-d115ee8a35f3"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a6",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a6": {
+      "assetsByMode": {
+        "base": "f98ab9af-a588-5c61-b898-e71f56d7541d"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_a7",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a7": {
+      "assetsByMode": {
+        "base": "7e85eb5a-5cb7-5549-8506-f6ee8e092602"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a8",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_a9",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_a8": {
+      "assetsByMode": {
+        "base": "a9780cf2-4d6f-5edd-9f18-9daeab80f339"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a9",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a9": {
+      "assetsByMode": {
+        "base": "5d38b5d9-c6c2-5355-a5fd-27cc4d94971f"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a10",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a10": {
+      "assetsByMode": {
+        "base": "8145123f-e12e-5f4d-9815-a4453cd5cb4e"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_a11",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_a12",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_a11": {
+      "assetsByMode": {
+        "base": "48d500df-b029-5580-a2f6-1cfa03ab645e"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a12",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_a12": {
+      "assetsByMode": {
+        "base": "d9ee455f-12df-545f-ae84-a9b589825251"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_a1",
+          "weight": 2
+        },
+        {
+          "to": "PreQ_b1",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b1": {
+      "assetsByMode": {
+        "base": "43a456b0-bef5-5755-948a-ac06993a7381"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b2",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_b3",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_b2": {
+      "assetsByMode": {
+        "base": "8824f72a-d53c-5ac1-b92c-c19419e3c415"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_b3",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b3": {
+      "assetsByMode": {
+        "base": "6ad228e9-b083-5236-9d1c-94c6f7d61987"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b4",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b4": {
+      "assetsByMode": {
+        "base": "973a869c-f978-5454-a74d-503d1b546ab9"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b5",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_b6",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_b5": {
+      "assetsByMode": {
+        "base": "2a25e6c3-1a5e-567d-a676-b76fb76c93a6"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b6",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b6": {
+      "assetsByMode": {
+        "base": "cbec6952-e57a-5d0d-bc6c-f6f4cf3a04df"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_b7",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b7": {
+      "assetsByMode": {
+        "base": "f5608129-ecf0-5dad-aa47-6ae074eb6ff4"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b8",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_b9",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_b8": {
+      "assetsByMode": {
+        "base": "4aa47d98-c3a0-5bc3-9095-74d1cfbebe61"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b9",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b9": {
+      "assetsByMode": {
+        "base": "c71f4b6c-cc6d-5845-a427-dc8d844f1992"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b10",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b10": {
+      "assetsByMode": {
+        "base": "723b2a8b-5a0e-53ee-b28c-9e03ea12c8f0"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_b11",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_b12",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_b11": {
+      "assetsByMode": {
+        "base": "16e909f9-0422-5bd6-951c-f9380d152c99"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b12",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_b12": {
+      "assetsByMode": {
+        "base": "6152767c-17a2-560f-87d6-78333bb1ee8b"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_b1",
+          "weight": 1
+        },
+        {
+          "to": "PreQ_c1",
+          "weight": 1
+        },
+        {
+          "to": "PreQ_a1",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_c1": {
+      "assetsByMode": {
+        "base": "3210fbf2-4389-5af3-84f9-9ada72aadbfe"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c2",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_c3",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_c2": {
+      "assetsByMode": {
+        "base": "f39df616-7dc4-59a5-a283-3b1f19694bc7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_c3",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_c3": {
+      "assetsByMode": {
+        "base": "2944100d-3088-5826-91f3-795dd611f865"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c4",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_c4": {
+      "assetsByMode": {
+        "base": "a67d32a8-f136-5329-9ffa-b207fbdbe988"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c5",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_c6",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_c5": {
+      "assetsByMode": {
+        "base": "c6eb16aa-8bb9-5969-bf46-6b395bfe86d0"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c6",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_c6": {
+      "assetsByMode": {
+        "base": "ee6fa3d1-ac7c-5592-af0e-ab2efff1e390"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_c7",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_c7": {
+      "assetsByMode": {
+        "base": "bf82fc4d-5b57-53dd-bed8-3a68a3d38dd7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c8",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_c9",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_c8": {
+      "assetsByMode": {
+        "base": "103ef5d7-64ba-5d7a-9f3b-1b6e32e78df3"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c9",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_c9": {
+      "assetsByMode": {
+        "base": "62edd854-78cb-5c86-b5ac-1bf01788fe1f"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c10",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_c10": {
+      "assetsByMode": {
+        "base": "fbf86165-22a4-5dbc-9a34-876af07700ac"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_c11",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_c12",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_c11": {
+      "assetsByMode": {
+        "base": "d0d92d93-af8e-543c-8079-256e5cb51f20"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c12",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_c12": {
+      "assetsByMode": {
+        "base": "d749ce7c-4f06-5381-9666-349d515b4d6e"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_c1",
+          "weight": 1
+        },
+        {
+          "to": "PreQ_d1",
+          "weight": 1
+        },
+        {
+          "to": "PreQ_b1",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_d1": {
+      "assetsByMode": {
+        "base": "087ba146-1792-5060-9e0b-5120888e2827"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d2",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_d3",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_d2": {
+      "assetsByMode": {
+        "base": "e8916a1e-91ec-5f53-b322-a70c3fe3c2be"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_d3",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_d3": {
+      "assetsByMode": {
+        "base": "a5df3ff6-3473-52cc-84df-e9308f8a9105"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d4",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_d4": {
+      "assetsByMode": {
+        "base": "287fa30c-b3c9-517f-b38e-0c096f72e35b"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d5",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_d6",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_d5": {
+      "assetsByMode": {
+        "base": "4134f1e1-8d3c-50ea-8669-728d1ba82408"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d6",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_d6": {
+      "assetsByMode": {
+        "base": "a6fd4da8-eb76-513d-ac72-622cc65735ce"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_d7",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_d7": {
+      "assetsByMode": {
+        "base": "a21173b3-ceb1-5976-9293-1bb44616da74"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d8",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_d9",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_d8": {
+      "assetsByMode": {
+        "base": "8cd59a2b-237d-5468-aaef-82a3d22ec5f7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d9",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_d9": {
+      "assetsByMode": {
+        "base": "1fc441c0-d64a-5285-8109-255ee2da32ef"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d10",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_d10": {
+      "assetsByMode": {
+        "base": "e34e5343-9c45-567c-8ba2-fab9cbe7d2e2"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PreQ_d11",
+          "weight": 3
+        },
+        {
+          "to": "PreQ_d12",
+          "weight": 2
+        }
+      ]
+    },
+    "PreQ_d11": {
+      "assetsByMode": {
+        "base": "0c0656e9-d5df-5231-bdaf-f304d37e550c"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d12",
+          "weight": 1
+        }
+      ]
+    },
+    "PreQ_d12": {
+      "assetsByMode": {
+        "base": "8ab06f6d-d13e-53d3-b3e6-56d4aaa1bf50"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PreQ_d1",
+          "weight": 1
+        },
+        {
+          "to": "PreQ_c1",
+          "weight": 2
+        }
+      ]
+    },
+    "Q1": {
+      "assetsByMode": {
+        "base": "446b07ef-94bd-5b89-880a-347d30f0a18e"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.086984,
+      "clipEnd": 9.565238,
+      "transitions": [
+        {
+          "to": "Q1",
+          "weight": 1
+        }
+      ]
+    },
+    "Q2": {
+      "assetsByMode": {
+        "base": "bb268cf3-e306-5694-a6a2-6506ad83ecd0"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.956553,
+      "clipEnd": 10.434807,
+      "transitions": [
+        {
+          "to": "Q2",
+          "weight": 1
+        }
+      ]
+    },
+    "Q3": {
+      "assetsByMode": {
+        "base": "ef6193e3-4574-50bd-b27d-bb71904ab93f"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.956531,
+      "clipEnd": 10.434807,
+      "transitions": [
+        {
+          "to": "Q3",
+          "weight": 1
+        }
+      ]
+    },
+    "Q4": {
+      "assetsByMode": {
+        "base": "86ac60b7-f470-561a-8ec6-6e8d177cee4e"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.956531,
+      "clipEnd": 10.434807,
+      "transitions": [
+        {
+          "to": "Q4",
+          "weight": 1
+        }
+      ]
+    },
+    "Q5": {
+      "assetsByMode": {
+        "base": "0270a53f-913b-5d05-ba79-49165320e6d7"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.956531,
+      "clipEnd": 10.434807,
+      "transitions": [
+        {
+          "to": "Q5",
+          "weight": 1
+        }
+      ]
+    },
+    "Q6": {
+      "assetsByMode": {
+        "base": "97aa092e-bf73-5121-9a22-2c813a4701d8"
+      },
+      "loopStart": 0,
+      "loopPoint": 7.8261,
+      "clipEnd": 11.304354,
+      "transitions": [
+        {
+          "to": "Q6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_1": {
+      "assetsByMode": {
+        "base": "fe12c403-d360-58ea-b97d-ff8dd78275b5"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ1_2",
+          "weight": 1
+        },
+        {
+          "to": "PostQ1_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_2": {
+      "assetsByMode": {
+        "base": "f10fb7df-f780-57b5-8b25-e7fe0d08d2e3"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_3": {
+      "assetsByMode": {
+        "base": "6581326b-c79a-566b-bf92-32e60a754547"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_4": {
+      "assetsByMode": {
+        "base": "b001576f-367d-541e-9ab5-a228d10d77a4"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_5",
+          "weight": 1
+        },
+        {
+          "to": "PostQ1_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_5": {
+      "assetsByMode": {
+        "base": "a41d2031-18ee-5c95-942c-777fb2a35712"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ1_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_6": {
+      "assetsByMode": {
+        "base": "6378db06-cad9-5561-9632-666363444e95"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_7",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_7": {
+      "assetsByMode": {
+        "base": "e6ac3d76-f973-517a-938b-e98addc9d7a0"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_8",
+          "weight": 1
+        },
+        {
+          "to": "PostQ1_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_8": {
+      "assetsByMode": {
+        "base": "f278e18f-1db7-5821-9e2b-db2c88ed2d59"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_9": {
+      "assetsByMode": {
+        "base": "f5f9d7de-9e4d-5a7a-b44c-577c8f3d9ba7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ1_10",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_10": {
+      "assetsByMode": {
+        "base": "6d527ff5-a38f-5638-88f3-f641b4d55851"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_11",
+          "weight": 1
+        },
+        {
+          "to": "PostQ1_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_11": {
+      "assetsByMode": {
+        "base": "967627cf-6a21-5b6e-bff5-f8fba60b5cd7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1_12": {
+      "assetsByMode": {
+        "base": "d4296439-8726-5509-884e-de9b51647268"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1_1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_1": {
+      "assetsByMode": {
+        "base": "fe12c403-d360-58ea-b97d-ff8dd78275b5"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ2_2",
+          "weight": 1
+        },
+        {
+          "to": "PostQ2_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_2": {
+      "assetsByMode": {
+        "base": "f10fb7df-f780-57b5-8b25-e7fe0d08d2e3"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_3": {
+      "assetsByMode": {
+        "base": "6581326b-c79a-566b-bf92-32e60a754547"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_4": {
+      "assetsByMode": {
+        "base": "b001576f-367d-541e-9ab5-a228d10d77a4"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_5",
+          "weight": 1
+        },
+        {
+          "to": "PostQ2_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_5": {
+      "assetsByMode": {
+        "base": "a41d2031-18ee-5c95-942c-777fb2a35712"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ2_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_6": {
+      "assetsByMode": {
+        "base": "6378db06-cad9-5561-9632-666363444e95"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_7",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_7": {
+      "assetsByMode": {
+        "base": "e6ac3d76-f973-517a-938b-e98addc9d7a0"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_8",
+          "weight": 1
+        },
+        {
+          "to": "PostQ2_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_8": {
+      "assetsByMode": {
+        "base": "f278e18f-1db7-5821-9e2b-db2c88ed2d59"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_9": {
+      "assetsByMode": {
+        "base": "f5f9d7de-9e4d-5a7a-b44c-577c8f3d9ba7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ2_10",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_10": {
+      "assetsByMode": {
+        "base": "6d527ff5-a38f-5638-88f3-f641b4d55851"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_11",
+          "weight": 1
+        },
+        {
+          "to": "PostQ2_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_11": {
+      "assetsByMode": {
+        "base": "967627cf-6a21-5b6e-bff5-f8fba60b5cd7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ2_12": {
+      "assetsByMode": {
+        "base": "d4296439-8726-5509-884e-de9b51647268"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ2_1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_1": {
+      "assetsByMode": {
+        "base": "f46cdd41-6b8b-5d54-b97b-64553b0df670"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ3_2",
+          "weight": 1
+        },
+        {
+          "to": "PostQ3_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_2": {
+      "assetsByMode": {
+        "base": "1069d748-df0f-5b77-80a3-ded8698c878b"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_3": {
+      "assetsByMode": {
+        "base": "e335d58a-277c-57f2-a23c-b92c43b29da7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_4": {
+      "assetsByMode": {
+        "base": "19fa6ee4-1561-5072-b31b-4c8222ebe6d4"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_5",
+          "weight": 1
+        },
+        {
+          "to": "PostQ3_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_5": {
+      "assetsByMode": {
+        "base": "7758e132-bddf-5c29-b600-3bdf1a378265"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ3_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_6": {
+      "assetsByMode": {
+        "base": "ee5aa137-7990-5c2f-8135-22931b4b64dd"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_7",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_7": {
+      "assetsByMode": {
+        "base": "f53f34ac-bbb6-5a69-994f-4bc969363f64"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_8",
+          "weight": 1
+        },
+        {
+          "to": "PostQ3_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_8": {
+      "assetsByMode": {
+        "base": "2ea47916-2136-5e31-aff7-7d611bdd5ea8"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_9": {
+      "assetsByMode": {
+        "base": "91b4ab85-40cc-54da-858b-6943bebf824e"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ3_10",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_10": {
+      "assetsByMode": {
+        "base": "96a68934-0548-56a0-83a8-dfe87d242949"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_11",
+          "weight": 1
+        },
+        {
+          "to": "PostQ3_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_11": {
+      "assetsByMode": {
+        "base": "ac3790ca-1f72-5821-9605-238a8dceca2f"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3_12": {
+      "assetsByMode": {
+        "base": "fa194157-b0e8-5dde-957d-61923b259e23"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3_1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_1": {
+      "assetsByMode": {
+        "base": "f46cdd41-6b8b-5d54-b97b-64553b0df670"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ4_2",
+          "weight": 1
+        },
+        {
+          "to": "PostQ4_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_2": {
+      "assetsByMode": {
+        "base": "1069d748-df0f-5b77-80a3-ded8698c878b"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_3": {
+      "assetsByMode": {
+        "base": "e335d58a-277c-57f2-a23c-b92c43b29da7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_4": {
+      "assetsByMode": {
+        "base": "19fa6ee4-1561-5072-b31b-4c8222ebe6d4"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_5",
+          "weight": 1
+        },
+        {
+          "to": "PostQ4_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_5": {
+      "assetsByMode": {
+        "base": "7758e132-bddf-5c29-b600-3bdf1a378265"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ4_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_6": {
+      "assetsByMode": {
+        "base": "ee5aa137-7990-5c2f-8135-22931b4b64dd"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_7",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_7": {
+      "assetsByMode": {
+        "base": "d1799f08-4010-5282-9250-fa5471bf5749"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_8",
+          "weight": 1
+        },
+        {
+          "to": "PostQ4_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_8": {
+      "assetsByMode": {
+        "base": "2ea47916-2136-5e31-aff7-7d611bdd5ea8"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_9": {
+      "assetsByMode": {
+        "base": "91b4ab85-40cc-54da-858b-6943bebf824e"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ4_10",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_10": {
+      "assetsByMode": {
+        "base": "96a68934-0548-56a0-83a8-dfe87d242949"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_11",
+          "weight": 1
+        },
+        {
+          "to": "PostQ4_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_11": {
+      "assetsByMode": {
+        "base": "ac3790ca-1f72-5821-9605-238a8dceca2f"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ4_12": {
+      "assetsByMode": {
+        "base": "fa194157-b0e8-5dde-957d-61923b259e23"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ4_1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_1": {
+      "assetsByMode": {
+        "base": "9005a9d1-161b-51ad-8780-3dc677fedf43"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_2",
+          "weight": 1
+        },
+        {
+          "to": "PostQ5_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_2": {
+      "assetsByMode": {
+        "base": "c6f2f5f9-f5bc-5e38-a237-180f933b11ed"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_3": {
+      "assetsByMode": {
+        "base": "f4ed2c42-d9f1-5d6a-836f-f9a336f52af6"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ5_4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_4": {
+      "assetsByMode": {
+        "base": "67627fb9-5f9f-5689-bde0-e2d616c5d2ef"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_5",
+          "weight": 1
+        },
+        {
+          "to": "PostQ5_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_5": {
+      "assetsByMode": {
+        "base": "99ce4b88-83a5-51bd-b70d-718d9d96ef21"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_6": {
+      "assetsByMode": {
+        "base": "eb08bca1-d582-579f-beae-d6c3606f19f1"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_7",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_7": {
+      "assetsByMode": {
+        "base": "1b1a8cdf-c285-5126-b087-bee0668777cb"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ5_8",
+          "weight": 1
+        },
+        {
+          "to": "PostQ5_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_8": {
+      "assetsByMode": {
+        "base": "425f364d-01b3-57fe-b4f2-25d97d4c0bb7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_9": {
+      "assetsByMode": {
+        "base": "005f6e47-bcb1-59ea-a5a1-474e9878ea84"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_10",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_10": {
+      "assetsByMode": {
+        "base": "379ed4df-0b48-5159-997d-95f033f44532"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_11",
+          "weight": 1
+        },
+        {
+          "to": "PostQ5_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_11": {
+      "assetsByMode": {
+        "base": "853bdd8a-690a-594e-8ce0-163fe40990e4"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ5_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5_12": {
+      "assetsByMode": {
+        "base": "9717a5c1-f9fe-5389-b3b0-2324b5305ec3"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5_1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_1": {
+      "assetsByMode": {
+        "base": "fe12c403-d360-58ea-b97d-ff8dd78275b5"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ6_2",
+          "weight": 1
+        },
+        {
+          "to": "PostQ6_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_2": {
+      "assetsByMode": {
+        "base": "f10fb7df-f780-57b5-8b25-e7fe0d08d2e3"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_3": {
+      "assetsByMode": {
+        "base": "6581326b-c79a-566b-bf92-32e60a754547"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_4": {
+      "assetsByMode": {
+        "base": "b001576f-367d-541e-9ab5-a228d10d77a4"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_5",
+          "weight": 1
+        },
+        {
+          "to": "PostQ6_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_5": {
+      "assetsByMode": {
+        "base": "a41d2031-18ee-5c95-942c-777fb2a35712"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ6_6",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_6": {
+      "assetsByMode": {
+        "base": "6378db06-cad9-5561-9632-666363444e95"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_7",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_7": {
+      "assetsByMode": {
+        "base": "055acc47-67b2-583b-a870-73d1d0218f03"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_8",
+          "weight": 1
+        },
+        {
+          "to": "PostQ6_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_8": {
+      "assetsByMode": {
+        "base": "4c69150d-3ef3-5275-bc48-22094b502a14"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_9",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_9": {
+      "assetsByMode": {
+        "base": "f5f9d7de-9e4d-5a7a-b44c-577c8f3d9ba7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ6_10",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_10": {
+      "assetsByMode": {
+        "base": "6d527ff5-a38f-5638-88f3-f641b4d55851"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_11",
+          "weight": 1
+        },
+        {
+          "to": "PostQ6_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_11": {
+      "assetsByMode": {
+        "base": "967627cf-6a21-5b6e-bff5-f8fba60b5cd7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_12",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ6_12": {
+      "assetsByMode": {
+        "base": "d4296439-8726-5509-884e-de9b51647268"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ6_1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1and2and6-transition-A1": {
+      "assetsByMode": {
+        "base": "d3cd0676-5e71-50b3-a723-258fae4d85ed"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1and2and6-transition-A1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1and2and6-transition-A2": {
+      "assetsByMode": {
+        "base": "01742235-a5b4-5f95-8724-63c3d8b7b18e"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1and2and6-transition-A2",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1and2and6-transition-A3": {
+      "assetsByMode": {
+        "base": "fd7a6bcd-1add-52ff-8363-8fe3e6f4f0a9"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ1and2and6-transition-A3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1and2and6-transition-A4": {
+      "assetsByMode": {
+        "base": "7896d97e-65e7-585f-a37a-92e65306d1e1"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1and2and6-transition-A4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1and2and6-transition-A5": {
+      "assetsByMode": {
+        "base": "b4b74ebe-50ee-5de7-a585-a394a782747e"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1and2and6-transition-A5",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ1and2and6-transition-ABig": {
+      "assetsByMode": {
+        "base": "8c824b14-f83b-5baa-97c8-261baa763753"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ1and2and6-transition-ABig",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3and4-transition-A1": {
+      "assetsByMode": {
+        "base": "3234624b-976b-5242-a9ee-13b6ec13e768"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ3and4-transition-A1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3and4-transition-A2": {
+      "assetsByMode": {
+        "base": "fab002be-50d9-5c2b-8cff-34bcee141b74"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3and4-transition-A2",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3and4-transition-A3": {
+      "assetsByMode": {
+        "base": "ff23b51c-ae3d-54ee-89a1-4bdf9f7cbccd"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3and4-transition-A3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3and4-transition-A4": {
+      "assetsByMode": {
+        "base": "ec6ef938-628c-560c-b793-bf45289bf1c7"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3and4-transition-A4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3and4-transition-A5": {
+      "assetsByMode": {
+        "base": "ddf04d35-1afc-56a1-a00a-5e641aed3d49"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ3and4-transition-A5",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ3and4-transition-ABig": {
+      "assetsByMode": {
+        "base": "3b250ed8-703c-5348-b528-32a8d2e0b710"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ3and4-transition-ABig",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5-transition-A1": {
+      "assetsByMode": {
+        "base": "bfd706bf-dc5b-5f21-a6bb-59e9fc2c2657"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5-transition-A1",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5-transition-A2": {
+      "assetsByMode": {
+        "base": "99617161-d9ea-52f8-bce5-77cfa1524268"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5-transition-A2",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5-transition-A3": {
+      "assetsByMode": {
+        "base": "6952b9a7-fa58-55a6-aaaf-656d659677f6"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695646,
+      "transitions": [
+        {
+          "to": "PostQ5-transition-A3",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5-transition-A4": {
+      "assetsByMode": {
+        "base": "93658d93-96d0-508c-854d-ee6d54a30edc"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5-transition-A4",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5-transition-A5": {
+      "assetsByMode": {
+        "base": "06bbaa0f-3fee-5128-9abd-0d2852abeba8"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5-transition-A5",
+          "weight": 1
+        }
+      ]
+    },
+    "PostQ5-transition-ABig": {
+      "assetsByMode": {
+        "base": "9e05d9da-fbf0-508f-8356-6d4a9c8bdb46"
+      },
+      "loopStart": 0,
+      "loopPoint": 0.869569,
+      "clipEnd": 8.695669,
+      "transitions": [
+        {
+          "to": "PostQ5-transition-ABig",
+          "weight": 1
+        }
+      ]
+    },
+    "Fail1": {
+      "assetsByMode": {
+        "base": "92e50198-aa22-5714-8e8f-f4d520735978"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.086961,
+      "clipEnd": 13.043492,
+      "transitions": [
+        {
+          "to": "Fail1",
+          "weight": 1
+        }
+      ]
+    },
+    "Fail2": {
+      "assetsByMode": {
+        "base": "2c8e4f86-ee40-5b95-9ea9-c062b2e724ec"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.565238,
+      "clipEnd": 15.6522,
+      "transitions": [
+        {
+          "to": "Fail2",
+          "weight": 1
+        }
+      ]
+    },
+    "Fail3": {
+      "assetsByMode": {
+        "base": "ebda0985-8da1-5b68-be5f-fa0b7024cd37"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.565215,
+      "clipEnd": 16.521746,
+      "transitions": [
+        {
+          "to": "Fail3",
+          "weight": 1
+        }
+      ]
+    },
+    "Fail4": {
+      "assetsByMode": {
+        "base": "503232a2-c334-5271-8b8e-b941420410d8"
+      },
+      "loopStart": 0,
+      "loopPoint": 8.695669,
+      "clipEnd": 15.652177,
+      "transitions": [
+        {
+          "to": "Fail4",
+          "weight": 1
+        }
+      ]
+    },
+    "Fail5": {
+      "assetsByMode": {
+        "base": "c4836a2f-c0ea-5591-b3d1-6f00b4f0099e"
+      },
+      "loopStart": 0,
+      "loopPoint": 8.695669,
+      "clipEnd": 15.652177,
+      "transitions": [
+        {
+          "to": "Fail5",
+          "weight": 1
+        }
+      ]
+    },
+    "FailBig": {
+      "assetsByMode": {
+        "base": "7c579d44-9de4-5e15-804b-f3cf37f5ac2e"
+      },
+      "loopStart": 0,
+      "loopPoint": 19.130454,
+      "clipEnd": 26.086961,
+      "transitions": [
+        {
+          "to": "FailBig",
+          "weight": 1
+        }
+      ]
+    },
+    "Partial1": {
+      "assetsByMode": {
+        "base": "bd0e0554-2186-52f5-93be-585407665f48"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.086961,
+      "clipEnd": 13.043492,
+      "transitions": [
+        {
+          "to": "Partial1",
+          "weight": 1
+        }
+      ]
+    },
+    "Partial2": {
+      "assetsByMode": {
+        "base": "e214afeb-a9a0-5d5f-939b-6422f2714dcd"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.565238,
+      "clipEnd": 16.521746,
+      "transitions": [
+        {
+          "to": "Partial2",
+          "weight": 1
+        }
+      ]
+    },
+    "Partial3": {
+      "assetsByMode": {
+        "base": "abf3f470-f69b-5375-9247-848c1df81b87"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.565215,
+      "clipEnd": 16.521746,
+      "transitions": [
+        {
+          "to": "Partial3",
+          "weight": 1
+        }
+      ]
+    },
+    "Partial4": {
+      "assetsByMode": {
+        "base": "836c4e9e-fcb0-5209-8154-50c72dc984b9"
+      },
+      "loopStart": 0,
+      "loopPoint": 8.695669,
+      "clipEnd": 15.6522,
+      "transitions": [
+        {
+          "to": "Partial4",
+          "weight": 1
+        }
+      ]
+    },
+    "Partial5": {
+      "assetsByMode": {
+        "base": "9f1e5ca3-0fce-5ef2-a13a-bee63e3ac873"
+      },
+      "loopStart": 0,
+      "loopPoint": 8.695669,
+      "clipEnd": 15.6522,
+      "transitions": [
+        {
+          "to": "Partial5",
+          "weight": 1
+        }
+      ]
+    },
+    "Success1": {
+      "assetsByMode": {
+        "base": "2474eeda-013d-5c41-85c3-cbdda6828c28"
+      },
+      "loopStart": 0,
+      "loopPoint": 6.086961,
+      "clipEnd": 15.652177,
+      "transitions": [
+        {
+          "to": "Success1",
+          "weight": 1
+        }
+      ]
+    },
+    "Success2": {
+      "assetsByMode": {
+        "base": "1fb3fa8f-3fad-55ef-9175-ca55a2eedeaf"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.565238,
+      "clipEnd": 19.130454,
+      "transitions": [
+        {
+          "to": "Success2",
+          "weight": 1
+        }
+      ]
+    },
+    "Success3": {
+      "assetsByMode": {
+        "base": "4a259d96-0429-5ec0-85d7-5375b5239138"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.565215,
+      "clipEnd": 19.130431,
+      "transitions": [
+        {
+          "to": "Success3",
+          "weight": 1
+        }
+      ]
+    },
+    "Success4": {
+      "assetsByMode": {
+        "base": "07c4fe47-075d-519e-9af7-8399b134fb41"
+      },
+      "loopStart": 0,
+      "loopPoint": 8.695669,
+      "clipEnd": 18.260884,
+      "transitions": [
+        {
+          "to": "Success4",
+          "weight": 1
+        }
+      ]
+    },
+    "Success5": {
+      "assetsByMode": {
+        "base": "416596d0-a055-5c8d-aac9-ff66e5d6a409"
+      },
+      "loopStart": 0,
+      "loopPoint": 8.695669,
+      "clipEnd": 18.260884,
+      "transitions": [
+        {
+          "to": "Success5",
+          "weight": 1
+        }
+      ]
+    },
+    "SuccessBig": {
+      "assetsByMode": {
+        "base": "80ade665-0bdb-577f-9679-fde3df816a1e"
+      },
+      "loopStart": 0,
+      "loopPoint": 19.130454,
+      "clipEnd": 28.695669,
+      "transitions": [
+        {
+          "to": "SuccessBig",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "Intro": {
+      "title": "Intro",
+      "firstClip": "Intro",
+      "clips": [
+        "Intro"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "PreQ": {
+      "title": "Pre-Question",
+      "firstClip": "PreQ_a1",
+      "clips": [
+        "PreQ_a1",
+        "PreQ_a3",
+        "PreQ_a4",
+        "PreQ_a6",
+        "PreQ_a7",
+        "PreQ_a9",
+        "PreQ_a10",
+        "PreQ_a12",
+        "PreQ_b1",
+        "PreQ_b3",
+        "PreQ_b4",
+        "PreQ_b6",
+        "PreQ_b7",
+        "PreQ_b9",
+        "PreQ_b10",
+        "PreQ_b12",
+        "PreQ_c1",
+        "PreQ_c3",
+        "PreQ_c4",
+        "PreQ_c6",
+        "PreQ_c7",
+        "PreQ_c9",
+        "PreQ_c10",
+        "PreQ_c12",
+        "PreQ_d1",
+        "PreQ_d3",
+        "PreQ_d4",
+        "PreQ_d6",
+        "PreQ_d7",
+        "PreQ_d9",
+        "PreQ_d10",
+        "PreQ_d12",
+        "PreQ_d11",
+        "PreQ_d8",
+        "PreQ_d5",
+        "PreQ_d2",
+        "PreQ_c11",
+        "PreQ_c8",
+        "PreQ_c5",
+        "PreQ_c2",
+        "PreQ_b11",
+        "PreQ_b8",
+        "PreQ_b5",
+        "PreQ_b2",
+        "PreQ_a11",
+        "PreQ_a8",
+        "PreQ_a5",
+        "PreQ_a2"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+        "Q5",
+        "Q6"
+      ],
+      "modes": []
+    },
+    "Q1": {
+      "title": "🪈Q1",
+      "firstClip": "Q1",
+      "clips": [
+        "Q1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PostQ1"
+      ],
+      "modes": []
+    },
+    "Q2": {
+      "title": "🪈Q2",
+      "firstClip": "Q2",
+      "clips": [
+        "Q2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PostQ2"
+      ],
+      "modes": []
+    },
+    "Q3": {
+      "title": "🪈Q3",
+      "firstClip": "Q3",
+      "clips": [
+        "Q3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PostQ3"
+      ],
+      "modes": []
+    },
+    "Q4": {
+      "title": "🎺Q4",
+      "firstClip": "Q4",
+      "clips": [
+        "Q4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PostQ4"
+      ],
+      "modes": []
+    },
+    "Q5": {
+      "title": "🎺Q5",
+      "firstClip": "Q5",
+      "clips": [
+        "Q5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PostQ5"
+      ],
+      "modes": []
+    },
+    "Q6": {
+      "title": "🎺Q6",
+      "firstClip": "Q6",
+      "clips": [
+        "Q6"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PostQ6"
+      ],
+      "modes": []
+    },
+    "PostQ1": {
+      "title": "Post-Q1",
+      "firstClip": "PostQ1_1",
+      "clips": [
+        "PostQ1_1",
+        "PostQ1_3",
+        "PostQ1_4",
+        "PostQ1_6",
+        "PostQ1_7",
+        "PostQ1_9",
+        "PostQ1_10",
+        "PostQ1_12",
+        "PostQ1_11",
+        "PostQ1_8",
+        "PostQ1_5",
+        "PostQ1_2"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "PostQ1and2and6-transition-Success1",
+        "PostQ1and2and6-transition-Success2",
+        "PostQ1and2and6-transition-Success3",
+        "PostQ1and2and6-transition-Success4",
+        "PostQ1and2and6-transition-Success5",
+        "PostQ1and2and6-transition-SuccessBig",
+        "PostQ1and2and6-transition-Partial1",
+        "PostQ1and2and6-transition-Partial2",
+        "PostQ1and2and6-transition-Partial3",
+        "PostQ1and2and6-transition-Partial4",
+        "PostQ1and2and6-transition-Partial5",
+        "PostQ1and2and6-transition-Fail1",
+        "PostQ1and2and6-transition-Fail2",
+        "PostQ1and2and6-transition-Fail3",
+        "PostQ1and2and6-transition-Fail4",
+        "PostQ1and2and6-transition-Fail5",
+        "PostQ1and2and6-transition-FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ2": {
+      "title": "Post-Q2",
+      "firstClip": "PostQ2_1",
+      "clips": [
+        "PostQ2_1",
+        "PostQ2_3",
+        "PostQ2_4",
+        "PostQ2_6",
+        "PostQ2_7",
+        "PostQ2_9",
+        "PostQ2_10",
+        "PostQ2_12",
+        "PostQ2_11",
+        "PostQ2_8",
+        "PostQ2_5",
+        "PostQ2_2"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "PostQ1and2and6-transition-Success1",
+        "PostQ1and2and6-transition-Success2",
+        "PostQ1and2and6-transition-Success3",
+        "PostQ1and2and6-transition-Success4",
+        "PostQ1and2and6-transition-Success5",
+        "PostQ1and2and6-transition-SuccessBig",
+        "PostQ1and2and6-transition-Partial1",
+        "PostQ1and2and6-transition-Partial2",
+        "PostQ1and2and6-transition-Partial3",
+        "PostQ1and2and6-transition-Partial4",
+        "PostQ1and2and6-transition-Partial5",
+        "PostQ1and2and6-transition-Fail1",
+        "PostQ1and2and6-transition-Fail2",
+        "PostQ1and2and6-transition-Fail3",
+        "PostQ1and2and6-transition-Fail4",
+        "PostQ1and2and6-transition-Fail5",
+        "PostQ1and2and6-transition-FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ3": {
+      "title": "Post-Q3",
+      "firstClip": "PostQ3_1",
+      "clips": [
+        "PostQ3_1",
+        "PostQ3_3",
+        "PostQ3_4",
+        "PostQ3_6",
+        "PostQ3_7",
+        "PostQ3_9",
+        "PostQ3_10",
+        "PostQ3_12",
+        "PostQ3_11",
+        "PostQ3_8",
+        "PostQ3_5",
+        "PostQ3_2"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "PostQ3and4-transition-Success1",
+        "PostQ3and4-transition-Success2",
+        "PostQ3and4-transition-Success3",
+        "PostQ3and4-transition-Success4",
+        "PostQ3and4-transition-Success5",
+        "PostQ3and4-transition-SuccessBig",
+        "PostQ3and4-transition-Partial1",
+        "PostQ3and4-transition-Partial2",
+        "PostQ3and4-transition-Partial3",
+        "PostQ3and4-transition-Partial4",
+        "PostQ3and4-transition-Partial5",
+        "PostQ3and4-transition-Fail1",
+        "PostQ3and4-transition-Fail2",
+        "PostQ3and4-transition-Fail3",
+        "PostQ3and4-transition-Fail4",
+        "PostQ3and4-transition-Fail5",
+        "PostQ3and4-transition-FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ4": {
+      "title": "Post-Q4",
+      "firstClip": "PostQ4_1",
+      "clips": [
+        "PostQ4_1",
+        "PostQ4_3",
+        "PostQ4_4",
+        "PostQ4_6",
+        "PostQ4_7",
+        "PostQ4_9",
+        "PostQ4_10",
+        "PostQ4_12",
+        "PostQ4_11",
+        "PostQ4_8",
+        "PostQ4_5",
+        "PostQ4_2"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "PostQ3and4-transition-Success1",
+        "PostQ3and4-transition-Success2",
+        "PostQ3and4-transition-Success3",
+        "PostQ3and4-transition-Success4",
+        "PostQ3and4-transition-Success5",
+        "PostQ3and4-transition-SuccessBig",
+        "PostQ3and4-transition-Partial1",
+        "PostQ3and4-transition-Partial2",
+        "PostQ3and4-transition-Partial3",
+        "PostQ3and4-transition-Partial4",
+        "PostQ3and4-transition-Partial5",
+        "PostQ3and4-transition-Fail1",
+        "PostQ3and4-transition-Fail2",
+        "PostQ3and4-transition-Fail3",
+        "PostQ3and4-transition-Fail4",
+        "PostQ3and4-transition-Fail5",
+        "PostQ3and4-transition-FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ5": {
+      "title": "Post-Q5",
+      "firstClip": "PostQ5_1",
+      "clips": [
+        "PostQ5_1",
+        "PostQ5_3",
+        "PostQ5_4",
+        "PostQ5_6",
+        "PostQ5_7",
+        "PostQ5_9",
+        "PostQ5_10",
+        "PostQ5_12",
+        "PostQ5_11",
+        "PostQ5_8",
+        "PostQ5_5",
+        "PostQ5_2"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "PostQ5-transition-Success1",
+        "PostQ5-transition-Success2",
+        "PostQ5-transition-Success3",
+        "PostQ5-transition-Success4",
+        "PostQ5-transition-Success5",
+        "PostQ5-transition-SuccessBig",
+        "PostQ5-transition-Partial1",
+        "PostQ5-transition-Partial2",
+        "PostQ5-transition-Partial3",
+        "PostQ5-transition-Partial4",
+        "PostQ5-transition-Partial5",
+        "PostQ5-transition-Fail1",
+        "PostQ5-transition-Fail2",
+        "PostQ5-transition-Fail3",
+        "PostQ5-transition-Fail4",
+        "PostQ5-transition-Fail5",
+        "PostQ5-transition-FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ6": {
+      "title": "Post-Q6",
+      "firstClip": "PostQ6_1",
+      "clips": [
+        "PostQ6_1",
+        "PostQ6_3",
+        "PostQ6_4",
+        "PostQ6_6",
+        "PostQ6_7",
+        "PostQ6_9",
+        "PostQ6_10",
+        "PostQ6_12",
+        "PostQ6_11",
+        "PostQ6_8",
+        "PostQ6_5",
+        "PostQ6_2"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "PostQ1and2and6-transition-Success1",
+        "PostQ1and2and6-transition-Success2",
+        "PostQ1and2and6-transition-Success3",
+        "PostQ1and2and6-transition-Success4",
+        "PostQ1and2and6-transition-Success5",
+        "PostQ1and2and6-transition-SuccessBig",
+        "PostQ1and2and6-transition-Partial1",
+        "PostQ1and2and6-transition-Partial2",
+        "PostQ1and2and6-transition-Partial3",
+        "PostQ1and2and6-transition-Partial4",
+        "PostQ1and2and6-transition-Partial5",
+        "PostQ1and2and6-transition-Fail1",
+        "PostQ1and2and6-transition-Fail2",
+        "PostQ1and2and6-transition-Fail3",
+        "PostQ1and2and6-transition-Fail4",
+        "PostQ1and2and6-transition-Fail5",
+        "PostQ1and2and6-transition-FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Success1": {
+      "title": "Transition to Success1",
+      "buttonLabel": "✅Success1",
+      "firstClip": "PostQ1and2and6-transition-A1",
+      "clips": [
+        "PostQ1and2and6-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success1"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Success2": {
+      "title": "Transition to Success2",
+      "buttonLabel": "✅Success2",
+      "firstClip": "PostQ1and2and6-transition-A2",
+      "clips": [
+        "PostQ1and2and6-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success2"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Success3": {
+      "title": "Transition to Success3",
+      "buttonLabel": "✅Success3",
+      "firstClip": "PostQ1and2and6-transition-A3",
+      "clips": [
+        "PostQ1and2and6-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success3"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Success4": {
+      "title": "Transition to Success4",
+      "buttonLabel": "✅Success4",
+      "firstClip": "PostQ1and2and6-transition-A4",
+      "clips": [
+        "PostQ1and2and6-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success4"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Success5": {
+      "title": "Transition to Success5",
+      "buttonLabel": "✅Success5",
+      "firstClip": "PostQ1and2and6-transition-A5",
+      "clips": [
+        "PostQ1and2and6-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success5"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-SuccessBig": {
+      "title": "Transition to SuccessBig",
+      "buttonLabel": "✅✅SuccessBig",
+      "firstClip": "PostQ1and2and6-transition-ABig",
+      "clips": [
+        "PostQ1and2and6-transition-ABig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "SuccessBig"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Partial1": {
+      "title": "Transition to Partial1",
+      "buttonLabel": "〰️Partial1",
+      "firstClip": "PostQ1and2and6-transition-A1",
+      "clips": [
+        "PostQ1and2and6-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial1"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Partial2": {
+      "title": "Transition to Partial2",
+      "buttonLabel": "〰️Partial2",
+      "firstClip": "PostQ1and2and6-transition-A2",
+      "clips": [
+        "PostQ1and2and6-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial2"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Partial3": {
+      "title": "Transition to Partial3",
+      "buttonLabel": "〰️Partial3",
+      "firstClip": "PostQ1and2and6-transition-A3",
+      "clips": [
+        "PostQ1and2and6-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial3"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Partial4": {
+      "title": "Transition to Partial4",
+      "buttonLabel": "〰️Partial4",
+      "firstClip": "PostQ1and2and6-transition-A4",
+      "clips": [
+        "PostQ1and2and6-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial4"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Partial5": {
+      "title": "Transition to Partial5",
+      "buttonLabel": "〰️Partial5",
+      "firstClip": "PostQ1and2and6-transition-A5",
+      "clips": [
+        "PostQ1and2and6-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial5"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Fail1": {
+      "title": "Transition to Fail1",
+      "buttonLabel": "❌Fail1",
+      "firstClip": "PostQ1and2and6-transition-A1",
+      "clips": [
+        "PostQ1and2and6-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail1"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Fail2": {
+      "title": "Transition to Fail2",
+      "buttonLabel": "❌Fail2",
+      "firstClip": "PostQ1and2and6-transition-A2",
+      "clips": [
+        "PostQ1and2and6-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail2"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Fail3": {
+      "title": "Transition to Fail3",
+      "buttonLabel": "❌Fail3",
+      "firstClip": "PostQ1and2and6-transition-A3",
+      "clips": [
+        "PostQ1and2and6-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail3"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Fail4": {
+      "title": "Transition to Fail4",
+      "buttonLabel": "❌Fail4",
+      "firstClip": "PostQ1and2and6-transition-A4",
+      "clips": [
+        "PostQ1and2and6-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail4"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-Fail5": {
+      "title": "Transition to Fail5",
+      "buttonLabel": "❌Fail5",
+      "firstClip": "PostQ1and2and6-transition-A5",
+      "clips": [
+        "PostQ1and2and6-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail5"
+      ],
+      "modes": []
+    },
+    "PostQ1and2and6-transition-FailBig": {
+      "title": "Transition to FailBig",
+      "buttonLabel": "❌❌FailBig",
+      "firstClip": "PostQ1and2and6-transition-ABig",
+      "clips": [
+        "PostQ1and2and6-transition-ABig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Success1": {
+      "title": "Transition to Success1",
+      "buttonLabel": "✅Success1",
+      "firstClip": "PostQ3and4-transition-A1",
+      "clips": [
+        "PostQ3and4-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success1"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Success2": {
+      "title": "Transition to Success2",
+      "buttonLabel": "✅Success2",
+      "firstClip": "PostQ3and4-transition-A2",
+      "clips": [
+        "PostQ3and4-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success2"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Success3": {
+      "title": "Transition to Success3",
+      "buttonLabel": "✅Success3",
+      "firstClip": "PostQ3and4-transition-A3",
+      "clips": [
+        "PostQ3and4-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success3"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Success4": {
+      "title": "Transition to Success4",
+      "buttonLabel": "✅Success4",
+      "firstClip": "PostQ3and4-transition-A4",
+      "clips": [
+        "PostQ3and4-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success4"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Success5": {
+      "title": "Transition to Success5",
+      "buttonLabel": "✅Success5",
+      "firstClip": "PostQ3and4-transition-A5",
+      "clips": [
+        "PostQ3and4-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success5"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-SuccessBig": {
+      "title": "Transition to SuccessBig",
+      "buttonLabel": "✅✅SuccessBig",
+      "firstClip": "PostQ3and4-transition-ABig",
+      "clips": [
+        "PostQ3and4-transition-ABig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "SuccessBig"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Partial1": {
+      "title": "Transition to Partial1",
+      "buttonLabel": "〰️Partial1",
+      "firstClip": "PostQ3and4-transition-A1",
+      "clips": [
+        "PostQ3and4-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial1"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Partial2": {
+      "title": "Transition to Partial2",
+      "buttonLabel": "〰️Partial2",
+      "firstClip": "PostQ3and4-transition-A2",
+      "clips": [
+        "PostQ3and4-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial2"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Partial3": {
+      "title": "Transition to Partial3",
+      "buttonLabel": "〰️Partial3",
+      "firstClip": "PostQ3and4-transition-A3",
+      "clips": [
+        "PostQ3and4-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial3"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Partial4": {
+      "title": "Transition to Partial4",
+      "buttonLabel": "〰️Partial4",
+      "firstClip": "PostQ3and4-transition-A4",
+      "clips": [
+        "PostQ3and4-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial4"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Partial5": {
+      "title": "Transition to Partial5",
+      "buttonLabel": "〰️Partial5",
+      "firstClip": "PostQ3and4-transition-A5",
+      "clips": [
+        "PostQ3and4-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial5"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Fail1": {
+      "title": "Transition to Fail1",
+      "buttonLabel": "❌Fail1",
+      "firstClip": "PostQ3and4-transition-A1",
+      "clips": [
+        "PostQ3and4-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail1"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Fail2": {
+      "title": "Transition to Fail2",
+      "buttonLabel": "❌Fail2",
+      "firstClip": "PostQ3and4-transition-A2",
+      "clips": [
+        "PostQ3and4-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail2"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Fail3": {
+      "title": "Transition to Fail3",
+      "buttonLabel": "❌Fail3",
+      "firstClip": "PostQ3and4-transition-A3",
+      "clips": [
+        "PostQ3and4-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail3"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Fail4": {
+      "title": "Transition to Fail4",
+      "buttonLabel": "❌Fail4",
+      "firstClip": "PostQ3and4-transition-A4",
+      "clips": [
+        "PostQ3and4-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail4"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-Fail5": {
+      "title": "Transition to Fail5",
+      "buttonLabel": "❌Fail5",
+      "firstClip": "PostQ3and4-transition-A5",
+      "clips": [
+        "PostQ3and4-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail5"
+      ],
+      "modes": []
+    },
+    "PostQ3and4-transition-FailBig": {
+      "title": "Transition to FailBig",
+      "buttonLabel": "❌❌FailBig",
+      "firstClip": "PostQ3and4-transition-ABig",
+      "clips": [
+        "PostQ3and4-transition-ABig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "FailBig"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Success1": {
+      "title": "Transition to Success1",
+      "buttonLabel": "✅Success1",
+      "firstClip": "PostQ5-transition-A1",
+      "clips": [
+        "PostQ5-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success1"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Success2": {
+      "title": "Transition to Success2",
+      "buttonLabel": "✅Success2",
+      "firstClip": "PostQ5-transition-A2",
+      "clips": [
+        "PostQ5-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success2"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Success3": {
+      "title": "Transition to Success3",
+      "buttonLabel": "✅Success3",
+      "firstClip": "PostQ5-transition-A3",
+      "clips": [
+        "PostQ5-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success3"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Success4": {
+      "title": "Transition to Success4",
+      "buttonLabel": "✅Success4",
+      "firstClip": "PostQ5-transition-A4",
+      "clips": [
+        "PostQ5-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success4"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Success5": {
+      "title": "Transition to Success5",
+      "buttonLabel": "✅Success5",
+      "firstClip": "PostQ5-transition-A5",
+      "clips": [
+        "PostQ5-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Success5"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-SuccessBig": {
+      "title": "Transition to SuccessBig",
+      "buttonLabel": "✅✅SuccessBig",
+      "firstClip": "PostQ5-transition-ABig",
+      "clips": [
+        "PostQ5-transition-ABig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "SuccessBig"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Partial1": {
+      "title": "Transition to Partial1",
+      "buttonLabel": "〰️Partial1",
+      "firstClip": "PostQ5-transition-A1",
+      "clips": [
+        "PostQ5-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial1"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Partial2": {
+      "title": "Transition to Partial2",
+      "buttonLabel": "〰️Partial2",
+      "firstClip": "PostQ5-transition-A2",
+      "clips": [
+        "PostQ5-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial2"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Partial3": {
+      "title": "Transition to Partial3",
+      "buttonLabel": "〰️Partial3",
+      "firstClip": "PostQ5-transition-A3",
+      "clips": [
+        "PostQ5-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial3"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Partial4": {
+      "title": "Transition to Partial4",
+      "buttonLabel": "〰️Partial4",
+      "firstClip": "PostQ5-transition-A4",
+      "clips": [
+        "PostQ5-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial4"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Partial5": {
+      "title": "Transition to Partial5",
+      "buttonLabel": "〰️Partial5",
+      "firstClip": "PostQ5-transition-A5",
+      "clips": [
+        "PostQ5-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Partial5"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Fail1": {
+      "title": "Transition to Fail1",
+      "buttonLabel": "❌Fail1",
+      "firstClip": "PostQ5-transition-A1",
+      "clips": [
+        "PostQ5-transition-A1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail1"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Fail2": {
+      "title": "Transition to Fail2",
+      "buttonLabel": "❌Fail2",
+      "firstClip": "PostQ5-transition-A2",
+      "clips": [
+        "PostQ5-transition-A2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail2"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Fail3": {
+      "title": "Transition to Fail3",
+      "buttonLabel": "❌Fail3",
+      "firstClip": "PostQ5-transition-A3",
+      "clips": [
+        "PostQ5-transition-A3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail3"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Fail4": {
+      "title": "Transition to Fail4",
+      "buttonLabel": "❌Fail4",
+      "firstClip": "PostQ5-transition-A4",
+      "clips": [
+        "PostQ5-transition-A4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail4"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-Fail5": {
+      "title": "Transition to Fail5",
+      "buttonLabel": "❌Fail5",
+      "firstClip": "PostQ5-transition-A5",
+      "clips": [
+        "PostQ5-transition-A5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Fail5"
+      ],
+      "modes": []
+    },
+    "PostQ5-transition-FailBig": {
+      "title": "Transition to FailBig",
+      "buttonLabel": "❌❌FailBig",
+      "firstClip": "PostQ5-transition-ABig",
+      "clips": [
+        "PostQ5-transition-ABig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "FailBig"
+      ],
+      "modes": []
+    },
+    "Fail1": {
+      "title": "Fail1",
+      "firstClip": "Fail1",
+      "clips": [
+        "Fail1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Fail2": {
+      "title": "Fail2",
+      "firstClip": "Fail2",
+      "clips": [
+        "Fail2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Fail3": {
+      "title": "Fail3",
+      "firstClip": "Fail3",
+      "clips": [
+        "Fail3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Fail4": {
+      "title": "Fail4",
+      "firstClip": "Fail4",
+      "clips": [
+        "Fail4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Fail5": {
+      "title": "Fail5",
+      "firstClip": "Fail5",
+      "clips": [
+        "Fail5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "FailBig": {
+      "title": "FailBig",
+      "firstClip": "FailBig",
+      "clips": [
+        "FailBig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Partial1": {
+      "title": "Partial1",
+      "firstClip": "Partial1",
+      "clips": [
+        "Partial1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Partial2": {
+      "title": "Partial2",
+      "firstClip": "Partial2",
+      "clips": [
+        "Partial2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Partial3": {
+      "title": "Partial3",
+      "firstClip": "Partial3",
+      "clips": [
+        "Partial3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Partial4": {
+      "title": "Partial4",
+      "firstClip": "Partial4",
+      "clips": [
+        "Partial4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Partial5": {
+      "title": "Partial5",
+      "firstClip": "Partial5",
+      "clips": [
+        "Partial5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Success1": {
+      "title": "Success1",
+      "firstClip": "Success1",
+      "clips": [
+        "Success1"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Success2": {
+      "title": "Success2",
+      "firstClip": "Success2",
+      "clips": [
+        "Success2"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Success3": {
+      "title": "Success3",
+      "firstClip": "Success3",
+      "clips": [
+        "Success3"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Success4": {
+      "title": "Success4",
+      "firstClip": "Success4",
+      "clips": [
+        "Success4"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "Success5": {
+      "title": "Success5",
+      "firstClip": "Success5",
+      "clips": [
+        "Success5"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    },
+    "SuccessBig": {
+      "title": "SuccessBig",
+      "firstClip": "SuccessBig",
+      "clips": [
+        "SuccessBig"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "PreQ"
+      ],
+      "modes": []
+    }
+  },
+  "versionId": "79f945fe-8301-5c3d-8266-b9a09ba350d8"
+}

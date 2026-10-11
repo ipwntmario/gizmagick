@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "82c74eed-b5cd-5551-8b54-0f545c7b737d",
+    "slug": "the-tower-card",
+    "title": "The Tower Card",
+    "firstSection": "The Tower Card",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "a07e9709-69c4-5248-92f3-b617f9574679": {
+      "path": "audio/The Tower Card.ogg",
+      "byteLength": 1551426,
+      "sha256": "f449aa6e7b2d0c2429ad52ef5a5a4554f0072a062a0c9e6115b93ff3633770a6"
+    }
+  },
+  "clips": {
+    "The Tower Card": {
+      "assetsByMode": {
+        "base": "a07e9709-69c4-5248-92f3-b617f9574679"
+      },
+      "loopStart": 0,
+      "loopPoint": 75.937506,
+      "clipEnd": 75.937506,
+      "transitions": [
+        {
+          "to": "The Tower Card",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "The Tower Card": {
+      "title": "The Tower Card",
+      "firstClip": "The Tower Card",
+      "clips": [
+        "The Tower Card"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "ac068231-bdc2-56bf-9213-ebae9edcd883"
+}

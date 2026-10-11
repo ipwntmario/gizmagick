@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "b8d97576-aa58-55e4-9c87-ee3ac0daf54d",
+    "slug": "one-who-sees",
+    "title": "One Who Sees",
+    "firstSection": "One Who Sees",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "9cf6f383-fcfb-5d25-ab04-ecdd5c6dd257": {
+      "path": "audio/One Who Sees.ogg",
+      "byteLength": 3112523,
+      "sha256": "720588b04a1d7b2447e4ad2d6bab0c1c41db7e19c82d5215f0ffa4cfe7d75427"
+    }
+  },
+  "clips": {
+    "One Who Sees": {
+      "assetsByMode": {
+        "base": "9cf6f383-fcfb-5d25-ab04-ecdd5c6dd257"
+      },
+      "loopStart": 0,
+      "loopPoint": 144,
+      "clipEnd": 144,
+      "transitions": [
+        {
+          "to": "One Who Sees",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "One Who Sees": {
+      "title": "One Who Sees",
+      "firstClip": "One Who Sees",
+      "clips": [
+        "One Who Sees"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "1c376278-b8e6-5d09-abd0-2029417172d9"
+}

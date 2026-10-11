@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "b8134110-947a-5b15-afdd-77fde31c5c64",
+    "slug": "tommy-s-haunted-thoughts-reprise",
+    "title": "Tommy's Haunted Thoughts (reprise)",
+    "firstSection": "Tommy's Haunted Thoughts (reprise)",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "32a6f7cd-5e42-58b4-a791-6036d164423c": {
+      "path": "audio/Tommy's Haunted Thoughts (reprise).ogg",
+      "byteLength": 2171537,
+      "sha256": "0649f7b4decd9c7261778e25a3ca807925b0ed7e39596a8a988a783e06287849"
+    }
+  },
+  "clips": {
+    "Tommy's Haunted Thoughts (reprise)": {
+      "assetsByMode": {
+        "base": "32a6f7cd-5e42-58b4-a791-6036d164423c"
+      },
+      "loopStart": 0,
+      "loopPoint": 120,
+      "clipEnd": 120,
+      "transitions": [
+        {
+          "to": "Tommy's Haunted Thoughts (reprise)",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "Tommy's Haunted Thoughts (reprise)": {
+      "title": "Tommy's Haunted Thoughts (reprise)",
+      "firstClip": "Tommy's Haunted Thoughts (reprise)",
+      "clips": [
+        "Tommy's Haunted Thoughts (reprise)"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "4a8ac08f-58c2-5a24-af5f-06da64a1ee85"
+}

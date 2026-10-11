@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "b8634b22-620e-5f70-9d11-6fe3769cb76c",
+    "slug": "the-ashwights-attack",
+    "title": "The Ashwights Attack",
+    "firstSection": "The Ashwights Attack",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "5dfcd446-72c7-5e2d-93ae-c1ca7a3e875c": {
+      "path": "audio/The Ashwights Attack.ogg",
+      "byteLength": 2686612,
+      "sha256": "f5c1cb1c7074d2076c95c2427c2090c3b9e0192958c3a8a33a7680cb31168d1d"
+    }
+  },
+  "clips": {
+    "The Ashwights Attack": {
+      "assetsByMode": {
+        "base": "5dfcd446-72c7-5e2d-93ae-c1ca7a3e875c"
+      },
+      "loopStart": 0,
+      "loopPoint": 144.915261,
+      "clipEnd": 144.915261,
+      "transitions": [
+        {
+          "to": "The Ashwights Attack",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "The Ashwights Attack": {
+      "title": "The Ashwights Attack",
+      "firstClip": "The Ashwights Attack",
+      "clips": [
+        "The Ashwights Attack"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "7323a7ca-22d8-5e2e-8f46-525a417312ac"
+}

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "a0198705-8eaa-5bbc-8c8c-099fb0da7ad4",
+    "slug": "a-hearth-of-mysteries",
+    "title": "A Hearth of Mysteries",
+    "firstSection": "A Hearth of Mysteries",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "a26929e4-4448-500f-b69b-f53b0e057d5b": {
+      "path": "audio/A Hearth of Mysteries.ogg",
+      "byteLength": 2570622,
+      "sha256": "4c7c5d738e785aec9702e57d6fd5d3d74052e0c3ed30916e0a1c1e09bb62fc68"
+    }
+  },
+  "clips": {
+    "A Hearth of Mysteries": {
+      "assetsByMode": {
+        "base": "a26929e4-4448-500f-b69b-f53b0e057d5b"
+      },
+      "loopStart": 0,
+      "loopPoint": 116.003197,
+      "clipEnd": 116.003197,
+      "transitions": [
+        {
+          "to": "A Hearth of Mysteries",
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "sections": {
+    "A Hearth of Mysteries": {
+      "title": "A Hearth of Mysteries",
+      "firstClip": "A Hearth of Mysteries",
+      "clips": [
+        "A Hearth of Mysteries"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "d8222696-667b-571b-86fb-912f59a43a2d"
+}

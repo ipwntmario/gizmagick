@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "a4704cdb-0708-52ff-ae60-f38efa349638",
+    "slug": "bleepbloop-uglyonpurpose",
+    "title": "BleepBloop UglyOnPurpose",
+    "firstSection": "Intro",
+    "simple": false,
+    "test": true
+  },
+  "assets": {
+    "94eda235-aba4-57cb-af67-0ce14a5e98db": {
+      "path": "audio/IntroTEST.ogg",
+      "byteLength": 141971,
+      "sha256": "ab91fa9d9fce0c03e205f14a6b83161134b2f22e400df8d1cc5cc85f403954bb"
+    },
+    "17d89a5e-5baf-5b8d-bba8-81b201afb959": {
+      "path": "audio/Main_aTEST.ogg",
+      "byteLength": 254537,
+      "sha256": "d0a90fe5f89f200b841329fc0e8870c715cdfc843f4a167e8048080fb03908c5"
+    },
+    "fab13575-0701-5f0c-95c6-0f25e2044c5b": {
+      "path": "audio/Main_b.ogg",
+      "byteLength": 341574,
+      "sha256": "17a0a5af85e7ab74a7e11f50e6193dd50f1f670b3a715622c01e62a3924c528f"
+    },
+    "9281f5f6-8227-54f0-bfc0-82d5085fb89d": {
+      "path": "audio/Main_c.ogg",
+      "byteLength": 357661,
+      "sha256": "6d2e89d6e5df9be0fdaadd6431209ce096f606b6474a7abdac422fde8f036f0d"
+    },
+    "8aaac450-8ad5-5245-8162-5ae1e6aa7bd4": {
+      "path": "audio/Main_d.ogg",
+      "byteLength": 358233,
+      "sha256": "91e00f995048a31a0fefb83cea2e1e24c4cc283aca846122dd005f06566176b2"
+    },
+    "30416043-4a40-5ed7-8fe8-1882b2fad69c": {
+      "path": "audio/End.ogg",
+      "byteLength": 310397,
+      "sha256": "6622d5642f2caeda1933167c9047f4317193ec4f1a2f509c27b7d82d03d6bfbe"
+    }
+  },
+  "clips": {
+    "Intro": {
+      "assetsByMode": {
+        "base": "94eda235-aba4-57cb-af67-0ce14a5e98db"
+      },
+      "loopStart": 0,
+      "loopPoint": 4.615397,
+      "clipEnd": 11.538481,
+      "transitions": [
+        {
+          "to": "Intro",
+          "weight": 1
+        }
+      ]
+    },
+    "Main_a": {
+      "assetsByMode": {
+        "base": "17d89a5e-5baf-5b8d-bba8-81b201afb959"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.230771,
+      "clipEnd": 16.153855,
+      "transitions": [
+        {
+          "to": "Main_b",
+          "weight": 1
+        }
+      ]
+    },
+    "Main_b": {
+      "assetsByMode": {
+        "base": "fab13575-0701-5f0c-95c6-0f25e2044c5b"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.230771,
+      "clipEnd": 16.153855,
+      "transitions": [
+        {
+          "to": "Main_c",
+          "weight": 1
+        }
+      ]
+    },
+    "Main_c": {
+      "assetsByMode": {
+        "base": "9281f5f6-8227-54f0-bfc0-82d5085fb89d"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.230771,
+      "clipEnd": 16.153855,
+      "transitions": [
+        {
+          "to": "Main_d",
+          "weight": 1
+        }
+      ]
+    },
+    "Main_d": {
+      "assetsByMode": {
+        "base": "8aaac450-8ad5-5245-8162-5ae1e6aa7bd4"
+      },
+      "loopStart": 0,
+      "loopPoint": 9.230771,
+      "clipEnd": 16.153855,
+      "transitions": [
+        {
+          "to": "Main_a",
+          "weight": 1
+        }
+      ]
+    },
+    "End": {
+      "assetsByMode": {
+        "base": "30416043-4a40-5ed7-8fe8-1882b2fad69c"
+      },
+      "loopStart": 0,
+      "loopPoint": 16.153855,
+      "clipEnd": 16.153855,
+      "transitions": []
+    }
+  },
+  "sections": {
+    "Intro": {
+      "title": "Intro",
+      "firstClip": "Intro",
+      "clips": [
+        "Intro"
+      ],
+      "type": "auto",
+      "nextSections": [
+        "Main"
+      ],
+      "modes": []
+    },
+    "Main": {
+      "title": "Main",
+      "firstClip": "Main_a",
+      "clips": [
+        "Main_a",
+        "Main_b",
+        "Main_c",
+        "Main_d"
+      ],
+      "type": "manual",
+      "nextSections": [
+        "End"
+      ],
+      "modes": []
+    },
+    "End": {
+      "title": "End",
+      "firstClip": "End",
+      "clips": [
+        "End"
+      ],
+      "type": "end",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "b9e9e110-4330-5f6c-a932-98f48ceeb05f"
+}

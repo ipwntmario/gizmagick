@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "track": {
+    "id": "5c22b71c-2af0-5483-8a25-821b726707e1",
+    "slug": "lena-s-home",
+    "title": "Lena's Home",
+    "firstSection": "Lena's Home",
+    "simple": true,
+    "test": false
+  },
+  "assets": {
+    "628e2a15-5748-5b9d-b521-a2eb28fe2f42": {
+      "path": "audio/Lena's Home.ogg",
+      "byteLength": 3961537,
+      "sha256": "954d31b74c8c6db4409d673b277b48c887c26d09dcf9f86cd82fc1abfa81f66b"
+    }
+  },
+  "clips": {
+    "Lena's Home": {
+      "assetsByMode": {
+        "base": "628e2a15-5748-5b9d-b521-a2eb28fe2f42"
+      },
+      "loopStart": 0,
+      "loopPoint": 180,
+      "clipEnd": 180,
+      "transitions": []
+    }
+  },
+  "sections": {
+    "Lena's Home": {
+      "title": "Lena's Home",
+      "firstClip": "Lena's Home",
+      "clips": [
+        "Lena's Home"
+      ],
+      "type": "manual",
+      "nextSections": [],
+      "modes": []
+    }
+  },
+  "versionId": "eaed4e03-9e2d-51e7-970c-15bb894a8bbe"
+}

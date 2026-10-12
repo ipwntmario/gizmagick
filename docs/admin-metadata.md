@@ -146,8 +146,11 @@ After the walkthrough, D1 contained two drafts, the same one asset allocation
 and immutable review, and zero published tracks/versions. The original Lena's
 Home review hashes listed above were unchanged. No cloud code was redeployed.
 A browser reload after maintenance reached Access sign-in rather than the admin
-screen, so archived-control UI verification awaits a fresh user login. The database
-state is verified; no authentication was automated.
+screen. After the administrator signed in again, a read-only browser check on
+October 12 confirmed the test draft's archived label, explicit editing-locked
+message, and disabled editor, Save, Discard, upload, review, and Archive controls.
+This confirms the archived UI state, not delivery of the earlier archival
+confirmation workflow. No authentication was automated.
 
 All **256 tests**, frontend/Worker lint, the normal frontend build, and Git
 whitespace checks pass. The player asset filenames/sizes are unchanged from the

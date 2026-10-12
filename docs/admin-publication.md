@@ -1,6 +1,7 @@
 # Phase 7A: read-only publication preflight
 
-Implemented locally on October 12, 2026. **Not deployed or enabled in production.**
+Implemented locally and enabled on the existing Cloudflare Worker on October 12,
+2026. **Deployment checks passed; signed-in cloud preview verification is pending.**
 This is a readiness inspection for administrator-owned, attested new-track
 drafts, not a publisher. No public objects, library rows, ownership mappings,
 audit records, or playback pointers are written. The live player is unchanged.
@@ -14,8 +15,8 @@ write methods return 405. There is no new browser button in this increment.
 `capabilities.publicationPreflight` describes availability independently of
 `publishing`, which remains false.
 
-The version-controlled flag `GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = "false"`
-keeps it disabled. It additionally requires uploads, reviews, D1, and distinct
+The version-controlled flag `GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = "true"`
+enables this read-only inspection. It additionally requires uploads, reviews, D1, and distinct
 private/public R2 bindings. A disabled preview returns 503 without querying
 review tables. No migration, secret, dependency, or cloud resource is added.
 Local automated fixtures explicitly enable it. The local UI preview harness
@@ -71,9 +72,30 @@ whitespace checks pass. The live player's JS/CSS bundle filenames and sizes
 are unchanged. The user-owned `.gitignore` edit, generated test manifest, and
 browser proof screenshots are excluded from the checkpoint.
 
-Next: review a read-only cloud preflight rollout. The cloud metadata-test draft
-is archived (verified in D1), while archived-control browser verification needs
-a fresh user login. The actual publication implementation needs a separate
+Cloud deployment version `ab1461f4-92e3-4f92-9475-d6f7d946571a` preserves the
+existing D1, both R2 buckets, RoomHub namespace, Access identifiers, and private
+administrator email secret binding. No pending D1 migrations were found. The
+draft bucket still has no custom domains and its public development URL remains
+disabled. No migration, resource, secret, route, Access policy, or Pages changes
+were made. Public health and the empty catalog returned 200; anonymous admin,
+session, and publication-preview requests redirected to Cloudflare Access.
+
+Before and after deployment, D1 contained two drafts (one archived), one asset
+allocation, one immutable review, and zero published tracks/versions. The retained
+Lena's Home report and snapshot checksums remained unchanged. The signed-in
+browser verified the archived metadata-test draft's disabled editor, Save,
+Discard, upload, review, and Archive controls before deployment. Navigating to
+the newly deployed preview initially showed Brave's `ERR_BLOCKED_BY_CLIENT`;
+one reload reached Cloudflare Access sign-in. No preview response was inspected,
+so successful cloud checks/flags/object destinations and archived-preview
+rejection are **not yet verified**. No authentication was automated, and no
+draft or public object was written during this rollout.
+
+To disable preflight, set its flag to `"false"` and redeploy the existing Worker;
+this does not alter saved drafts/reviews or public storage. No rollback was needed.
+
+Next: finish the signed-in, read-only cloud preview checks. The actual publication
+implementation needs a separate
 immutable publication/audit and retry design: revalidate sources, use conditional
 source reads and non-overwriting destination writes, verify all public objects,
 and commit D1 publication records/pointers atomically last. R2 and D1 cannot be

@@ -237,8 +237,9 @@ in an isolated local browser, and enabled on the existing Worker on October 12,
 approved metadata-only draft, now archived using an explicitly approved guarded
 maintenance fallback after browser confirmation automation stalled. The
 retained attested draft's editor is visibly locked and its review is unchanged.
-The [Phase 7A publication preflight](admin-publication.md) is implemented locally
-and disabled in production; it performs only read-only inspections, not publication.
+The [Phase 7A publication preflight](admin-publication.md) is enabled on the existing
+Worker; deployment checks passed, while signed-in cloud preview verification is
+pending. It performs only read-only inspections, not publication.
 Following increments: reviewed ownership mapping, immutable
 publication and audit records; staged
 library import and frontend cutover. The visual graph editor and ordinary-user

@@ -233,8 +233,10 @@ are verified. It never claims server decoding or
 changes cloud draft trust flags merely because a local report exists.
 The [Phase 6E private metadata editor](admin-metadata.md) is implemented, tested
 in an isolated local browser, and enabled on the existing Worker on October 12,
-2026. Signed-in cloud editor verification remains pending a fresh administrator
-login. Attested drafts remain immutable. Following increments: reviewed ownership mapping, immutable
+2026. Signed-in cloud read-only checks passed with the retained attested draft's
+editor visibly locked. Cloud save testing on a separately approved unreviewed
+draft remains pending. Attested drafts remain immutable. Following increments:
+reviewed ownership mapping, immutable
 publication and audit records; staged
 library import and frontend cutover. The visual graph editor and ordinary-user
 identity/moderation remain later work.

@@ -1,7 +1,8 @@
 # Phase 6E: private metadata editing
 
 Implemented locally on October 9, 2026; enabled on the existing Cloudflare Worker
-on October 12, 2026. **Signed-in cloud editor verification is still pending.**
+on October 12, 2026. **Signed-in cloud read-only checks passed; cloud save testing
+on a separate unreviewed draft remains pending.**
 This adds a JSON editor for an owner's unreviewed new-track drafts, not the visual
 graph editor, published-track revision workflow, ownership transfer, or publication.
 The attested cloud Lena's Home smoke-test draft remains unchanged and locked.
@@ -115,10 +116,14 @@ zero published tracks/versions. The retained Lena's Home review hashes stayed:
 - Report: `159a54dc722c00c5f754b6058dc0aa6f7222312e0cfea8ae4ce7489d1318a6b8`
 - Snapshot: `d693253b38f314514f111ff7acfce5ed7f068f59f84984b54eef1b9390805c80`
 
-The cloud admin browser reached the Access sign-in page. No authentication was
-automated and no cloud draft was created or edited. A fresh administrator login
-is needed to verify the deployed controls; a cloud save walkthrough requires a
-separately approved disposable unreviewed draft, not the retained attested draft.
+After the administrator completed Access sign-in, the deployed admin page showed
+Administrator verified and loaded the retained Lena's Home draft. Expanding its
+metadata panel showed the saved JSON and the explicit editing-locked message;
+the textarea, Save, and Discard controls were disabled. Its immutable attestation
+timestamp and report checksum still matched the recorded review. No authentication
+was automated and no cloud draft was created, edited, archived, or re-attested.
+A cloud save walkthrough requires a separately approved disposable unreviewed
+draft, not the retained attested draft.
 
 All **256 tests**, frontend/Worker lint, the normal frontend build, and Git
 whitespace checks pass. The player asset filenames/sizes are unchanged from the
@@ -129,7 +134,8 @@ To disable editing, set the metadata flag to `"false"` and redeploy the existing
 Worker; this does not remove saved metadata or review records. Keep uploads and
 reviews configured independently. No rollback was performed during this rollout.
 
-Next: finish signed-in cloud editor verification. Do not edit the retained
+Next: verify cloud metadata saves on a separately approved unreviewed draft.
+Do not edit the retained
 attested smoke-test draft. Production publication,
 ownership mapping for existing library tracks, staged library import, and player
 cutover remain separate steps. Browser package-download delivery and real

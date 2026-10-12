@@ -96,6 +96,127 @@ async function readyReview(f) {
 const metadataInput = draft => ({ expectedManifestSha256: draft.manifestSha256, manifest: structuredClone(draft.manifest) });
 const edit = (f, draft, input = metadataInput(draft), principal = owner) => f.request(`/api/admin/drafts/${draft.id}/metadata`, { method: 'POST', body: input, principal });
 
+function enablePublicationPreview(f, head = async () => null) {
+  f.env.GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = 'true';
+  f.env.GIZMAGICK_MEDIA = { head, put: () => assert.fail('A publication preview must not write public objects') };
+}
+const publicationPreview = (f, draft, options) => f.request(`/api/admin/drafts/${draft.id}/publication-preview`, options);
+
+test('publication preflight reconstructs an attested candidate and performs no database or object writes', async t => {
+  const f = fixture(t), ready = await readyReview(f);
+  assert.equal((await ready.attest()).status, 201);
+  enablePublicationPreview(f);
+  const before = f.sql.prepare('SELECT total_changes() n').get().n, objectsBefore = [...f.objects.entries()];
+  const response = await publicationPreview(f, ready.draft);
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), null);
+  const preview = await response.json();
+  assert.equal(preview.checksPassed, true); assert.equal(preview.pointInTimeOnly, true);
+  assert.equal(preview.publicationAuthorized, false); assert.equal(preview.publishing, false); assert.equal(preview.serverDecoded, false);
+  assert.equal(preview.scope, 'administrator-attested'); assert.equal(preview.ownerId, owner.id);
+  assert.equal(preview.objects.length, 2);
+  assert.equal(preview.objects[0].key, `tracks/${ready.draft.manifest.track.id}/versions/${ready.draft.manifest.versionId}/manifest.json`);
+  assert.equal(preview.objects[1].byteLength, 47); assert.equal(preview.objects[1].sha256, ready.job.snapshot.assets[0].sha256);
+  assert.equal(f.sql.prepare('SELECT total_changes() n').get().n, before);
+  assert.deepEqual([...f.objects.entries()], objectsBefore);
+  assert.equal((await publicationPreview(f, ready.draft, { method: 'HEAD' })).status, 200);
+  assert.equal(await (await publicationPreview(f, ready.draft, { method: 'HEAD' })).text(), '');
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publicationPreflight, true);
+});
+
+test('publication preflight is disabled by default and rejects writes, other owners, and contributor roles', async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest();
+  assert.equal((await publicationPreview(f, ready.draft)).status, 503);
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publicationPreflight, false);
+  enablePublicationPreview(f);
+  assert.equal((await publicationPreview(f, ready.draft, { principal: other })).status, 404);
+  assert.equal((await publicationPreview(f, ready.draft, { principal: { ...owner, role: 'contributor' } })).status, 403);
+  const write = await publicationPreview(f, ready.draft, { method: 'POST', body: { publishing: true } });
+  assert.equal(write.status, 405); assert.equal(write.headers.get('Allow'), 'GET, HEAD');
+  for (const key of ['GIZMAGICK_DRAFT_REVIEWS_ENABLED', 'GIZMAGICK_DRAFT_UPLOADS_ENABLED']) {
+    f.env[key] = 'false'; assert.equal((await publicationPreview(f, ready.draft)).status, 503); f.env[key] = 'true';
+  }
+  for (const key of ['GIZMAGICK_DB', 'GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA']) {
+    const saved = f.env[key]; delete f.env[key];
+    assert.equal((await publicationPreview(f, ready.draft)).status, 503); f.env[key] = saved;
+  }
+  f.env.GIZMAGICK_MEDIA = f.env.GIZMAGICK_DRAFTS;
+  assert.equal((await publicationPreview(f, ready.draft)).status, 503);
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publicationPreflight, false);
+});
+
+test('publication preflight requires an active attested draft and retains expired-package historical reviews', async t => {
+  const f = fixture(t), ready = await readyReview(f); enablePublicationPreview(f);
+  assert.equal((await publicationPreview(f, ready.draft)).status, 409);
+  await ready.attest();
+  f.sql.prepare('UPDATE admin_draft_review_jobs SET expires_at = 0 WHERE draft_id = ?').run(ready.draft.id);
+  assert.equal((await publicationPreview(f, ready.draft)).status, 200);
+  await f.request(`/api/admin/drafts/${ready.draft.id}/archive`, { method: 'POST' });
+  const response = await publicationPreview(f, ready.draft);
+  assert.equal(response.status, 409); assert.equal((await response.json()).code, 'PUBLICATION_PREFLIGHT_ARCHIVED');
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 1);
+});
+
+for (const alteration of ['manifest', 'snapshot', 'report', 'candidate', 'approver', 'policy', 'scope']) {
+  test(`publication preflight rejects altered stored ${alteration}`, async t => {
+    const f = fixture(t), ready = await readyReview(f); await ready.attest(); enablePublicationPreview(f);
+    if (alteration === 'manifest') {
+      const modified = structuredClone(ready.draft.manifest); modified.track.title += ' changed';
+      f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(modified), ready.draft.id);
+    } else if (alteration === 'snapshot') {
+      const modified = structuredClone(ready.job.snapshot); modified.manifest.track.title += ' changed';
+      f.sql.prepare('UPDATE admin_draft_review_jobs SET snapshot_json = ? WHERE draft_id = ?').run(JSON.stringify(modified), ready.draft.id);
+    } else if (alteration === 'report' || alteration === 'candidate') {
+      const column = alteration === 'report' ? 'report_json' : 'candidate_json';
+      const stored = JSON.parse(f.sql.prepare(`SELECT ${column} value FROM admin_draft_reviews WHERE draft_id = ?`).get(ready.draft.id).value);
+      if (alteration === 'report') stored.measurements[Object.keys(stored.measurements)[0]].durationSeconds = 181;
+      else stored.track.title += ' forged';
+      f.sql.prepare(`UPDATE admin_draft_reviews SET ${column} = ? WHERE draft_id = ?`).run(JSON.stringify(stored), ready.draft.id);
+    } else if (alteration === 'approver') {
+      f.sql.prepare('UPDATE admin_draft_reviews SET approved_by = ? WHERE draft_id = ?').run(other.id, ready.draft.id);
+    } else {
+      // CHECK constraints normally prevent these; simulate corrupted storage.
+      f.sql.exec('PRAGMA ignore_check_constraints = ON;');
+      f.sql.prepare(`UPDATE admin_draft_reviews SET ${alteration} = 'forged' WHERE draft_id = ?`).run(ready.draft.id);
+    }
+    assert.equal((await publicationPreview(f, ready.draft)).status, 409);
+    assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  });
+}
+
+for (const alteration of ['missing', 'etag', 'checksum']) test(`publication preflight rejects a private object with ${alteration}`, async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest(); enablePublicationPreview(f);
+  const key = ready.job.snapshot.assets[0].objectKey, stored = f.objects.get(key);
+  if (alteration === 'missing') f.objects.delete(key);
+  else if (alteration === 'etag') stored.etag = 'changed-etag';
+  else stored.sha256 = '0'.repeat(64);
+  assert.equal((await publicationPreview(f, ready.draft)).status, 409);
+});
+
+test('publication preflight rejects reserved library identities and public object collisions without overwrites', async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest(); enablePublicationPreview(f);
+  f.sql.prepare('INSERT INTO library_tracks (id, owner_id) VALUES (?, ?)').run(ready.draft.manifest.track.id, other.id);
+  let response = await publicationPreview(f, ready.draft);
+  assert.equal(response.status, 409); assert.equal((await response.json()).code, 'PUBLICATION_PREFLIGHT_IDENTITY');
+  f.sql.prepare('DELETE FROM library_tracks WHERE id = ?').run(ready.draft.manifest.track.id);
+  for (const suffix of ['manifest.json', "audio/Lena's Home.ogg"]) {
+    enablePublicationPreview(f, async key => key.endsWith(suffix) ? { size: 1 } : null);
+    response = await publicationPreview(f, ready.draft);
+    assert.equal(response.status, 409); assert.equal((await response.json()).code, 'PUBLICATION_PREFLIGHT_DESTINATION');
+  }
+});
+
+test('publication preflight detects archival during inspections and hides storage errors', async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest();
+  enablePublicationPreview(f, async () => { f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(ready.draft.id); return null; });
+  assert.equal((await publicationPreview(f, ready.draft)).status, 409);
+  f.sql.prepare("UPDATE admin_drafts SET status = 'draft' WHERE id = ?").run(ready.draft.id);
+  enablePublicationPreview(f, async () => { throw new Error('private storage credentials'); });
+  const response = await publicationPreview(f, ready.draft);
+  assert.equal(response.status, 503); assert(!(await response.text()).includes('credentials'));
+});
+
 test('private metadata editing validates and persists musical changes without reuploading or publishing audio', async t => {
   const f = fixture(t), draft = await (await f.create()).json();
   assert.equal(draft.metadataEditable, true);

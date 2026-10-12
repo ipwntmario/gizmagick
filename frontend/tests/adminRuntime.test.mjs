@@ -92,8 +92,8 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const outbound = [];
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
-    d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS'],
-    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
+    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -104,7 +104,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -118,6 +118,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(body.principal.email, 'admin@example.com');
     assert.equal(body.capabilities.reviews, true);
     assert.equal(body.capabilities.metadata, true);
+    assert.equal(body.capabilities.publicationPreflight, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -207,6 +208,19 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(reopened.audioProbed, false);
     assert.equal((await request(attestUrl, token, { method: 'POST', headers: writeHeaders, body: bodyForReview })).status, 200);
     assert.equal((await request('/api/admin/publish', token, { method: 'POST', headers: writeHeaders })).status, 405);
+    const previewUrl = `/api/admin/drafts/${draft.id}/publication-preview`;
+    assert.equal((await request(previewUrl, null)).status, 401);
+    assert.equal((await request(previewUrl, issue('member@example.com'))).status, 403);
+    assert.equal((await request(previewUrl, token, { headers: { Origin: 'https://evil.example.com' } })).status, 403);
+    assert.equal((await request(previewUrl, token, { method: 'POST', headers: writeHeaders })).status, 405);
+    const previewResponse = await request(previewUrl);
+    assert.equal(previewResponse.status, 200, await previewResponse.clone().text());
+    const preview = await previewResponse.json();
+    assert.equal(preview.publicationAuthorized, false); assert.equal(preview.publishing, false); assert.equal(preview.serverDecoded, false);
+    assert.equal(preview.objects[1].byteLength, bytes.length); assert.equal(preview.trackId, draft.manifest.track.id);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 0);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_track_versions').first()).n, 0);
+    assert.equal((await (await mf.getR2Bucket('GIZMAGICK_MEDIA')).list()).objects.length, 0);
     assert.equal(outbound.length, 1);
   } finally { await mf.dispose(); }
 });

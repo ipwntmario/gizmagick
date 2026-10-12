@@ -1,8 +1,8 @@
 # Phase 6E: private metadata editing
 
 Implemented locally on October 9, 2026; enabled on the existing Cloudflare Worker
-on October 12, 2026. **Signed-in cloud read-only checks passed; cloud save testing
-on a separate unreviewed draft remains pending.**
+on October 12, 2026. **Signed-in cloud save/reload checks passed on a separate
+metadata-only test draft, now archived.**
 This adds a JSON editor for an owner's unreviewed new-track drafts, not the visual
 graph editor, published-track revision workflow, ownership transfer, or publication.
 The attested cloud Lena's Home smoke-test draft remains unchanged and locked.
@@ -121,9 +121,33 @@ Administrator verified and loaded the retained Lena's Home draft. Expanding its
 metadata panel showed the saved JSON and the explicit editing-locked message;
 the textarea, Save, and Discard controls were disabled. Its immutable attestation
 timestamp and report checksum still matched the recorded review. No authentication
-was automated and no cloud draft was created, edited, archived, or re-attested.
-A cloud save walkthrough requires a separately approved disposable unreviewed
-draft, not the retained attested draft.
+was automated and no cloud draft was created, edited, archived, or re-attested
+during that initial read-only check.
+The administrator subsequently approved one separate metadata-only draft based
+on Lena's Home's schema-v2 file. The import used an ignored copy marked as a test;
+the repository's original manifest and music files were not modified. Browser
+creation, invalid-JSON rejection with retained text, a valid title save, and an
+unknown-section rejection all passed. Reloading/reopening confirmed the saved
+title and original first section; track/version IDs and asset constraints stayed
+unchanged. No audio was uploaded and no review package/attestation was created.
+
+Test draft: `a3c0711d-53f8-4964-a00f-0d777f4cb94f`, title
+`Lena's Home (metadata save verified)`, track
+`5402dca9-b438-4df6-b76e-9268ed85b4e8`, version
+`2341dcdc-fd1f-41f7-aed6-5bfb802af365`. Browser archival confirmation automation
+stalled. A separately approved maintenance fallback used the same status/timestamp
+update, guarded by this exact draft ID, verified owner, test title, active status,
+and absence of a review. It changed exactly one draft to `archived`; a subsequent
+D1 read confirmed that state. No records or files were deleted. Its metadata
+remains stored; no audio object exists for this test. This does **not** confirm
+successful delivery of the browser's archival confirmation workflow.
+
+After the walkthrough, D1 contained two drafts, the same one asset allocation
+and immutable review, and zero published tracks/versions. The original Lena's
+Home review hashes listed above were unchanged. No cloud code was redeployed.
+A browser reload after maintenance reached Access sign-in rather than the admin
+screen, so archived-control UI verification awaits a fresh user login. The database
+state is verified; no authentication was automated.
 
 All **256 tests**, frontend/Worker lint, the normal frontend build, and Git
 whitespace checks pass. The player asset filenames/sizes are unchanged from the
@@ -134,7 +158,7 @@ To disable editing, set the metadata flag to `"false"` and redeploy the existing
 Worker; this does not remove saved metadata or review records. Keep uploads and
 reviews configured independently. No rollback was performed during this rollout.
 
-Next: verify cloud metadata saves on a separately approved unreviewed draft.
+Next: continue the [read-only publication preflight](admin-publication.md).
 Do not edit the retained
 attested smoke-test draft. Production publication,
 ownership mapping for existing library tracks, staged library import, and player

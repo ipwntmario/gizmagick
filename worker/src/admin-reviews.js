@@ -17,7 +17,8 @@ export async function getDraftReview(env, id) {
   return reviewSummary(await env.GIZMAGICK_DB.prepare('SELECT * FROM admin_draft_reviews WHERE draft_id = ?').bind(id).first());
 }
 
-async function snapshotDraft(env, row) {
+// Also used by the read-only publication preflight to recheck private storage.
+export async function snapshotDraft(env, row) {
   if (row.status !== 'draft') fail(409, 'REVIEW_ARCHIVED', 'Archived drafts cannot be reviewed.');
   const manifest = JSON.parse(row.manifest_json);
   if (!validate(manifest).valid) fail(409, 'REVIEW_METADATA', 'Draft metadata no longer passes validation.');

@@ -121,8 +121,9 @@ artifact, not part of the Git checkpoint.
 To disable preflight, set its flag to `"false"` and redeploy the existing Worker;
 this does not alter saved drafts/reviews or public storage. No rollback was needed.
 
-The [Phase 7B backend](admin-publishing.md) now implements immutable audit/retry
-rules locally, with cloud publishing disabled and no publishing UI yet. Retain
+The [Phase 7B backend and Phase 7C controls](admin-publishing.md) now implement
+immutable audit/retry rules, explicit confirmation and progress locally, with
+cloud publishing disabled. Retain
 the archived-preview browser check as an outstanding verification item. The
 publisher revalidates sources, uses conditional source reads and non-overwriting
 destination writes, verifies all public objects, and commits D1 publication

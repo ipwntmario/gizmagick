@@ -56,7 +56,7 @@ async function verifyBrowserInitialization(html) {
     },
   }, { timeout: 1000 });
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(element('status').textContent, 'Private draft intake is ready. Publishing is disabled.');
+  assert.equal(element('status').textContent, 'Admin intake is ready. Publishing requires an eligible draft and explicit confirmation for every step.');
   assert.equal(element('draft-list').textContent, 'No drafts yet.');
   assert.equal(element('upload').disabled, true);
   assert.equal(element('archive').disabled, true);
@@ -64,6 +64,13 @@ async function verifyBrowserInitialization(html) {
   assert.equal(element('attest-review').disabled, true);
   assert.equal(element('metadata-editor').disabled, true);
   assert.equal(element('save-metadata').disabled, true);
+  assert.equal(element('publication-action').disabled, true);
+  assert.equal(element('publication-confirm').disabled, true);
+  assert.equal(element('publication-refresh').disabled, true);
+  assert.equal(element('publication-check').disabled, true);
+  assert(element('publication-action').listeners.has('click'));
+  assert(element('publication-refresh').listeners.has('click'));
+  assert(html.includes('Each copy makes a file publicly downloadable by URL'));
   assert(element('sections-file').listeners.has('change'));
   assert(element('create-draft').listeners.has('submit'));
   assert(element('audio-files').listeners.has('change'));

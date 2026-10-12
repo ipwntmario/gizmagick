@@ -3,8 +3,40 @@
 export function adminClient() {
   const byId = id => document.getElementById(id);
   let current = null, selectedFiles = [], creationBody = null, busy = false, reviewReport = null;
+  const publishing = Boolean(byId('publication-panel'));
+  // undefined means unknown: no write is allowed until a successful status GET.
+  let publication, publicationReady = false, publicationRequest = null;
   const status = message => { byId('status').textContent = message; };
   const metadataDirty = () => Boolean(current && byId('metadata-editor') && byId('metadata-editor').value !== JSON.stringify(current.manifest, null, 2));
+  const publicationEligible = () => Boolean(current?.status === 'draft' && current.review
+    && !current.missingAssets.length && Object.keys(current.manifest.assets).length <= 16 && !metadataDirty());
+  const publicationWritable = () => publicationEligible() && publication !== undefined
+    && (publication === null ? publicationReady : publication.state === 'pending');
+  function clearPublicationConfirmation() {
+    if (publishing) byId('publication-confirm').checked = false;
+  }
+  function renderPublication() {
+    if (!publishing) return;
+    const published = publication?.state === 'published';
+    byId('publication-identity').textContent = current
+      ? `Track: ${current.title}\nTrack ID: ${current.manifest.track.id}\nVersion: ${current.manifest.versionId}` : '';
+    byId('publication-progress').max = publication?.totalObjects || 1;
+    byId('publication-progress').value = publication?.copiedObjects || 0;
+    byId('publication-action').textContent = published ? 'Already published'
+      : publication?.nextAction === 'verify-and-commit' ? 'Verify copies and publish to catalog'
+      : publication ? 'Copy next file publicly' : 'Create publication intent (no copies yet)';
+    byId('publication-state').textContent = !current ? 'Open a draft to read its publication status.'
+      : publication === undefined ? 'Status unknown. Refresh publication status before any write.'
+      : published ? `Published to the catalog at ${publication.publishedAt}. ${publication.copiedObjects}/${publication.totalObjects} public copies verified. Archiving does not unpublish this track.`
+      : publication ? `Publication intent ${publication.id}\n${publication.copiedObjects}/${publication.totalObjects} public copies recorded. Files may already be public even if a failed copy has no receipt. ${current.status !== 'draft' ? 'Archived: continuation is locked.' : publication.nextAction === 'verify-and-commit' ? 'All copies recorded. Final verification and catalog publication require a separate confirmation.' : 'Paused until you explicitly confirm and copy the next file.'}`
+      : !publicationEligible() ? 'No publication intent. An active, saved, administrator-attested draft with all audio uploaded and at most 16 audio files is required.'
+      : publicationReady ? 'Readiness checks passed at this moment only. Creating an intent copies nothing; later actions recheck the exact review and files.'
+      : 'No publication intent. Check readiness before creating one. No public files have been copied by this workflow.';
+    if (current) {
+      byId('draft-state').textContent = `${current.status} · ${current.missingAssets.length} missing audio file(s) · NOT server-decoded · ${published ? 'Published' : publication === undefined ? 'Publication status unknown' : publication ? 'Publication pending; files may be public' : 'NOT published'}`;
+      if (byId('review-state') && current.review) byId('review-state').textContent = `Administrator-attested by ${current.review.approvedBy} at ${current.review.approvedAt}. NOT server-decoded. Report SHA-256: ${current.review.reportSha256}`;
+    }
+  }
   function clearReview() {
     reviewReport = null;
     if (byId('review-report')) {
@@ -16,7 +48,7 @@ export function adminClient() {
   const setBusy = value => {
     busy = value;
     for (const control of document.querySelectorAll('button,input,select,textarea')) control.disabled = value;
-    byId('upload').disabled = value || !current || current.status !== 'draft' || !selectedFiles.length || metadataDirty();
+    byId('upload').disabled = value || !current || current.status !== 'draft' || Boolean(current.review) || !selectedFiles.length || metadataDirty();
     byId('archive').disabled = value || !current || current.status !== 'draft';
     if (byId('review-package')) {
       const cannotReview = value || !current || current.status !== 'draft' || current.missingAssets.length > 0 || Boolean(current.review) || metadataDirty();
@@ -30,6 +62,13 @@ export function adminClient() {
       byId('save-metadata').disabled = value || !current?.metadataEditable || !metadataDirty();
       byId('reset-metadata').disabled = value || !current || !metadataDirty();
     }
+    if (publishing) {
+      byId('publication-refresh').disabled = value || !current || metadataDirty();
+      byId('publication-check').disabled = value || !publicationEligible() || publication !== null;
+      byId('publication-confirm').disabled = value || !publicationWritable();
+      byId('publication-action').disabled = value || !publicationWritable() || !byId('publication-confirm').checked;
+      renderPublication();
+    }
   };
   async function api(path, method = 'GET', body) {
     const response = await fetch(path, { method, credentials: 'same-origin', cache: 'no-store', headers: {
@@ -42,6 +81,28 @@ export function adminClient() {
     return result;
   }
   const pathFor = id => `/api/admin/drafts/${encodeURIComponent(id)}`;
+  function acceptPublication(result) {
+    const saved = result.publication;
+    if (saved !== null && (!saved || typeof saved.id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(saved.id)
+        || saved.draftId !== current.id || saved.trackId !== current.manifest.track.id
+        || saved.versionId !== current.manifest.versionId || !['pending', 'published'].includes(saved.state)
+        || !Number.isInteger(saved.copiedObjects) || !Number.isInteger(saved.totalObjects)
+        || saved.copiedObjects < 0 || saved.totalObjects !== Object.keys(current.manifest.assets).length + 1
+        || saved.copiedObjects > saved.totalObjects
+        || (saved.state === 'published' && (saved.copiedObjects !== saved.totalObjects || typeof saved.publishedAt !== 'string'))
+        || saved.nextAction !== (saved.state === 'published' ? null : saved.copiedObjects < saved.totalObjects ? 'copy-one-object' : 'verify-and-commit'))) {
+      throw new Error('Publication status could not be verified. Refresh before continuing.');
+    }
+    publication = saved;
+    renderPublication();
+  }
+  async function loadPublication() {
+    if (!publishing || !current) return;
+    publication = undefined; publicationReady = false; clearPublicationConfirmation();
+    byId('publication-preview').textContent = '';
+    renderPublication();
+    acceptPublication(await api(`${pathFor(current.id)}/publication`));
+  }
   function showDraft(draft) {
     const metadataChanged = current?.id !== draft.id || current?.manifestSha256 !== draft.manifestSha256;
     if (current?.id !== draft.id) {
@@ -50,6 +111,11 @@ export function adminClient() {
       byId('file-selection').textContent = 'No files selected.';
     }
     if (metadataChanged) clearReview();
+    if (publishing) {
+      if (metadataChanged) publicationRequest = null;
+      publication = undefined; publicationReady = false; clearPublicationConfirmation();
+      byId('publication-preview').textContent = '';
+    }
     if (byId('metadata-editor')) {
       if (metadataChanged) byId('metadata-editor').value = JSON.stringify(draft.manifest, null, 2);
       byId('metadata-state').textContent = draft.metadataEditable
@@ -96,7 +162,8 @@ export function adminClient() {
         if (metadataDirty() && !confirm('Discard unsaved metadata edits and reopen this draft? Copy your edits first if you want to keep them.')) return;
         showDraft(await api(pathFor(draft.id)));
         if (byId('metadata-editor')) byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
-        status(current.missingAssets.length ? 'Private draft loaded. Choose its missing audio files to continue.' : 'Private draft loaded. All referenced files are stored privately; server decoding and publication remain disabled.');
+        await loadPublication();
+        status(publishing ? 'Draft loaded. Publication status was read only; no files were copied.' : current.missingAssets.length ? 'Private draft loaded. Choose its missing audio files to continue.' : 'Private draft loaded. All referenced files are stored privately; server decoding and publication remain disabled.');
       }));
       item.append(button); list.append(item);
     }
@@ -144,6 +211,7 @@ export function adminClient() {
         if (new TextEncoder().encode(creationBody).length > 262144) { creationBody = null; throw new Error('Combined metadata exceeds 256 KiB.'); }
       }
       showDraft(await api('/api/admin/drafts', 'POST', creationBody));
+      await loadPublication();
       await refreshList();
       status('Private draft saved. Its data is not part of the public catalog.');
     });
@@ -161,6 +229,7 @@ export function adminClient() {
   });
   byId('upload').addEventListener('click', () => work(async () => {
     if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before uploading audio.');
+    if (!current || current.status !== 'draft' || current.review) throw new Error('Only active, unreviewed private drafts can accept audio uploads.');
     const byName = new Map();
     const expected = new Map(Object.entries(current.manifest.assets).map(([id, asset]) => [asset.path.slice(6), id]));
     for (const file of selectedFiles) {
@@ -174,21 +243,23 @@ export function adminClient() {
       await api(`${pathFor(current.id)}/assets/${encodeURIComponent(expected.get(name))}`, 'PUT', file);
       showDraft(await api(pathFor(current.id)));
     }
-    status(current.missingAssets.length ? 'Files saved privately. Some referenced audio files are still missing.' : 'All referenced files are stored privately. Audio probing and publication are still disabled.');
+    await loadPublication();
+    status(current.missingAssets.length ? 'Files saved privately. Some referenced audio files are still missing.' : 'All referenced files are stored privately. Local administrator review is required; this upload did not publish anything.');
   }));
   byId('archive').addEventListener('click', () => {
-    if (!current || !confirm('Archive this draft? Uploads will stop. Private files will be retained, not deleted.')) return;
+    if (!current || !confirm('Archive this draft? Uploads and pending publication will stop. Private files will be retained, not deleted. Already copied public files remain public; published tracks are NOT unpublished.')) return;
     work(async () => {
       await api(`${pathFor(current.id)}/archive`, 'POST');
       showDraft(await api(pathFor(current.id)));
-      await refreshList(); status('Draft archived. No files were deleted.');
+      await loadPublication();
+      await refreshList(); status('Draft archived. No files were deleted or unpublished.');
     });
   });
-  byId('metadata-editor')?.addEventListener('input', () => { clearReview(); setBusy(busy); });
+  byId('metadata-editor')?.addEventListener('input', () => { clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
   byId('reset-metadata')?.addEventListener('click', () => {
     if (!current || !confirm('Discard unsaved metadata edits? The saved draft will not change.')) return;
     byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
-    clearReview(); setBusy(busy);
+    clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy);
     status('Unsaved edits discarded. The saved private draft is unchanged.');
   });
   byId('save-metadata')?.addEventListener('click', () => work(async () => {
@@ -201,6 +272,7 @@ export function adminClient() {
     const saved = await api(`${pathFor(current.id)}/metadata`, 'POST', body);
     showDraft(saved);
     byId('metadata-editor').value = JSON.stringify(saved.manifest, null, 2);
+    await loadPublication();
     await refreshList();
     status('Private metadata saved. Download a fresh review package and rerun local validation before attesting. Nothing was published.');
   }));
@@ -236,9 +308,52 @@ export function adminClient() {
     await api(`${pathFor(current.id)}/attest-review`, 'POST', JSON.stringify({ report: reviewReport, policy: 'gizmagick-local-admin-v1', provenanceConfirmed: true }));
     reviewReport = null; byId('review-confirm').checked = false;
     showDraft(await api(pathFor(current.id)));
-    status('Administrator attestation recorded for the exact private draft. NOT server-decoded / NOT published.');
+    await loadPublication();
+    status('Administrator attestation recorded for the exact private draft. NOT server-decoded. Attestation does not publish files.');
+  }));
+  byId('publication-refresh')?.addEventListener('click', () => work(async () => {
+    if (!current || metadataDirty()) throw new Error('Save or discard metadata edits before refreshing publication status.');
+    publication = undefined; publicationReady = false; clearPublicationConfirmation();
+    showDraft(await api(pathFor(current.id)));
+    await loadPublication();
+    status('Publication status refreshed. No copies or catalog changes were requested.');
+  }));
+  byId('publication-check')?.addEventListener('click', () => work(async () => {
+    clearPublicationConfirmation(); publicationReady = false;
+    byId('publication-preview').textContent = '';
+    if (!publicationEligible() || publication !== null) throw new Error('Refresh status and choose an eligible new-track draft before checking readiness.');
+    const preview = await api(`${pathFor(current.id)}/publication-preview`);
+    if (preview.checksPassed !== true || preview.draftId !== current.id || preview.versionId !== current.manifest.versionId
+        || preview.trackId !== current.manifest.track.id || preview.review?.snapshotSha256 !== current.review.snapshotSha256
+        || preview.review?.reportSha256 !== current.review.reportSha256) throw new Error('Readiness response does not match this exact reviewed draft.');
+    byId('publication-preview').textContent = `${preview.objects.map(object => `${object.kind}: ${object.key}\n${object.byteLength} bytes · SHA-256 ${object.sha256}`).join('\n\n')}\n\n`
+      + (preview.warnings.map(item => `${item.path}: ${item.message}`).join('\n') || 'No graph warnings.');
+    publicationReady = true;
+    status('Read-only readiness checks passed. Inspect the exact destinations, then confirm if you intend to publish. No files were copied.');
+  }));
+  byId('publication-confirm')?.addEventListener('change', () => setBusy(busy));
+  byId('publication-action')?.addEventListener('click', () => work(async () => {
+    if (!publicationWritable() || !byId('publication-confirm').checked) throw new Error('Current publication status and fresh public-exposure confirmation are required.');
+    const existing = publication;
+    clearPublicationConfirmation(); publicationReady = false;
+    if (!existing && !publicationRequest) publicationRequest = { requestId: crypto.randomUUID(),
+      expectedSnapshotSha256: current.review.snapshotSha256, expectedReportSha256: current.review.reportSha256, publicationConfirmed: true };
+    // An ambiguous response disables all writes. A separate successful GET is
+    // required before a human can confirm again; never automatically retry POST.
+    publication = undefined;
+    status(existing ? existing.nextAction === 'verify-and-commit' ? 'Verifying all copies and committing the catalog publication…'
+      : 'Copying one file to public storage… Its bytes may become public before this response arrives.' : 'Rechecking the reviewed draft and recording an intent… No files are copied by this action.');
+    try {
+      acceptPublication(await api(`${pathFor(current.id)}/${existing ? 'publication-step' : 'publication'}`, 'POST',
+        JSON.stringify(existing ? { publicationId: existing.id, publicationConfirmed: true } : publicationRequest)));
+      status(publication.state === 'published' ? 'Track published to the catalog. No further publishing steps are available.'
+        : existing ? 'One public copy recorded. Confirm again to continue; nothing runs automatically.' : 'Publication intent recorded. No files copied yet. Confirm again to copy the first file publicly.');
+    } catch (error) {
+      publication = undefined;
+      throw new Error(`${error.message}\nA request may have succeeded or copied public bytes despite this error. Refresh publication status before continuing. No automatic retry was made.`);
+    }
   }));
   byId('refresh').addEventListener('click', () => work(refreshList));
   setBusy(false);
-  work(async () => { await refreshList(); status('Private draft intake is ready. Publishing is disabled.'); });
+  work(async () => { await refreshList(); status(publishing ? 'Admin intake is ready. Publishing requires an eligible draft and explicit confirmation for every step.' : 'Private draft intake is ready. Publishing is disabled.'); });
 }

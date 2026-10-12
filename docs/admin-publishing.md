@@ -1,14 +1,76 @@
-# Phase 7B: local new-track publishing backend
+# Phases 7B–7C: local new-track publishing
 
 Implemented on October 12, 2026. **Local tests only; not deployed or enabled on
 Cloudflare.** No production migration, public copy, catalog import, or live-player
 change was performed. The separate [Phase 7A preflight](admin-publication.md)
 remains deployed and read-only.
 
-This increment implements the server protocol and durable audit/retry rules.
-There are **no publishing controls in the admin page yet**. Do not enable cloud
-publication before the explicit public-exposure confirmation UI and a separately
-reviewed rollout. The existing isolated admin-page preview stays private-only.
+Phase 7B implements the server protocol and durable audit/retry rules. Phase 7C
+adds the administrator confirmation/progress UI and an isolated browser walkthrough
+on October 12, 2026. **Neither increment is deployed or enabled on Cloudflare.**
+The default isolated admin-page preview stays private-only; its explicit
+`--publication` mode is a temporary local simulator, not a cloud rollout.
+
+## Administrator controls (Phase 7C)
+
+The page renders publishing controls only when the server's complete effective
+publishing capability is enabled, including distinct public/private buckets.
+Opening a draft reads its owned publication status. It copies nothing. Unknown
+status locks every publishing write; archived, unreviewed, incomplete, oversized
+or unsaved drafts cannot start or continue publication.
+
+For a new intent:
+
+1. Use **Check readiness (read only)** to inspect exact track/version, public
+   destinations, sizes, checksums and graph warnings. This is a point-in-time
+   check, not authorization or a guarantee that later checks will pass.
+2. Check the explicit public-exposure confirmation and choose **Create
+   publication intent (no copies yet)**. The server rechecks the exact recorded
+   snapshot/report; the page sends no client-supplied candidate or object keys.
+3. Confirm again and choose **Copy next file publicly** for each file. Progress
+   counts durable verification receipts, not bytes in flight. Audio is copied
+   first and the manifest last. A failed request can expose bytes without a receipt.
+4. After all receipts exist, confirm again and choose **Verify copies and publish
+   to catalog**. This separate action verifies every object and performs the
+   atomic catalog commit. The page then displays completion time and locks all
+   further publishing actions. Private-draft archival does not unpublish it.
+
+Confirmation is never persisted and resets on opening/reopening, refresh,
+metadata edits, each action and request failure. There are no automatic POST
+retries, polling writes, background progression or stored browser credentials.
+Double-clicks cannot send concurrent steps. Private audio uploads are also locked
+after attestation, rather than offering replacement of reviewed bytes.
+
+After an interrupted start or copy, use **Refresh publication status (read only)**
+before deciding what to do. Failed status reads leave writes locked. A surviving
+intent resumes by its recorded ID and progress, without a new preflight (already
+copied destinations would legitimately conflict with a new-track preflight).
+If a failed start left no intent, rerun readiness before reconfirming; the same
+in-memory request UUID is reused in that page session. Reloading loses that UUID
+but first reads authoritative status, never automatically starts a replacement.
+All server identity, review, lease and conditional-copy protections still apply.
+
+## Isolated browser simulator
+
+From `frontend`, with the existing locked dependencies installed:
+
+```sh
+node scripts/gizmagick-admin-preview.mjs --publication
+```
+
+Open the printed `127.0.0.1` URL. The visible **LOCAL PUBLICATION SIMULATOR** notice
+identifies the synthetic Access identity and temporary local D1/private/public
+R2. The harness seeds a new sample derived from Lena's Home, uploads its actual
+Ogg locally, runs the pinned decoder and records a synthetic test attestation
+through the normal guarded APIs. It creates no publication intent or public
+catalog entry until the UI actions above. It never uses production credentials,
+remote/configuration flags or Cloudflare storage. Do not tunnel or deploy it.
+
+Reloading the browser retains simulator data; stopping the process discards it.
+The simulator's public-media API serves only committed catalog versions. It is
+not a real R2 custom domain and does not prove Internet exposure, range/CORS,
+cache behavior or production Access login. The synthetic attestation is a test
+fixture, never evidence that a real administrator reviewed a production track.
 
 ## Scope and limits
 
@@ -66,7 +128,7 @@ checksum. No intent returns `publication: null`. It never resumes a job.
 }
 ```
 
-The final boolean must represent explicit administrator approval in the future
+The final boolean must represent explicit administrator approval in the
 UI, **not** selection of a report or a preflight result. Every step requires it.
 No background queue, automatic status-poll progression, browser credential
 extraction, or automatic retry loop is included. A status GET, HEAD, unrelated
@@ -162,15 +224,28 @@ SQL-trigger rollback and immutable audit/history. Both actual Vite- and
 Wrangler-bundled Workers publish real Lena's Home bytes into **temporary local**
 R2/D1, serve the resulting public version, exercise real trigger rollback and
 retry, and enforce signed-token/Origin/CSRF gates. All simulated resources are
-disposed afterward; this is not a cloud publication or UI walkthrough.
+disposed afterward; this is not a cloud publication.
 
-All **303 tests**, frontend/Worker lint, the normal frontend build and Git
+Phase 7C browser testing in Brave verified read-only opening/readiness, intent
+creation with zero copies, the first real local audio copy, reload/reopen at
+**1/2** receipts with unchecked confirmation and no automatic write, the manifest
+copy, separate final catalog publication and persisted locked completion. Brave
+blocked direct browser navigation to the simulator's catalog API; a read-only
+local HTTP check verified the resulting UUID-keyed catalog entry. No browser
+security settings were changed. Proof screenshots are ignored local artifacts.
+
+Client tests additionally cover explicit confirmations, lost start/copy responses,
+session expiry, same-request recovery, failed status/readiness, malformed or
+wrong-version replies, concurrent-click suppression, draft switching, pending
+archived exposure warnings, unsaved metadata and server-gated visibility. The
+serialized browser script initializes correctly from both actual bundle formats.
+
+All **325 tests**, frontend/Worker lint, the normal frontend build and Git
 whitespace checks pass. The player bundle filenames and sizes are unchanged.
 User `.gitignore` edits and ignored browser/generated artifacts are excluded
 from this implementation checkpoint.
 
-Next: administrator confirmation/progress UI and isolated browser testing, then
-a separately reviewed cloud migration/deployment with publishing still disabled
+Next: a separately reviewed cloud migration/deployment with publishing still disabled
 until an explicitly approved harmless publication walkthrough. Large-track
 batching, original library ownership/compatibility mapping, measured import,
 range/CORS/playback tests and frontend cutover remain separate steps. The existing

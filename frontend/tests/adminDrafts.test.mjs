@@ -1028,5 +1028,21 @@ test('page exposes a functional private intake form with nonce scripts and no pu
   assert(!page.includes('innerHTML'));
   assert(response.headers.get('Content-Security-Policy').includes("connect-src 'self'"));
   assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publishing, false);
+  assert(!page.includes('id="publication-panel"'));
   checkOggIntake(ogg());
+});
+
+test('publishing page controls require the complete effective server-side capability', async t => {
+  const f = fixture(t); enablePublisher(f);
+  let response = await f.request('/admin'), html = await response.text();
+  assert(html.includes('id="publication-panel"'));
+  assert(html.includes('Each copy makes a file publicly downloadable by URL'));
+  assert(!html.includes('localStorage')); assert(!html.includes('innerHTML'));
+  assert(response.headers.get('Content-Security-Policy').includes("connect-src 'self'"));
+  f.env.GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = 'false';
+  html = await (await f.request('/admin')).text();
+  assert(!html.includes('id="publication-panel"'));
+  f.env.GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = 'true'; f.env.GIZMAGICK_MEDIA = f.env.GIZMAGICK_DRAFTS;
+  html = await (await f.request('/admin')).text();
+  assert(!html.includes('id="publication-panel"'));
 });

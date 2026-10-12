@@ -41,7 +41,7 @@ export function createAdminHandler(authorize = requireAdmin) {
     if (path === '/api/admin/session') return reply({ authenticated: true, principal, capabilities: { uploads: draftsEnabled(env), reviews: draftsEnabled(env) && reviewsEnabled(env), metadata: metadataEnabled(env), publicationPreflight: publicationPreflightEnabled(env), publishing: publishingEnabled(env) } });
     if (['/admin', '/admin/'].includes(path)) {
       headers.set('Content-Type', 'text/html; charset=utf-8');
-      return new Response(request.method === 'HEAD' ? null : adminPage({ principal, nonce, uploads: draftsEnabled(env), reviews: reviewsEnabled(env), metadata: metadataEnabled(env) }), { headers });
+      return new Response(request.method === 'HEAD' ? null : adminPage({ principal, nonce, uploads: draftsEnabled(env), reviews: reviewsEnabled(env), metadata: metadataEnabled(env), publishing: publishingEnabled(env) }), { headers });
     }
     return reply({ error: 'Not found' }, 404);
   };

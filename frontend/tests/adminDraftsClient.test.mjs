@@ -22,7 +22,7 @@ function fixture() {
     versionId: draft.manifest.versionId, manifestSha256: draft.manifestSha256, jobId: '44444444-4444-4444-8444-444444444444', snapshotSha256: 'a'.repeat(64), errors: [],
     measurements: { a: { durationSeconds: 180, codec: 'opus', channels: 2, sampleRate: 48000, byteLength: 100, sha256: 'b'.repeat(64) } } };
   runInNewContext(`(${adminClient.toString()})();`, {
-    document: { getElementById: element, querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()) },
+    document: { getElementById: id => id.startsWith('publication-') ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()) },
     crypto, TextEncoder, File: class File {}, confirm: () => false,
     fetch: async (path, options) => {
       calls.push({ path, options });

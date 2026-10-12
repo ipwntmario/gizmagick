@@ -121,12 +121,12 @@ artifact, not part of the Git checkpoint.
 To disable preflight, set its flag to `"false"` and redeploy the existing Worker;
 this does not alter saved drafts/reviews or public storage. No rollback was needed.
 
-Next: implement the publisher's immutable audit/retry design locally; retain the
-archived-preview browser check as an outstanding verification item. The actual
-publication implementation needs a separate
-immutable publication/audit and retry design: revalidate sources, use conditional
-source reads and non-overwriting destination writes, verify all public objects,
-and commit D1 publication records/pointers atomically last. R2 and D1 cannot be
+The [Phase 7B backend](admin-publishing.md) now implements immutable audit/retry
+rules locally, with cloud publishing disabled and no publishing UI yet. Retain
+the archived-preview browser check as an outstanding verification item. The
+publisher revalidates sources, uses conditional source reads and non-overwriting
+destination writes, verifies all public objects, and commits D1 publication
+records/pointers atomically last. R2 and D1 cannot be
 one transaction; interrupted copies can become publicly reachable by exact URL
 before catalog publication. Public copying must therefore require explicit
 publication authorization. Do not assume archived drafts/private uploads can be

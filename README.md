@@ -88,6 +88,8 @@ Phase 6E adds a [private draft JSON metadata editor](docs/admin-metadata.md), te
 
 Phase 7A adds a [read-only publication preflight](docs/admin-publication.md), enabled on the existing Worker on October 12, 2026. It reconstructs the exact recorded review, rechecks private object checksums/ETags and proposed public destinations, and refuses reserved identities or object collisions. All 271 tests, lint and build pass; deployment, public endpoints and unchanged cloud records are verified. Signed-in cloud preflight passed for the attested Lena's Home draft, with publishing disabled and no writes. Brave blocked inspection of the archived-preview response; that rejection remains covered by automated tests. The actual publisher, ownership mapping for existing tracks, library import, and player cutover are still separate work.
 
+Phase 7B adds a [local-only new-track publishing backend](docs/admin-publishing.md): explicit confirmation, immutable intent/receipt/completion records, conditional one-object copy steps, interrupted-copy recovery, lease fencing, and a guarded atomic D1 catalog commit after all objects are verified. The first version supports up to 16 audio assets; larger tracks need later batching. It has no publishing UI yet and remains disabled in cloud configuration. No production migration, public upload, or live-player change occurred.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

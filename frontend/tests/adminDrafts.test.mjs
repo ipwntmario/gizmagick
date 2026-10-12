@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -47,7 +47,12 @@ function fixture(t) {
   const bucket = {
     head: async key => objects.has(key) ? { size: objects.get(key).bytes.length, customMetadata: objects.get(key).customMetadata,
       etag: objects.get(key).etag ?? hash(objects.get(key).bytes), checksums: { sha256: Uint8Array.from(Buffer.from(objects.get(key).sha256, 'hex')).buffer } } : null,
-    get: async key => objects.has(key) ? { ...(await bucket.head(key)), body: new Response(objects.get(key).bytes).body } : null,
+    get: async (key, options) => {
+      const object = await bucket.head(key);
+      if (!object) return null;
+      return { ...object, ...(options?.onlyIf?.etagMatches && options.onlyIf.etagMatches !== object.etag
+        ? {} : { body: new Response(objects.get(key).bytes).body }) };
+    },
     put: async (key, bytes, options) => {
       if (failWrites) throw new Error('private storage error containing credentials');
       assert.equal(options.onlyIf.etagDoesNotMatch, '*');
@@ -77,18 +82,19 @@ test('the Worker structural validator is generated from the current canonical sc
 
 // Synthetic measurements exercise the human-attestation contract; they are not
 // presented as decoder proof. A real decoded-file round trip is tested below.
-async function readyReview(f) {
-  const draft = await (await f.create()).json();
-  await f.upload(draft);
+async function readyReview(f, input = canonical()) {
+  const created = await f.create(input);
+  assert.equal(created.status, 201, await created.clone().text());
+  const draft = await created.json();
+  for (const id of Object.keys(draft.manifest.assets)) await f.upload(draft, ogg(), id);
   const jobResponse = await f.request(`/api/admin/drafts/${draft.id}/review-package`, { method: 'POST' });
   assert.equal(jobResponse.status, 200, await jobResponse.clone().text());
-  const job = await jobResponse.json(), asset = job.snapshot.assets[0];
+  const job = await jobResponse.json();
   const report = await createReviewReport(job, { trackId: draft.manifest.track.id, versionId: draft.manifest.versionId,
-    decoderVersions: { opus: '1.7.5', vorbis: '0.1.20' }, valid: true, errors: [], measurements: {
-      [asset.assetId]: { codec: 'opus', channels: 2, sampleRate: 48000, sampleCount: 8640000,
+    decoderVersions: { opus: '1.7.5', vorbis: '0.1.20' }, valid: true, errors: [], measurements: Object.fromEntries(job.snapshot.assets.map(asset =>
+      [asset.assetId, { codec: 'opus', channels: 2, sampleRate: 48000, sampleCount: 8640000,
         containerSampleCount: 8640000, initialOverlapSamples: 0, durationSeconds: 180,
-        byteLength: asset.byteLength, sha256: asset.sha256 },
-    } });
+        byteLength: asset.byteLength, sha256: asset.sha256 }])) });
   return { draft, job, report, attest: (body = { report, policy: REVIEW_POLICY, provenanceConfirmed: true }, principal = owner) =>
     f.request(`/api/admin/drafts/${draft.id}/attest-review`, { method: 'POST', body, principal }) };
 }
@@ -101,6 +107,352 @@ function enablePublicationPreview(f, head = async () => null) {
   f.env.GIZMAGICK_MEDIA = { head, put: () => assert.fail('A publication preview must not write public objects') };
 }
 const publicationPreview = (f, draft, options) => f.request(`/api/admin/drafts/${draft.id}/publication-preview`, options);
+
+function enablePublisher(f) {
+  const objects = new Map(), hooks = {};
+  const bucket = {
+    head: async key => {
+      const stored = objects.get(key);
+      return stored ? { size: stored.bytes.length, etag: stored.etag, customMetadata: stored.customMetadata,
+        httpMetadata: stored.httpMetadata, checksums: { sha256: Uint8Array.from(Buffer.from(stored.sha256, 'hex')).buffer } } : null;
+    },
+    put: async (key, body, options) => {
+      assert.equal(options.onlyIf.etagDoesNotMatch, '*');
+      if (hooks.beforePut) await hooks.beforePut(key);
+      if (objects.has(key)) return null;
+      const bytes = new Uint8Array(await new Response(body).arrayBuffer());
+      if (hash(bytes) !== options.sha256) throw new Error('R2 checksum mismatch');
+      objects.set(key, { bytes, etag: hash(bytes), ...options });
+      if (hooks.afterPut) await hooks.afterPut(key);
+      return bucket.head(key);
+    },
+  };
+  f.env.GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = 'true';
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = 'true';
+  f.env.GIZMAGICK_MEDIA = bucket;
+  return { objects, hooks, bucket };
+}
+const publicationInput = ready => ({ requestId: crypto.randomUUID(), expectedSnapshotSha256: ready.job.snapshotSha256,
+  expectedReportSha256: hash(Buffer.from(JSON.stringify(ready.report))), publicationConfirmed: true });
+const startPublication = (f, ready, input = publicationInput(ready), options = {}) =>
+  f.request(`/api/admin/drafts/${ready.draft.id}/publication`, { method: 'POST', body: input, ...options });
+const publicationStep = (f, ready, id, options = {}) => f.request(`/api/admin/drafts/${ready.draft.id}/publication-step`,
+  { method: 'POST', body: { publicationId: id, publicationConfirmed: true }, ...options });
+async function startedPublisher(t) {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest();
+  const storage = enablePublisher(f), input = publicationInput(ready);
+  const response = await startPublication(f, ready, input);
+  assert.equal(response.status, 201, await response.clone().text());
+  const { publication } = await response.json();
+  return { f, ready, storage, input, publication };
+}
+
+test('publisher copies one object per step, verifies before one atomic catalog commit, and retries idempotently', async t => {
+  const { f, ready, storage, input, publication } = await startedPublisher(t);
+  assert.equal(publication.state, 'pending'); assert.equal(publication.totalObjects, 2);
+  const statusPath = `/api/admin/drafts/${ready.draft.id}/publication`;
+  const statusResponse = await f.request(statusPath);
+  assert.equal(statusResponse.headers.get('Cache-Control'), 'private, no-store');
+  assert.equal(statusResponse.headers.get('Access-Control-Allow-Origin'), null);
+  assert.equal((await statusResponse.json()).publication.id, publication.id);
+  assert.equal(await (await f.request(statusPath, { method: 'HEAD' })).text(), '');
+  assert.equal((await f.request(statusPath, { principal: other })).status, 404);
+  assert.equal(storage.objects.size, 0); assert.equal((await startPublication(f, ready, input)).status, 200);
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publishing, true);
+  for (let count = 1; count <= 2; count++) {
+    const response = await publicationStep(f, ready, publication.id);
+    assert.equal(response.status, 200, await response.clone().text());
+    const current = (await response.json()).publication;
+    assert.equal(current.copiedObjects, count); assert.equal(current.state, 'pending');
+    assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  }
+  assert([...storage.objects.keys()][0].endsWith('.ogg')); assert([...storage.objects.keys()][1].endsWith('manifest.json'));
+  const response = await publicationStep(f, ready, publication.id);
+  assert.equal(response.status, 200, await response.clone().text());
+  const done = (await response.json()).publication;
+  assert.equal(done.state, 'published'); assert(done.publishedAt); assert.equal(done.serverDecoded, false);
+  assert.equal(done.scope, 'administrator-attested'); assert.equal(done.nextAction, null);
+  const track = f.sql.prepare('SELECT * FROM library_tracks').get();
+  assert.equal(track.owner_id, owner.id); assert.equal(track.current_version_id, ready.draft.manifest.versionId);
+  assert.equal(track.legacy_key, null); assert.equal(track.visibility, 'public');
+  const catalogResponse = await handleLibraryRequest(new Request('https://app.example.com/api/library/catalog'), f.env);
+  assert.equal(catalogResponse.status, 200);
+  assert.equal((await catalogResponse.json()).tracks[track.id].versionId, track.current_version_id);
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 200);
+  assert.equal((await startPublication(f, ready, input)).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+  assert.equal(storage.objects.size, 2);
+  // Private archival after publication is NOT unpublishing or a cache purge.
+  await f.request(`/api/admin/drafts/${ready.draft.id}/archive`, { method: 'POST' });
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 200);
+  assert.equal(f.sql.prepare('SELECT status FROM library_tracks').get().status, 'published');
+});
+
+test('publisher requires rollout, exact review hashes, explicit confirmation, bounded inputs and owner/admin access', async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest();
+  assert.equal((await startPublication(f, ready)).status, 503);
+  enablePublisher(f);
+  for (const key of ['GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED', 'GIZMAGICK_DRAFT_REVIEWS_ENABLED']) {
+    f.env[key] = 'false'; assert.equal((await startPublication(f, ready)).status, 503); f.env[key] = 'true';
+  }
+  assert.equal((await startPublication(f, ready, undefined, { principal: other })).status, 404);
+  assert.equal((await startPublication(f, ready, undefined, { principal: { ...owner, role: 'contributor' } })).status, 403);
+  for (const input of [{}, { ...publicationInput(ready), publicationConfirmed: false },
+    { ...publicationInput(ready), ownerId: other.id }, { ...publicationInput(ready), requestId: 'bad' },
+    { ...publicationInput(ready), requestId: [crypto.randomUUID()] },
+    { ...publicationInput(ready), expectedSnapshotSha256: ['a'.repeat(64)] },
+    { ...publicationInput(ready), expectedSnapshotSha256: 'bad' }]) assert.equal((await startPublication(f, ready, input)).status, 400);
+  assert.equal((await startPublication(f, ready, { ...publicationInput(ready), expectedSnapshotSha256: '0'.repeat(64) })).status, 409);
+  assert.equal((await startPublication(f, ready, 'invalid')).status, 415);
+  assert.equal((await startPublication(f, ready, '{', { headers: { 'Content-Type': 'application/json' } })).status, 400);
+  assert.equal((await startPublication(f, ready, ' '.repeat(2049), { headers: { 'Content-Type': 'application/json' } })).status, 413);
+  assert.equal((await f.request(`/api/admin/drafts/${ready.draft.id}/publication-step`)).status, 405);
+  assert.equal((await f.request(`/api/admin/drafts/${ready.draft.id}/publication`, { method: 'DELETE' })).status, 405);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
+
+test('publisher rejects unreviewed, archived, oversized and reserved tracks before creating an intent', async t => {
+  const f = fixture(t), ready = await readyReview(f); enablePublisher(f);
+  assert.equal((await startPublication(f, ready)).status, 409);
+  await ready.attest();
+  f.sql.prepare('INSERT INTO library_tracks (id, owner_id) VALUES (?, ?)').run(ready.draft.manifest.track.id, other.id);
+  assert.equal((await startPublication(f, ready)).status, 409);
+  f.sql.prepare('DELETE FROM library_tracks').run();
+  const oversized = structuredClone(ready.draft.manifest);
+  for (let i = 0; i < 16; i++) oversized.assets[crypto.randomUUID()] = structuredClone(Object.values(oversized.assets)[0]);
+  f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(oversized), ready.draft.id);
+  assert.equal((await startPublication(f, ready)).status, 422);
+  await f.request(`/api/admin/drafts/${ready.draft.id}/archive`, { method: 'POST' });
+  assert.equal((await startPublication(f, ready)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
+
+test('publisher refuses existing public objects, even identical bytes, without its exact durable intent', async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest();
+  const { objects } = enablePublisher(f);
+  const key = `tracks/${ready.draft.manifest.track.id}/versions/${ready.draft.manifest.versionId}/audio/Lena's Home.ogg`;
+  objects.set(key, { bytes: ogg(), sha256: hash(ogg()), etag: hash(ogg()), customMetadata: {}, httpMetadata: {} });
+  assert.equal((await startPublication(f, ready)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+  objects.clear();
+  const started = (await (await startPublication(f, ready)).json()).publication;
+  objects.set(key, { bytes: ogg(), sha256: hash(ogg()), etag: hash(ogg()), customMetadata: {}, httpMetadata: {} });
+  const response = await publicationStep(f, ready, started.id);
+  assert.equal(response.status, 409); assert.equal((await response.json()).code, 'PUBLICATION_DESTINATION');
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 0);
+});
+
+test('publisher recovers an object after lost PUT response without overwriting, and retains exact intent on request conflicts', async t => {
+  const { f, ready, storage, input, publication } = await startedPublisher(t);
+  storage.hooks.afterPut = () => { throw new Error('lost response with private credentials'); };
+  const failed = await publicationStep(f, ready, publication.id);
+  assert.equal(failed.status, 503); assert(!(await failed.text()).includes('credentials'));
+  assert.equal(storage.objects.size, 1); assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 0);
+  delete storage.hooks.afterPut;
+  storage.hooks.beforePut = () => assert.fail('Recovery must not overwrite the existing object');
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 1);
+  assert.equal((await startPublication(f, ready, { ...input, requestId: crypto.randomUUID() })).status, 409);
+  assert.equal((await startPublication(f, ready, { ...input, expectedReportSha256: '0'.repeat(64) })).status, 409);
+  assert.equal((await publicationStep(f, ready, crypto.randomUUID())).status, 404);
+});
+
+test('publication leases serialize concurrent steps and fence expired workers before receipt or pointer writes', async t => {
+  const { f, ready, storage, publication } = await startedPublisher(t);
+  const responses = await Promise.all([publicationStep(f, ready, publication.id), publicationStep(f, ready, publication.id)]);
+  assert.deepEqual(responses.map(response => response.status).sort(), [200, 409]);
+  assert.equal(storage.objects.size, 1); assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 1);
+  f.sql.prepare("UPDATE admin_publications SET lease_token = 'crashed', lease_expires_at = unixepoch('now') + 120 WHERE id = ?").run(publication.id);
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  f.sql.prepare('UPDATE admin_publications SET lease_expires_at = 0 WHERE id = ?').run(publication.id);
+  storage.hooks.afterPut = () => f.sql.prepare('UPDATE admin_publications SET lease_expires_at = 0 WHERE id = ?').run(publication.id);
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  assert.equal(storage.objects.size, 2); assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 1);
+  delete storage.hooks.afterPut;
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 2);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+});
+
+for (const alteration of ['missing', 'etag', 'checksum', 'hash', 'review', 'metadata', 'base']) test(`publisher stops when private ${alteration} changes after intent`, async t => {
+  const { f, ready, storage, publication } = await startedPublisher(t);
+  const stored = f.objects.get(ready.job.snapshot.assets[0].objectKey);
+  if (alteration === 'missing') f.objects.clear();
+  if (alteration === 'etag') stored.etag = 'changed';
+  if (alteration === 'checksum') stored.sha256 = '0'.repeat(64);
+  if (alteration === 'hash') stored.customMetadata.sha256 = '0'.repeat(64);
+  if (alteration === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET candidate_json = '{}' WHERE draft_id = ?").run(ready.draft.id);
+  if (alteration === 'metadata') {
+    const changed = structuredClone(ready.draft.manifest); changed.track.title += '!';
+    f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(changed), ready.draft.id);
+  }
+  if (alteration === 'base') f.env.GIZMAGICK_MEDIA_BASE_URL = 'https://other.example.com';
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  assert.equal(storage.objects.size, 0); assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+});
+
+test('conditional source reads and native PUT checksums stop changes between inspection and copying', async t => {
+  const { f, ready, storage, publication } = await startedPublisher(t);
+  const originalGet = f.env.GIZMAGICK_DRAFTS.get, source = f.objects.get(ready.job.snapshot.assets[0].objectKey);
+  f.env.GIZMAGICK_DRAFTS.get = async (key, options) => {
+    assert.equal(options.onlyIf.etagMatches, ready.job.snapshot.assets[0].etag);
+    source.etag = 'changed-after-head';
+    return originalGet(key, options);
+  };
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  assert.equal(storage.objects.size, 0);
+  delete source.etag;
+  f.env.GIZMAGICK_DRAFTS.get = async (key, options) => ({ ...(await originalGet(key, options)), body: new Response(ogg(9)).body });
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 503);
+  assert.equal(storage.objects.size, 0);
+});
+
+for (const alteration of ['missing', 'etag', 'checksum', 'intent', 'plan', 'type']) test(`final publication refuses a public object with changed ${alteration}`, async t => {
+  const { f, ready, storage, publication } = await startedPublisher(t);
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 200);
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 200);
+  const [key, stored] = [...storage.objects][0];
+  if (alteration === 'missing') storage.objects.delete(key);
+  if (alteration === 'etag') stored.etag = 'changed';
+  if (alteration === 'checksum') stored.sha256 = '0'.repeat(64);
+  if (alteration === 'intent') stored.customMetadata.gizmagickPublication = crypto.randomUUID();
+  if (alteration === 'plan') stored.customMetadata.gizmagickPlan = '0'.repeat(64);
+  if (alteration === 'type') stored.httpMetadata.contentType = 'text/html';
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+});
+
+test('archival stops pending publication, including a race immediately before atomic commit', async t => {
+  const { f, ready, publication } = await startedPublisher(t);
+  await publicationStep(f, ready, publication.id); await publicationStep(f, ready, publication.id);
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_publication_commits')) return statement;
+    return { bind: (...values) => ({ run: async () => {
+      f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(ready.draft.id);
+      return statement.bind(...values).run();
+    } }) };
+  };
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT state FROM admin_publications').get().state, 'pending');
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+});
+
+test('atomic publication rolls back library/audit changes when a trigger fails after the track INSERT', async t => {
+  const { f, ready, publication } = await startedPublisher(t);
+  await publicationStep(f, ready, publication.id); await publicationStep(f, ready, publication.id);
+  f.sql.exec("CREATE TRIGGER simulate_version_failure BEFORE INSERT ON library_track_versions BEGIN SELECT RAISE(ABORT, 'database failure'); END;");
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 503);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+  f.sql.exec('DROP TRIGGER simulate_version_failure;');
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 200);
+});
+
+test('publication intents/receipts/commits and published versions cannot be rewritten or deleted', async t => {
+  const { f, ready, publication } = await startedPublisher(t);
+  assert.throws(() => f.sql.prepare("UPDATE admin_publications SET plan_json = '{}' WHERE id = ?").run(publication.id), /immutable/);
+  assert.throws(() => f.sql.prepare("UPDATE admin_publications SET state = 'published' WHERE id = ?").run(publication.id), /atomic commit/);
+  assert.throws(() => f.sql.prepare('DELETE FROM admin_publications').run(), /retained/);
+  await publicationStep(f, ready, publication.id); await publicationStep(f, ready, publication.id); await publicationStep(f, ready, publication.id);
+  for (const table of ['admin_publication_objects', 'admin_publication_commits']) {
+    assert.throws(() => f.sql.prepare(`DELETE FROM ${table}`).run(), /retained/);
+  }
+  assert.throws(() => f.sql.prepare("UPDATE admin_publication_objects SET etag = 'forged'").run(), /immutable/);
+  assert.throws(() => f.sql.prepare("UPDATE admin_publication_commits SET lease_token = 'forged'").run(), /immutable/);
+  assert.throws(() => f.sql.prepare('UPDATE admin_publications SET lease_expires_at = 0').run(), /immutable/);
+  assert.throws(() => f.sql.prepare("UPDATE library_track_versions SET title = 'forged'").run(), /immutable/);
+});
+
+test('disabled publisher does not require migration 0004 and leaves existing private intake/preflight usable', async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest(); enablePublicationPreview(f);
+  f.sql.exec('DROP TABLE admin_publication_commits; DROP TABLE admin_publication_objects; DROP TABLE admin_publications;');
+  assert.equal((await startPublication(f, ready)).status, 503);
+  assert.equal((await f.request(`/api/admin/drafts/${ready.draft.id}/publication`)).status, 503);
+  assert.equal((await publicationPreview(f, ready.draft)).status, 200);
+});
+
+test('16-file publication stays bounded per step and publishes all declared assets before the manifest', async t => {
+  const f = fixture(t), input = canonical();
+  for (let i = 1; i < 16; i++) input.manifest.assets[crypto.randomUUID()] = { path: `audio/variant-${i}.ogg` };
+  const ready = await readyReview(f, input); await ready.attest();
+  const storage = enablePublisher(f);
+  let calls = 0, maxCalls = 0;
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => { calls++; return prepare(query); };
+  for (const bucket of [f.env.GIZMAGICK_DRAFTS, storage.bucket]) for (const method of ['head', 'get', 'put']) {
+    if (!bucket[method]) continue;
+    const original = bucket[method]; bucket[method] = (...args) => { calls++; return original(...args); };
+  }
+  const started = await startPublication(f, ready);
+  assert.equal(started.status, 201, await started.clone().text());
+  const publication = (await started.json()).publication; maxCalls = calls; calls = 0;
+  for (let i = 0; i < 18; i++) {
+    const response = await publicationStep(f, ready, publication.id);
+    assert.equal(response.status, 200, await response.clone().text());
+    maxCalls = Math.max(maxCalls, calls); calls = 0;
+  }
+  assert(maxCalls < 50, `Bounded fixture exceeded its conservative operation budget: ${maxCalls}`);
+  assert.equal(storage.objects.size, 17);
+  assert.equal([...storage.objects.keys()].at(-1).endsWith('manifest.json'), true);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 17);
+  assert.equal(f.sql.prepare('SELECT state FROM admin_publications').get().state, 'published');
+});
+
+for (const alteration of ['review', 'job', 'allocation', 'identity', 'lease']) test(`atomic commit rejects a ${alteration} race after final R2 inspections`, async t => {
+  const { f, ready, publication } = await startedPublisher(t);
+  await publicationStep(f, ready, publication.id); await publicationStep(f, ready, publication.id);
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_publication_commits')) return statement;
+    return { bind: (...values) => ({ run: async () => {
+      if (alteration === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET report_json = '{}' WHERE draft_id = ?").run(ready.draft.id);
+      if (alteration === 'job') f.sql.prepare("UPDATE admin_draft_review_jobs SET snapshot_json = '{}' WHERE draft_id = ?").run(ready.draft.id);
+      if (alteration === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET object_key = object_key || 'changed' WHERE draft_id = ?").run(ready.draft.id);
+      if (alteration === 'identity') f.sql.prepare('INSERT INTO library_tracks (id, owner_id) VALUES (?, ?)').run(ready.draft.manifest.track.id, other.id);
+      if (alteration === 'lease') f.sql.prepare("UPDATE admin_publications SET lease_token = 'new-worker' WHERE id = ?").run(publication.id);
+      return statement.bind(...values).run();
+    } }) };
+  };
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT state FROM admin_publications').get().state, 'pending');
+  if (alteration === 'identity') assert.equal(f.sql.prepare('SELECT owner_id FROM library_tracks').get().owner_id, other.id);
+  else assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+});
+
+test('archival during conditional public copying retains possible public bytes but cannot publish a catalog pointer', async t => {
+  const { f, ready, storage, publication } = await startedPublisher(t);
+  storage.hooks.afterPut = () => f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(ready.draft.id);
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+  assert.equal(storage.objects.size, 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+  assert.equal((await publicationStep(f, ready, publication.id)).status, 409);
+});
+
+test('archival immediately before intent reservation prevents a durable intent and any copy', async t => {
+  const f = fixture(t), ready = await readyReview(f); await ready.attest();
+  const storage = enablePublisher(f), prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_publications')) return statement;
+    return { bind: (...values) => ({ run: async () => {
+      f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(ready.draft.id);
+      return statement.bind(...values).run();
+    } }) };
+  };
+  assert.equal((await startPublication(f, ready)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+  assert.equal(storage.objects.size, 0);
+});
 
 test('publication preflight reconstructs an attested candidate and performs no database or object writes', async t => {
   const f = fixture(t), ready = await readyReview(f);

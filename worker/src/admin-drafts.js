@@ -5,6 +5,7 @@ import { UUID_PATTERN } from '../../shared/library-contract.js';
 import { getDraftReview, handleReviewRequest, reviewsEnabled } from './admin-reviews.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 import { previewDraftPublication, PublicationPreviewError } from './admin-publication-preview.js';
+import { handlePublicationRequest } from './admin-publications.js';
 
 export const DRAFT_LIMITS = Object.freeze({ metadataBytes: 262144, audioBytes: 16777216,
   draftBytes: 268435456, ownerBytes: 536870912, activeDrafts: 20, assets: 256, clips: 2048, sections: 128 });
@@ -189,7 +190,7 @@ async function uploadAsset(request, env, principal, row, assetId) {
 
 export async function handleDraftRequest(request, env, principal, reply, headers) {
   const path = new URL(request.url).pathname;
-  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest|metadata|review-package|attest-review|publication-preview))?$/);
+  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest|metadata|review-package|attest-review|publication-preview|publication|publication-step))?$/);
   if (path !== '/api/admin/drafts' && !route) return null;
   if (!draftsEnabled(env)) return reply({ error: 'Private draft storage is not enabled.', code: 'DRAFT_NOT_CONFIGURED' }, 503);
   try {
@@ -224,6 +225,7 @@ export async function handleDraftRequest(request, env, principal, reply, headers
       }
     } else {
       const row = await ownDraft(env.GIZMAGICK_DB, route[1], principal.id);
+      if (['publication', 'publication-step'].includes(route[2])) return await handlePublicationRequest(request, env, principal, row, route[2], reply, headers);
       if (!route[2] && ['GET', 'HEAD'].includes(request.method)) return reply(await detail(env, row));
       if (route[2] === 'publication-preview' && ['GET', 'HEAD'].includes(request.method)) return reply(await previewDraftPublication(env, principal, row));
       if (route[2] === 'metadata' && request.method === 'POST') return reply(await updateMetadata(request, env, principal, row));

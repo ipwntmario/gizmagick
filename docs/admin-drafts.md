@@ -241,8 +241,9 @@ The [Phase 7A publication preflight](admin-publication.md) is enabled on the exi
 Worker; deployment checks and signed-in preflight on the attested Lena's Home
 draft passed with no writes. Brave blocked the archived-preview response, which
 remains an outstanding browser verification item. This is not publication.
-Following increments: reviewed ownership mapping, immutable
-publication and audit records; staged
+The [Phase 7B publisher backend](admin-publishing.md) is implemented and tested
+locally with cloud writes disabled; UI and an explicit cloud rollout remain pending.
+Following increments: reviewed ownership mapping; staged
 library import and frontend cutover. The visual graph editor and ordinary-user
 identity/moderation remain later work.
 

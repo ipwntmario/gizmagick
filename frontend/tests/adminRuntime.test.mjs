@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { convertLegacyTrack } from '../scripts/lib/track-manifests.mjs';
-import { REVIEW_POLICY } from '../../shared/draft-review.js';
+import { REVIEW_POLICY, createReviewReport } from '../../shared/draft-review.js';
 
 async function bundledWorker(packager) {
   if (packager === 'wrangler') {
@@ -93,7 +93,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
-    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -104,7 +104,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -119,6 +119,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(body.capabilities.reviews, true);
     assert.equal(body.capabilities.metadata, true);
     assert.equal(body.capabilities.publicationPreflight, true);
+    assert.equal(body.capabilities.publishing, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -221,6 +222,88 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 0);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_track_versions').first()).n, 0);
     assert.equal((await (await mf.getR2Bucket('GIZMAGICK_MEDIA')).list()).objects.length, 0);
+    // Isolated local publisher: actual native R2 conditional reads/puts and
+    // SQLite trigger atomicity, never a remote bucket or production migration.
+    const publicationUrl = `/api/admin/drafts/${draft.id}/publication`;
+    const publishInput = JSON.stringify({ requestId: crypto.randomUUID(),
+      expectedSnapshotSha256: preview.review.snapshotSha256, expectedReportSha256: preview.review.reportSha256,
+      publicationConfirmed: true });
+    assert.equal((await request(publicationUrl, null, { method: 'POST', headers: writeHeaders, body: publishInput })).status, 401);
+    assert.equal((await request(publicationUrl, token, { method: 'POST', body: publishInput })).status, 403);
+    assert.equal((await request(publicationUrl, token, { method: 'POST', headers: { ...writeHeaders, Origin: 'https://evil.example.com' }, body: publishInput })).status, 403);
+    assert.equal((await request(publicationUrl, issue('member@example.com'), { method: 'POST', headers: writeHeaders, body: publishInput })).status, 403);
+    assert.equal((await request(publicationUrl, token, { method: 'POST', headers: writeHeaders, body: JSON.stringify({ publicationConfirmed: false }) })).status, 400);
+    const started = await request(publicationUrl, token, { method: 'POST', headers: writeHeaders, body: publishInput });
+    assert.equal(started.status, 201, await started.clone().text());
+    const { publication } = await started.json();
+    assert.equal(publication.state, 'pending');
+    const stepUrl = `/api/admin/drafts/${draft.id}/publication-step`;
+    const stepInput = JSON.stringify({ publicationId: publication.id, publicationConfirmed: true });
+    assert.equal((await request(stepUrl, token)).status, 405);
+    assert.equal((await request(stepUrl, null, { method: 'POST', headers: writeHeaders, body: stepInput })).status, 401);
+    assert.equal((await request(stepUrl, token, { method: 'POST', body: stepInput })).status, 403);
+    assert.equal((await request(stepUrl, issue('member@example.com'), { method: 'POST', headers: writeHeaders, body: stepInput })).status, 403);
+    for (let index = 0; index < 2; index++) {
+      const copied = await request(stepUrl, token, { method: 'POST', headers: writeHeaders, body: stepInput });
+      assert.equal(copied.status, 200, await copied.clone().text());
+      assert.equal((await copied.json()).publication.state, 'pending');
+      assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 0);
+    }
+    const published = await request(stepUrl, token, { method: 'POST', headers: writeHeaders, body: stepInput });
+    assert.equal(published.status, 200, await published.clone().text());
+    assert.equal((await published.json()).publication.state, 'published');
+    assert.equal((await request(stepUrl, token, { method: 'POST', headers: writeHeaders, body: stepInput })).status, 200);
+    assert.equal((await request(publicationUrl, token, { method: 'POST', headers: writeHeaders, body: publishInput })).status, 200);
+    const publishedCatalog = await request('/api/library/catalog', null);
+    const catalogEntry = (await publishedCatalog.json()).tracks[draft.manifest.track.id];
+    assert.equal(catalogEntry.versionId, draft.manifest.versionId);
+    const publicBucket = await mf.getR2Bucket('GIZMAGICK_MEDIA');
+    const publicManifest = await publicBucket.get(preview.objects[0].key);
+    const finalManifest = await publicManifest.json();
+    assert.equal(finalManifest.assets[assetId].durationSeconds, 180);
+    const publicAudio = await publicBucket.get(preview.objects[1].key);
+    assert.deepEqual(new Uint8Array(await publicAudio.arrayBuffer()), bytes);
+    assert.equal(publicAudio.httpMetadata.contentType, 'audio/ogg');
+    assert.equal(publicAudio.customMetadata.gizmagickPublication, publication.id);
+    const publicAudioResponse = await request(`/api/library/media/tracks/${draft.manifest.track.id}/versions/${draft.manifest.versionId}/audio/${encodeURIComponent("Lena's Home.ogg")}`, null);
+    assert.equal(publicAudioResponse.status, 200);
+    assert.deepEqual(new Uint8Array(await publicAudioResponse.arrayBuffer()), bytes);
+    assert.equal((await publicBucket.list()).objects.length, 2);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM admin_publication_commits').first()).n, 1);
+    // Real D1 statement/trigger rollback, not just the DatabaseSync mock.
+    await db.exec("CREATE TRIGGER simulate_publication_failure BEFORE INSERT ON library_track_versions BEGIN SELECT RAISE(ABORT, 'runtime rollback test'); END;");
+    const draft2Response = await request('/api/admin/drafts', token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ requestId: crypto.randomUUID(), manifest }) });
+    assert.equal(draft2Response.status, 201);
+    const draft2 = await draft2Response.json(), assetId2 = Object.keys(draft2.manifest.assets)[0];
+    assert.equal((await request(`/api/admin/drafts/${draft2.id}/assets/${assetId2}`, token,
+      { method: 'PUT', headers: { ...writeHeaders, 'Content-Type': 'application/octet-stream' }, body: bytes })).status, 200);
+    const job2 = await (await request(`/api/admin/drafts/${draft2.id}/review-package`, token, { method: 'POST', headers: writeHeaders })).json();
+    // Same already-decoded real file, rebind its measurements to this isolated
+    // second package. This test provenance is not a cloud human attestation.
+    const report2 = await createReviewReport(job2, { trackId: draft2.manifest.track.id, versionId: draft2.manifest.versionId,
+      decoderVersions: report.decoderVersions, valid: true, errors: [], measurements: { [assetId2]: report.measurements[assetId] } });
+    const reviewed2 = await request(`/api/admin/drafts/${draft2.id}/attest-review`, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ report: report2, policy: REVIEW_POLICY, provenanceConfirmed: true }) });
+    assert.equal(reviewed2.status, 201, await reviewed2.clone().text());
+    const review2 = (await reviewed2.json()).review;
+    const input2 = JSON.stringify({ requestId: crypto.randomUUID(), expectedSnapshotSha256: review2.snapshotSha256,
+      expectedReportSha256: review2.reportSha256, publicationConfirmed: true });
+    const start2 = await request(`/api/admin/drafts/${draft2.id}/publication`, token, { method: 'POST', headers: writeHeaders, body: input2 });
+    assert.equal(start2.status, 201, await start2.clone().text());
+    const publication2 = (await start2.json()).publication;
+    const steps2Url = `/api/admin/drafts/${draft2.id}/publication-step`;
+    const steps2Input = JSON.stringify({ publicationId: publication2.id, publicationConfirmed: true });
+    for (let i = 0; i < 2; i++) assert.equal((await request(steps2Url, token, { method: 'POST', headers: writeHeaders, body: steps2Input })).status, 200);
+    const failedCommit = await request(steps2Url, token, { method: 'POST', headers: writeHeaders, body: steps2Input });
+    assert.equal(failedCommit.status, 503);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 1);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_track_versions').first()).n, 1);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM admin_publication_commits').first()).n, 1);
+    assert.equal((await db.prepare('SELECT state FROM admin_publications WHERE id = ?').bind(publication2.id).first()).state, 'pending');
+    await db.exec('DROP TRIGGER simulate_publication_failure;');
+    assert.equal((await request(steps2Url, token, { method: 'POST', headers: writeHeaders, body: steps2Input })).status, 200);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 2);
     assert.equal(outbound.length, 1);
   } finally { await mf.dispose(); }
 });

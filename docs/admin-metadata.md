@@ -1,6 +1,7 @@
 # Phase 6E: private metadata editing
 
-Implemented locally on October 9, 2026. **Not deployed or enabled in production.**
+Implemented locally on October 9, 2026; enabled on the existing Cloudflare Worker
+on October 12, 2026. **Signed-in cloud editor verification is still pending.**
 This adds a JSON editor for an owner's unreviewed new-track drafts, not the visual
 graph editor, published-track revision workflow, ownership transfer, or publication.
 The attested cloud Lena's Home smoke-test draft remains unchanged and locked.
@@ -74,7 +75,7 @@ timestamp; it is not an edit-history/undo system. No review audit is deleted.
 
 ## Rollout boundary and verification
 
-`worker/wrangler.toml` records `GIZMAGICK_DRAFT_METADATA_ENABLED = "false"`.
+`worker/wrangler.toml` records `GIZMAGICK_DRAFT_METADATA_ENABLED = "true"`.
 Editing additionally requires uploads and reviews enabled, so it cannot run
 without the ability to check migration 0003's immutable review records. Disabled
 metadata requests return 503. No new migration, binding, dependency or secret
@@ -88,15 +89,48 @@ and attestation. Browser-script tests cover report clearing, locked review and
 editing controls, invalid JSON, retained text on failed saves, and prevention of
 silent unsaved-text loss. Both actual Vite- and Wrangler-bundled Workers exercise
 authenticated metadata save/reload and the local decoder/review workflow.
-These tests are not a live browser walkthrough or a cloud metadata rollout.
+These automated tests do not substitute for signed-in cloud browser checks.
+
+An actual browser walkthrough on October 12 used the isolated loopback preview,
+synthetic Access identity, and temporary D1/R2. Invalid JSON retained the editor
+text; a valid title change saved and persisted after reload; an unknown first
+section was rejected without losing the text or changing the saved document.
+This disposable draft contained metadata only: no audio upload, decoding,
+attestation, or publication was attempted during this browser walkthrough. The
+preview was stopped and its tab closed afterward.
+
+Cloud preflight found no pending migrations, no custom domain on
+`gizmagick-drafts`, and its public development URL disabled. Deployment version
+`f9dfe9ad-09b0-462a-8066-3f7010f0f596` enables metadata editing and retains the
+existing D1, both R2 buckets, RoomHub namespace, Access identifiers, and email
+allowlist secret binding. No new routes, bindings, migrations, dependencies,
+secrets, Access policy changes, or Pages deployment were needed.
+
+After deployment, `/health` and the empty public catalog returned 200. Anonymous
+requests to `/admin`, `/api/admin/session`, and the metadata POST endpoint returned
+302 redirects to the existing Access team domain. Read-only D1 checks before and
+after deployment found one private draft, one asset, one immutable review, and
+zero published tracks/versions. The retained Lena's Home review hashes stayed:
+
+- Report: `159a54dc722c00c5f754b6058dc0aa6f7222312e0cfea8ae4ce7489d1318a6b8`
+- Snapshot: `d693253b38f314514f111ff7acfce5ed7f068f59f84984b54eef1b9390805c80`
+
+The cloud admin browser reached the Access sign-in page. No authentication was
+automated and no cloud draft was created or edited. A fresh administrator login
+is needed to verify the deployed controls; a cloud save walkthrough requires a
+separately approved disposable unreviewed draft, not the retained attested draft.
 
 All **256 tests**, frontend/Worker lint, the normal frontend build, and Git
 whitespace checks pass. The player asset filenames/sizes are unchanged from the
 previous checkpoint. No source music/data, credentials, or user `.gitignore`
 change is included in this implementation checkpoint.
 
-Next: verify the editor in a browser, then review enabling it on the existing
-Worker. Do not edit the retained attested smoke-test draft. Production publication,
+To disable editing, set the metadata flag to `"false"` and redeploy the existing
+Worker; this does not remove saved metadata or review records. Keep uploads and
+reviews configured independently. No rollback was performed during this rollout.
+
+Next: finish signed-in cloud editor verification. Do not edit the retained
+attested smoke-test draft. Production publication,
 ownership mapping for existing library tracks, staged library import, and player
 cutover remain separate steps. Browser package-download delivery and real
 sign-out/denied-account checks remain pending from the previous phase.

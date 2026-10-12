@@ -238,8 +238,9 @@ approved metadata-only draft, now archived using an explicitly approved guarded
 maintenance fallback after browser confirmation automation stalled. The
 retained attested draft's editor is visibly locked and its review is unchanged.
 The [Phase 7A publication preflight](admin-publication.md) is enabled on the existing
-Worker; deployment checks passed, while signed-in cloud preview verification is
-pending. It performs only read-only inspections, not publication.
+Worker; deployment checks and signed-in preflight on the attested Lena's Home
+draft passed with no writes. Brave blocked the archived-preview response, which
+remains an outstanding browser verification item. This is not publication.
 Following increments: reviewed ownership mapping, immutable
 publication and audit records; staged
 library import and frontend cutover. The visual graph editor and ordinary-user

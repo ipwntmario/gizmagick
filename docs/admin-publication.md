@@ -1,7 +1,8 @@
 # Phase 7A: read-only publication preflight
 
 Implemented locally and enabled on the existing Cloudflare Worker on October 12,
-2026. **Deployment checks passed; signed-in cloud preview verification is pending.**
+2026. **Signed-in cloud preflight passed for the retained attested Lena's Home
+draft. Archived-preview browser verification remains blocked by Brave.**
 This is a readiness inspection for administrator-owned, attested new-track
 drafts, not a publisher. No public objects, library rows, ownership mappings,
 audit records, or playback pointers are written. The live player is unchanged.
@@ -65,7 +66,7 @@ identities, public object collisions, archival during checks, and sanitized erro
 Actual Vite- and Wrangler-bundled Workers also inspect an attestation created
 through the existing review endpoint after a real local Lena's Home decoder run;
 their public bucket and library tables remain empty. These are local runtime
-tests, not a cloud preflight rollout or a publication walkthrough.
+tests, not a publication walkthrough. Cloud read-only verification is recorded below.
 
 All **271 tests**, frontend/Worker lint, the normal frontend build, and Git
 whitespace checks pass. The live player's JS/CSS bundle filenames and sizes
@@ -86,16 +87,43 @@ Lena's Home report and snapshot checksums remained unchanged. The signed-in
 browser verified the archived metadata-test draft's disabled editor, Save,
 Discard, upload, review, and Archive controls before deployment. Navigating to
 the newly deployed preview initially showed Brave's `ERR_BLOCKED_BY_CLIENT`;
-one reload reached Cloudflare Access sign-in. No preview response was inspected,
-so successful cloud checks/flags/object destinations and archived-preview
-rejection are **not yet verified**. No authentication was automated, and no
-draft or public object was written during this rollout.
+one reload reached Cloudflare Access sign-in. After the administrator signed in,
+the browser displayed a successful preview for draft
+`cc8e145a-1baf-43c1-aa26-b4d2782a6886`. It returned `checksPassed: true`,
+`pointInTimeOnly: true`, `publicationAuthorized: false`, `publishing: false`,
+`serverDecoded: false`, scope `administrator-attested`, and no graph warnings.
+The report and snapshot checksums matched the retained immutable review:
+
+- Report: `159a54dc722c00c5f754b6058dc0aa6f7222312e0cfea8ae4ce7489d1318a6b8`
+- Snapshot: `d693253b38f314514f111ff7acfce5ed7f068f59f84984b54eef1b9390805c80`
+
+The proposed immutable prefix was
+`tracks/32dec11c-96b5-47be-9ffb-76faec7dce8a/versions/8199557d-6ce1-4d51-8869-1812e1e93f6b/`.
+It listed `manifest.json` (765 bytes, SHA-256
+`eafaa0339c986cb7bb385ecd0b7a33fbce222d727f365589501cf267d573e461`)
+and `audio/Lena's Home.ogg` (3,961,537 bytes, SHA-256
+`954d31b74c8c6db4409d673b277b48c887c26d09dcf9f86cd82fc1abfa81f66b`).
+These are proposed destinations, not objects copied or published by this API.
+
+Navigation to the archived test's preview was blocked by Brave even after one
+reload; its cloud error code/status could not be inspected. The session-status
+link was also blocked, while returning to `/admin` showed Administrator verified.
+No browser security settings were changed or bypassed. Archived rejection remains
+covered by automated tests, and its D1 status/UI locks were independently verified;
+this is not a claim that the archived cloud preview response was observed.
+
+A read-only D1 check after the successful preview found the same two draft states,
+one asset, one immutable review with unchanged hashes, and zero published
+tracks/versions. No authentication was automated, and no draft or public object
+was written during this walkthrough. The screenshot is an ignored local proof
+artifact, not part of the Git checkpoint.
 
 To disable preflight, set its flag to `"false"` and redeploy the existing Worker;
 this does not alter saved drafts/reviews or public storage. No rollback was needed.
 
-Next: finish the signed-in, read-only cloud preview checks. The actual publication
-implementation needs a separate
+Next: implement the publisher's immutable audit/retry design locally; retain the
+archived-preview browser check as an outstanding verification item. The actual
+publication implementation needs a separate
 immutable publication/audit and retry design: revalidate sources, use conditional
 source reads and non-overwriting destination writes, verify all public objects,
 and commit D1 publication records/pointers atomically last. R2 and D1 cannot be

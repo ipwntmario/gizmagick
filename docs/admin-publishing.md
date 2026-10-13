@@ -1,13 +1,15 @@
-# Phases 7B–7C: local new-track publishing
+# Phases 7B–7D: gated new-track publishing
 
-Implemented on October 12, 2026. **Local tests only; not deployed or enabled on
-Cloudflare.** No production migration, public copy, catalog import, or live-player
-change was performed. The separate [Phase 7A preflight](admin-publication.md)
-remains deployed and read-only.
+Implemented and tested locally on October 12, 2026, then deployed to the existing
+Cloudflare Worker in Phase 7D with **publishing explicitly disabled**. Migration
+0004 is applied to the existing D1 database. No public copy, publication intent,
+catalog import or live-player cutover was performed. The separate
+[Phase 7A preflight](admin-publication.md) remains enabled and read-only.
 
 Phase 7B implements the server protocol and durable audit/retry rules. Phase 7C
 adds the administrator confirmation/progress UI and an isolated browser walkthrough
-on October 12, 2026. **Neither increment is deployed or enabled on Cloudflare.**
+on October 12, 2026. Phase 7D deploys both behind the disabled publishing flag;
+the publishing controls are intentionally hidden until an authorized enablement.
 The default isolated admin-page preview stays private-only; its explicit
 `--publication` mode is a temporary local simulator, not a cloud rollout.
 
@@ -245,8 +247,84 @@ whitespace checks pass. The player bundle filenames and sizes are unchanged.
 User `.gitignore` edits and ignored browser/generated artifacts are excluded
 from this implementation checkpoint.
 
-Next: a separately reviewed cloud migration/deployment with publishing still disabled
-until an explicitly approved harmless publication walkthrough. Large-track
+Next: finish the fresh signed-in capability/disabled-endpoint checks, then obtain
+explicit approval before enabling publishing or performing a harmless public-copy
+walkthrough. Large-track
 batching, original library ownership/compatibility mapping, measured import,
 range/CORS/playback tests and frontend cutover remain separate steps. The existing
 BleepBloop UglyOnPurpose endpoint issue is not changed by this publisher.
+
+## Phase 7D: Cloudflare rollout with publishing disabled
+
+Performed October 12, 2026. Prechecks verified the existing Worker deployment
+`ab1461f4-92e3-4f92-9475-d6f7d946571a`, the configured D1 ID
+`bb2ac5dd-05af-4e2f-8a4b-51120fac5da4`, unchanged draft/review data, an empty
+public catalog and only migration 0004 pending. All 325 tests passed again,
+including both actual packaged Workers, and a deployment dry run showed the
+correct resources and the publishing flag set to `"false"`.
+
+Read-only R2 checks confirmed:
+
+- `gizmagick-drafts`: no custom domains; public `r2.dev` access disabled.
+- `gizmagick-media`: `media.gizmagick.com` enabled, ownership and TLS active;
+  public `r2.dev` access still disabled. No domain, CORS or bucket changes made.
+
+A read-only [D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)
+bookmark was retrieved before the migration:
+`0000001d-00000000-00005102-a23f23e0e09f5ff57517dac585ba5319`.
+This is a recovery reference, not a credential or a database export. No restore
+was performed. Do not restore automatically: restoring could discard subsequent
+legitimate changes and would require explicit administrator approval.
+
+Applied the committed [D1 migration](https://developers.cloudflare.com/d1/reference/migrations/)
+using the existing named database and project configuration:
+
+```sh
+./frontend/node_modules/.bin/wrangler d1 migrations apply gizmagick-library --remote --config worker/wrangler.toml
+```
+
+Cloudflare reported migration 0004 successful. Postchecks found its three tables
+and eleven triggers, no pending migrations, and zero intents, receipts or commits.
+The same active draft, archived draft, one uploaded-asset allocation and one
+immutable review remained; the existing review hashes and approval timestamp
+were unchanged. The library still had zero tracks and versions. The migration
+does not move music files or approve/publish drafts.
+
+Deployed the tested Worker with `GIZMAGICK_PUBLICATION_ENABLED = "false"`:
+
+- Active Worker version: `d7ba4277-bdee-43fc-b0a7-827607896da6`, serving 100%.
+- D1 and both R2 binding identities preserved; `ROOM_HUB` namespace remains
+  `2cde201793224f49bf522d2e8adf4910` and migration tag `v1` is unchanged.
+- The existing administrator allowlist secret remains present; no secret values
+  were read, uploaded or committed. Existing private intake/review/metadata and
+  read-only preflight flags remain enabled.
+- No new route, custom domain, Access policy, dependency or Pages deployment.
+
+Post-deployment checks returned 200 for Worker health, the empty public catalog,
+the existing media setup-check object and the live site. Anonymous `/admin` and
+the retained draft's publication-status endpoint redirected to Cloudflare Access,
+not to private data. Read-only HEAD checks for the exact proposed public manifest
+and Lena's Home audio returned 404. A final D1 read still found zero publishing
+and library records. Pages production remains `main` at `076a5cc`.
+
+Using the computer-use skill, Brave loaded the signed-in admin page and reopened
+`Lena's Home (private upload check)` without writes. It displayed **Private drafts
+only**, **NOT published**, zero missing files and the unchanged attestation;
+publishing controls were absent as expected. A fresh separate session-capability
+navigation then reached Cloudflare's login screen. Authentication was not
+automated; that screen is left for the administrator. Fresh session JSON and a
+signed-in 503 response from the disabled publication-status endpoint are still
+pending verification, not claimed as observed. The prior archived-preflight
+browser verification item also remains outstanding.
+
+No cloud start/step request was sent. The retained private smoke-test draft is
+still **not authorized for public copying**. After the remaining read-only checks,
+ask permission naming that draft, its 3,961,537-byte Ogg and public manifest,
+`media.gizmagick.com`, the pre-catalog exposure/partial-copy risk, and the fact
+that archival does not undo publication. Enabling the flag and testing cloud
+copy/final commit are a separate checkpoint; the production player stays legacy.
+
+If this disabled rollout needs a Worker rollback, the previous version is recorded
+above. Keep publishing disabled and retain the additive migration/audit tables;
+do not drop tables, restore D1 or delete partial/public objects as an assumed
+rollback. No rollback was needed during this rollout.

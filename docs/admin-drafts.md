@@ -242,10 +242,13 @@ Worker; deployment checks and signed-in preflight on the attested Lena's Home
 draft passed with no writes. Brave blocked the archived-preview response, which
 remains an outstanding browser verification item. This is not publication.
 The [Phase 7B publisher backend and Phase 7C controls](admin-publishing.md) are
-implemented and tested locally with cloud writes disabled. The separate
+implemented and tested locally. Phase 7D applies migration 0004 and deploys them
+to the existing Worker with cloud publication explicitly disabled. The separate
 `--publication` preview mode uses only temporary local storage and a synthetic
-sample attestation; the default preview remains private-only. An explicit cloud
-rollout and authorization for any real public copies remain pending.
+sample attestation; the default preview remains private-only. The signed-in page
+and retained private draft loaded correctly; fresh session/disabled-publication
+endpoint checks await administrator sign-in. Enabling cloud publication and
+authorization for any real public copies remain pending.
 Following increments: reviewed ownership mapping; staged
 library import and frontend cutover. The visual graph editor and ordinary-user
 identity/moderation remain later work.

@@ -92,6 +92,8 @@ Phase 7B adds a [local-only new-track publishing backend](docs/admin-publishing.
 
 Phase 7C adds administrator publishing controls with exact track/version identification, a public-exposure warning, read-only readiness/status checks, fresh confirmation for each copy, receipt progress, safe interruption recovery and a separate final catalog-publication action. All 325 tests pass. The isolated browser simulator (`node scripts/gizmagick-admin-preview.mjs --publication` from `frontend`) verified real local copying, reload/resumption and locked completion; its synthetic sample and storage are temporary. The default preview remains private-only. Cloud rollout and any real public copying still require separate review and explicit authorization.
 
+Phase 7D applies migration 0004 and deploys the tested publisher/UI to the existing Cloudflare Worker with publishing explicitly disabled. All 325 tests pass again. The private bucket remains private, bindings and the admin secret are preserved, the public catalog and publishing tables remain empty, and Pages production still uses main at `076a5cc`. The signed-in page and retained private draft loaded correctly; a fresh session-capability check then requested Cloudflare sign-in, so fresh session/disabled-endpoint verification remains pending. Publishing controls stay hidden until an explicitly authorized enablement. No public copies or live-player cutover occurred. See the [rollout evidence and remaining authorization gate](docs/admin-publishing.md).
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

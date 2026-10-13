@@ -122,8 +122,9 @@ To disable preflight, set its flag to `"false"` and redeploy the existing Worker
 this does not alter saved drafts/reviews or public storage. No rollback was needed.
 
 The [Phase 7B backend and Phase 7C controls](admin-publishing.md) now implement
-immutable audit/retry rules, explicit confirmation and progress locally, with
-cloud publishing disabled. Retain
+immutable audit/retry rules, explicit confirmation and progress. Phase 7D applies
+migration 0004 and deploys them with cloud publishing still disabled; fresh
+session/disabled-publication endpoint checks await sign-in. Retain
 the archived-preview browser check as an outstanding verification item. The
 publisher revalidates sources, uses conditional source reads and non-overwriting
 destination writes, verifies all public objects, and commits D1 publication

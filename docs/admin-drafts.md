@@ -15,6 +15,11 @@ The original library import and live frontend cutover are still pending.
 
 ## What works
 
+Phase 7F also implements a separate [read-only batched storage inspector](admin-storage-inspection.md)
+locally. Its admin controls and API are not deployed yet. It checks up to 16 files
+per manual request without decoding, approval, public copying or database writes.
+Completing a pass does not replace review or remove the publisher's 16-file limit.
+
 The existing same-origin, Access-protected `/admin` page now supports:
 
 - Creating a **new-track** draft from a schema-v2 merged manifest, or importing

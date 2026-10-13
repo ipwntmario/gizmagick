@@ -75,6 +75,139 @@ function fixture(t) {
   return { sql, objects, env, request, create, upload, failWrites: value => { failWrites = value; } };
 }
 
+const inspectionPath = (draft, offset = 0, pin) => `/api/admin/drafts/${draft.id}/storage-inspection?offset=${offset}${pin ? '&snapshot=' + pin : ''}`;
+async function uploadedDraft(f, input = canonical()) {
+  const created = await f.create(input);
+  assert.equal(created.status, 201, await created.clone().text());
+  const draft = await created.json();
+  for (const id of Object.keys(draft.manifest.assets)) {
+    const uploaded = await f.upload(draft, ogg(), id);
+    assert.equal(uploaded.status, 200, await uploaded.clone().text());
+  }
+  return draft;
+}
+
+for (const count of [129, 256]) test(`private inspection bounds each batch of a ${count}-file draft and writes nothing`, async t => {
+  const f = fixture(t);
+  const input = count === 129 ? { requestId: crypto.randomUUID(), manifest: JSON.parse(await read('../public/tracks/Testing Time/manifest.json')) } : canonical();
+  // Preserve the real graph/paths but use identification-only test bytes, never
+  // real audio fingerprints or fabricated decoder evidence.
+  if (count === 129) for (const asset of Object.values(input.manifest.assets)) { delete asset.byteLength; delete asset.sha256; }
+  if (count === 256) for (let i = 1; i < count; i++) input.manifest.assets[crypto.randomUUID()] = { path: `audio/variant-${i}.ogg` };
+  assert.equal(Object.keys(input.manifest.assets).length, count);
+  const draft = await uploadedDraft(f, input), writes = f.sql.prepare('SELECT total_changes() n').get().n;
+  let heads = 0, databaseReads = 0, pin, pages = 0, checked = 0;
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => { databaseReads++; return prepare(query); };
+  const head = f.env.GIZMAGICK_DRAFTS.head;
+  f.env.GIZMAGICK_DRAFTS.head = key => { heads++; return head(key); };
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = () => assert.fail('Inspection must not read bytes or write');
+  f.env.GIZMAGICK_MEDIA.head = () => assert.fail('Inspection must not touch public storage');
+  do {
+    heads = 0; databaseReads = 0;
+    const response = await f.request(inspectionPath(draft, checked, pin));
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
+    assert.equal(response.headers.get('Access-Control-Allow-Origin'), null);
+    const result = await response.json();
+    assert.equal(result.batch.offset, checked); assert.equal(result.batch.totalAssets, count);
+    assert.equal(result.assets.length, Math.min(16, count - checked)); assert.equal(heads, result.assets.length);
+    assert.equal(databaseReads, 4); // Owner read + allocation read, repeated after R2.
+    assert.equal(result.batchOnly, true); assert.equal(result.pointInTimeOnly, true);
+    assert.equal(result.audioProbed, false); assert.equal(result.publishing, false); assert.equal(result.publicationAuthorized, false);
+    assert.equal(result.draftId, draft.id); assert.equal(result.manifestSha256, draft.manifestSha256);
+    if (pin) assert.equal(result.allocationSha256, pin);
+    pin = result.allocationSha256; checked = result.batch.end; pages++;
+    assert.equal(result.batch.nextOffset, checked < count ? checked : null);
+    assert(result.assets.every(asset => !Object.hasOwn(asset, 'objectKey')));
+  } while (checked < count);
+  assert.equal(pages, Math.ceil(count / 16));
+  heads = 0;
+  assert.equal((await f.request(inspectionPath(draft, Math.ceil(count / 16) * 16, pin))).status, 400);
+  assert.equal(heads, 0);
+  assert.equal(f.sql.prepare('SELECT total_changes() n').get().n, writes);
+  for (const table of ['admin_draft_review_jobs', 'admin_draft_reviews', 'admin_publications', 'library_tracks']) {
+    assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  }
+});
+
+test('inspection validates cursors before storage access and preserves ownership/method gates', async t => {
+  const f = fixture(t), draft = await uploadedDraft(f);
+  f.env.GIZMAGICK_DRAFTS.head = () => assert.fail('Invalid queries must not read R2');
+  for (const query of ['', '?offset=01', '?offset=-1', '?offset=1', '?offset=16', '?offset=0&offset=0', '?offset=0&snapshot=bad',
+    '?offset=0&unknown=1', '?offset=0&snapshot=' + 'a'.repeat(64) + '&snapshot=' + 'a'.repeat(64)]) {
+    assert.equal((await f.request(`/api/admin/drafts/${draft.id}/storage-inspection${query}`)).status, 400);
+  }
+  assert.equal((await f.request(inspectionPath(draft, 0, 'a'.repeat(64)))).status, 409);
+  assert.equal((await f.request(inspectionPath(draft), { principal: other })).status, 404);
+  assert.equal((await f.request(inspectionPath(draft), { principal: { ...owner, role: 'user' } })).status, 403);
+  for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {
+    const response = await f.request(inspectionPath(draft), { method });
+    assert.equal(response.status, 405); assert.equal(response.headers.get('Allow'), 'GET, HEAD');
+  }
+});
+
+for (const change of ['missing', 'size', 'custom-checksum', 'native-checksum', 'etag', 'pending', 'allocation-missing', 'constraint', 'invalid-metadata', 'archived']) test(`private inspection rejects ${change}`, async t => {
+  const f = fixture(t), draft = await uploadedDraft(f), [key, object] = [...f.objects][0];
+  if (change === 'missing') f.objects.delete(key);
+  if (change === 'size') object.bytes = ogg().slice(1);
+  if (change === 'custom-checksum') object.customMetadata.sha256 = 'a'.repeat(64);
+  if (change === 'native-checksum') object.sha256 = 'a'.repeat(64);
+  if (change === 'etag') object.etag = '';
+  if (change === 'pending') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending' WHERE draft_id = ?").run(draft.id);
+  if (change === 'allocation-missing') f.sql.prepare('DELETE FROM admin_draft_assets WHERE draft_id = ?').run(draft.id);
+  if (change === 'constraint') {
+    draft.manifest.assets[Object.keys(draft.manifest.assets)[0]].byteLength = 1;
+    f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(draft.manifest), draft.id);
+  }
+  if (change === 'invalid-metadata') f.sql.prepare("UPDATE admin_drafts SET manifest_json = '{}' WHERE id = ?").run(draft.id);
+  if (change === 'archived') f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(draft.id);
+  assert.equal((await f.request(inspectionPath(draft))).status, 409);
+});
+
+for (const change of ['metadata', 'allocation', 'archive', 'owner']) test(`inspection rejects a ${change} race during HEAD checks`, async t => {
+  const f = fixture(t), draft = await uploadedDraft(f), head = f.env.GIZMAGICK_DRAFTS.head;
+  f.env.GIZMAGICK_DRAFTS.head = async key => {
+    const object = await head(key);
+    if (change === 'metadata') {
+      draft.manifest.track.title = 'Changed';
+      f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(draft.manifest), draft.id);
+    }
+    if (change === 'allocation') f.sql.prepare('UPDATE admin_draft_assets SET object_key = ? WHERE draft_id = ?').run(key + '-changed', draft.id);
+    if (change === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(draft.id);
+    if (change === 'owner') f.sql.prepare('UPDATE admin_drafts SET owner_id = ? WHERE id = ?').run(other.id, draft.id);
+    return object;
+  };
+  assert.equal((await f.request(inspectionPath(draft))).status, 409);
+});
+
+test('later batches pin allocations, not an atomic all-file R2 snapshot', async t => {
+  const f = fixture(t), input = canonical();
+  for (let i = 1; i < 17; i++) input.manifest.assets[crypto.randomUUID()] = { path: `audio/variant-${i}.ogg` };
+  const draft = await uploadedDraft(f, input);
+  const first = await (await f.request(inspectionPath(draft))).json();
+  const firstId = first.assets[0].assetId;
+  const key = f.sql.prepare('SELECT object_key FROM admin_draft_assets WHERE draft_id = ? AND asset_id = ?').get(draft.id, firstId).object_key;
+  f.objects.delete(key); // Earlier R2 objects are deliberately NOT rechecked in later batches.
+  const later = await f.request(inspectionPath(draft, 16, first.allocationSha256));
+  assert.equal(later.status, 200); assert.equal((await later.json()).batchOnly, true);
+  draft.manifest.track.title = 'Changed between batches';
+  f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(draft.manifest), draft.id);
+  f.env.GIZMAGICK_DRAFTS.head = () => assert.fail('Stale pins must be rejected before R2');
+  assert.equal((await f.request(inspectionPath(draft, 16, first.allocationSha256))).status, 409);
+});
+
+test('inspection HEAD returns no body and storage failures are sanitized', async t => {
+  const f = fixture(t), draft = await uploadedDraft(f);
+  const response = await f.request(inspectionPath(draft), { method: 'HEAD' });
+  assert.equal(response.status, 200); assert.equal(await response.text(), '');
+  f.env.GIZMAGICK_DRAFTS.head = () => { throw new Error('secret storage credentials'); };
+  const failed = await f.request(inspectionPath(draft));
+  assert.equal(failed.status, 503); assert(!String(await failed.text()).includes('credentials'));
+  f.env.GIZMAGICK_DRAFT_UPLOADS_ENABLED = 'false';
+  assert.equal((await f.request(inspectionPath(draft))).status, 503);
+});
+
 test('the Worker structural validator is generated from the current canonical schema', async () => {
   const normalize = value => value.replaceAll('\r\n', '\n');
   assert.equal(normalize(await read('../../worker/src/generated/manifest-validator.js')), normalize('// Generated from shared/track-manifest.schema.json; freshness is checked by tests.\n' + createManifestValidatorSource() + '\n'));

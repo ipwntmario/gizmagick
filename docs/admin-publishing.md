@@ -452,7 +452,13 @@ whitespace checks pass. Player bundle names/sizes remain `index-FinxNOWL.css`
 read-only delivery checker are ignored local artifacts, excluded from commits
 along with the administrator's `.gitignore` edit.
 
-Next: support bounded large-track publication/inspection, then review original
+Phase 7F implements the [bounded private inspection foundation](admin-storage-inspection.md)
+locally, with no cloud deployment or writes. It is read-only and does not change
+review-package generation, preflight or the publisher's 16-file limit. A completed
+inspection pass is not authorization to publish.
+
+Next: implement durable batched review packaging and bounded large-track
+intent/copy/final verification, then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

@@ -26,6 +26,13 @@ function uploadPanel(reviews, metadata, publishing) {
   <section id="draft-detail" class="card" hidden><h2 id="draft-title"></h2><p id="draft-state"></p><a id="manifest-download">Download draft manifest</a>
   <ul id="asset-list"></ul><div id="drop-zone"><label for="audio-files">Choose audio files, or drop them here</label><input id="audio-files" type="file" accept=".ogg,audio/ogg,application/ogg" multiple><p id="file-selection">No files selected.</p><button id="upload" type="button" disabled>Upload selected audio privately</button></div>
   <details><summary>Graph warnings</summary><pre id="warnings"></pre></details><details><summary>Merged draft data</summary><pre id="manifest-view"></pre></details>
+  <details id="storage-inspection-panel"><summary>Inspect private storage in small batches</summary>
+  <p>Read-only checks of up to 16 files per click. Checks sizes and stored checksums, not audio decoding. Different batches are checked at different times; finishing a pass is NOT an approval, review package or publishing permission.</p>
+  <p id="inspection-state" role="status" aria-live="polite">Open an active, fully uploaded draft to inspect its private files.</p>
+  <label for="inspection-progress">Files checked during this pass</label><progress id="inspection-progress" value="0" max="1"></progress>
+  <button id="inspection-next" class="secondary" type="button" disabled>Check next private batch (read only)</button>
+  <button id="inspection-reset" class="secondary" type="button" disabled>Restart inspection pass</button>
+  <pre id="inspection-results"></pre></details>
   ${metadata ? `<details><summary>Edit private metadata (JSON)</summary><p id="metadata-state"></p>
   <p>Edit titles, sections, modes, transitions and clip timings. Keep track/version IDs and the entire assets object unchanged. Save before downloading a fresh review package. Attested and archived drafts are locked; this does not edit published tracks.</p>
   <label for="metadata-editor">Draft manifest JSON</label><textarea id="metadata-editor" spellcheck="false" disabled></textarea>

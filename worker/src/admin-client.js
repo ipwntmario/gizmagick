@@ -6,6 +6,16 @@ export function adminClient() {
   const publishing = Boolean(byId('publication-panel'));
   // undefined means unknown: no write is allowed until a successful status GET.
   let publication, publicationReady = false, publicationRequest = null;
+  const inspecting = Boolean(byId('storage-inspection-panel'));
+  let inspectionOffset = 0, inspectionPin = null, inspectionStopped = false;
+  function resetInspection(message = 'No files checked in this pass. This is not audio validation or approval.') {
+    inspectionOffset = 0; inspectionPin = null; inspectionStopped = false;
+    if (!inspecting) return;
+    byId('inspection-progress').value = 0;
+    byId('inspection-progress').max = current ? Object.keys(current.manifest.assets).length : 1;
+    byId('inspection-results').textContent = '';
+    byId('inspection-state').textContent = message;
+  }
   const status = message => { byId('status').textContent = message; };
   const metadataDirty = () => Boolean(current && byId('metadata-editor') && byId('metadata-editor').value !== JSON.stringify(current.manifest, null, 2));
   const publicationEligible = () => Boolean(current?.status === 'draft' && current.review
@@ -50,6 +60,11 @@ export function adminClient() {
     for (const control of document.querySelectorAll('button,input,select,textarea')) control.disabled = value;
     byId('upload').disabled = value || !current || current.status !== 'draft' || Boolean(current.review) || !selectedFiles.length || metadataDirty();
     byId('archive').disabled = value || !current || current.status !== 'draft';
+    if (inspecting) {
+      byId('inspection-next').disabled = value || !current || current.status !== 'draft'
+        || current.missingAssets.length > 0 || metadataDirty() || inspectionStopped;
+      byId('inspection-reset').disabled = value || !current;
+    }
     if (byId('review-package')) {
       const cannotReview = value || !current || current.status !== 'draft' || current.missingAssets.length > 0 || Boolean(current.review) || metadataDirty();
       byId('review-package').disabled = cannotReview;
@@ -123,6 +138,7 @@ export function adminClient() {
         : 'Editing locked: this draft is attested, archived, or metadata editing is disabled.';
     }
     current = draft;
+    resetInspection();
     byId('draft-title').textContent = draft.title;
     byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing ? '' : ' (writes disabled; existing public copies remain public)'}`;
     if (byId('review-state')) byId('review-state').textContent = draft.review
@@ -175,6 +191,42 @@ export function adminClient() {
     try { await operation(); } catch (error) { status(error.message); }
     finally { setBusy(false); }
   }
+  byId('inspection-reset')?.addEventListener('click', () => {
+    if (busy) return;
+    resetInspection(); setBusy(false);
+  });
+  byId('inspection-next')?.addEventListener('click', () => work(async () => {
+    if (!inspecting || !current || current.status !== 'draft' || current.missingAssets.length || metadataDirty() || inspectionStopped) return;
+    try {
+      const draft = current, offset = inspectionOffset, total = Object.keys(draft.manifest.assets).length;
+      const result = await api(`${pathFor(draft.id)}/storage-inspection?offset=${offset}${inspectionPin ? '&snapshot=' + inspectionPin : ''}`);
+      const end = Math.min(offset + 16, total), expectedIds = Object.keys(draft.manifest.assets).sort().slice(offset, end);
+      if (current !== draft || metadataDirty() || result.inspectionVersion !== 1 || result.scope !== 'private-storage-batch'
+          || result.draftId !== draft.id || result.trackId !== draft.manifest.track.id || result.versionId !== draft.manifest.versionId
+          || result.manifestSha256 !== draft.manifestSha256 || !/^[a-f0-9]{64}$/.test(result.allocationSha256)
+          || (inspectionPin && result.allocationSha256 !== inspectionPin) || total < 1 || total > 256
+          || result.batch?.offset !== offset || result.batch.end !== end || result.batch.totalAssets !== total
+          || result.batch.nextOffset !== (end < total ? end : null)
+          || result.checksPassed !== true || result.batchOnly !== true || result.pointInTimeOnly !== true
+          || result.audioProbed !== false || result.publishing !== false || result.publicationAuthorized !== false
+          || !Array.isArray(result.assets) || result.assets.length !== expectedIds.length
+          || result.assets.some((asset, index) => {
+            const uploaded = draft.uploads.find(item => item.asset_id === expectedIds[index]);
+            return asset.assetId !== expectedIds[index] || asset.path !== draft.manifest.assets[expectedIds[index]].path
+              || !uploaded || uploaded.state !== 'uploaded' || asset.byteLength !== uploaded.byte_length
+              || asset.sha256 !== uploaded.sha256 || typeof asset.etag !== 'string' || !asset.etag;
+          })) throw new Error('Inspection response does not match the loaded draft and expected batch.');
+      inspectionPin = result.allocationSha256; inspectionOffset = end; inspectionStopped = end === total;
+      byId('inspection-progress').max = total; byId('inspection-progress').value = end;
+      byId('inspection-results').textContent += result.assets.map(asset => `${asset.path}: ${asset.byteLength} bytes · SHA-256 ${asset.sha256}`).join('\n') + '\n';
+      byId('inspection-state').textContent = `${end}/${total} files checked at separate points in time. ${inspectionStopped ? 'Pass finished; NOT approval or permission to publish.' : 'Click to check the next batch.'}`;
+      status('Private storage batch checked. No files were decoded, approved or copied publicly.');
+    } catch (error) {
+      resetInspection('Inspection stopped. Earlier batch results are cleared. Reopen the draft and restart; no approval was recorded.');
+      inspectionStopped = true;
+      throw error;
+    }
+  }));
   async function readJSON(input) {
     const file = input.files[0];
     if (!file) throw new Error('Choose the required JSON file(s).');
@@ -255,7 +307,7 @@ export function adminClient() {
       await refreshList(); status('Draft archived. No files were deleted or unpublished.');
     });
   });
-  byId('metadata-editor')?.addEventListener('input', () => { clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
+  byId('metadata-editor')?.addEventListener('input', () => { resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
   byId('reset-metadata')?.addEventListener('click', () => {
     if (!current || !confirm('Discard unsaved metadata edits? The saved draft will not change.')) return;
     byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { adminClient } from '../../worker/src/admin-client.js';
 
-function fixture() {
+function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false } = {}) {
   const elements = new Map(), calls = [];
   let metadataFailure = false;
   const element = id => {
@@ -18,6 +18,8 @@ function fixture() {
   const draft = { id: '11111111-1111-4111-8111-111111111111', title: 'Private test', status: 'draft',
     missingAssets: [], uploads: [], warnings: [], review: null, manifestSha256: 'd'.repeat(64), metadataEditable: true,
     manifest: { track: { id: '22222222-2222-4222-8222-222222222222' }, versionId: '33333333-3333-4333-8333-333333333333', assets: { a: { path: 'audio/a.ogg' } } } };
+  for (let i = 1; i < assetCount; i++) draft.manifest.assets[`b${String(i).padStart(3, '0')}`] = { path: `audio/file-${i}.ogg` };
+  draft.uploads = Object.keys(draft.manifest.assets).map(asset_id => ({ asset_id, state: 'uploaded', byte_length: 100, sha256: 'b'.repeat(64) }));
   const report = { scope: 'administrator-review-candidate', valid: true, publishing: false, draftId: draft.id,
     versionId: draft.manifest.versionId, manifestSha256: draft.manifestSha256, jobId: '44444444-4444-4444-8444-444444444444', snapshotSha256: 'a'.repeat(64), errors: [],
     measurements: { a: { durationSeconds: 180, codec: 'opus', channels: 2, sampleRate: 48000, byteLength: 100, sha256: 'b'.repeat(64) } } };
@@ -27,6 +29,17 @@ function fixture() {
     fetch: async (path, options) => {
       calls.push({ path, options });
       let result = path === '/api/admin/drafts' && options.method === 'GET' ? { drafts: [] } : structuredClone(draft);
+      if (path.includes('/storage-inspection?')) {
+        const offset = Number(new URL(path, 'https://admin.example.com').searchParams.get('offset'));
+        const total = Object.keys(draft.manifest.assets).length, end = Math.min(offset + 16, total);
+        result = { inspectionVersion: 1, scope: 'private-storage-batch', draftId: draft.id, trackId: draft.manifest.track.id,
+          versionId: draft.manifest.versionId, manifestSha256: draft.manifestSha256, allocationSha256: 'a'.repeat(64),
+          batch: { offset, end, totalAssets: total, nextOffset: end < total ? end : null },
+          assets: Object.keys(draft.manifest.assets).sort().slice(offset, end).map(assetId => ({ assetId, path: draft.manifest.assets[assetId].path,
+            byteLength: 100, sha256: 'b'.repeat(64), etag: 'stored-etag' })),
+          checksPassed: true, batchOnly: true, pointInTimeOnly: true, audioProbed: false, publishing: false, publicationAuthorized: false };
+        if (inspectionReply) result = await inspectionReply(result);
+      }
       if (path.endsWith('/attest-review')) {
         draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-07', reportSha256: 'c'.repeat(64) };
         draft.metadataEditable = false;
@@ -41,7 +54,7 @@ function fixture() {
           result = structuredClone(draft);
         }
       }
-      return { ok: !(metadataFailure && path.endsWith('/metadata')), redirected: false, headers: { get: () => 'application/json' }, json: async () => result };
+      return { ok: !(metadataFailure && path.endsWith('/metadata')), redirected: inspectionSessionExpired && path.includes('/storage-inspection?'), headers: { get: () => 'application/json' }, json: async () => result };
     },
   });
   const selectReport = async value => {
@@ -57,6 +70,82 @@ function fixture() {
   };
   return { element, calls, draft, report, openDraft, selectReport, failMetadata: () => { metadataFailure = true; } };
 }
+
+test('private inspection is manual, read-only, pinned between batches and reset on reopen', async () => {
+  const f = fixture({ assetCount: 129 }); await f.openDraft();
+  const before = f.calls.length;
+  assert.equal(f.element('inspection-next').disabled, false);
+  assert(!f.calls.some(call => call.path.includes('/storage-inspection')));
+  for (let i = 0; i < 9; i++) {
+    await f.element('inspection-next').listeners.get('click')();
+    assert.equal(f.element('inspection-progress').value, Math.min((i + 1) * 16, 129));
+  }
+  const calls = f.calls.slice(before);
+  assert.equal(calls.length, 9); assert(calls.every(call => call.options.method === 'GET' && call.options.credentials === 'same-origin' && call.options.cache === 'no-store'));
+  assert(calls.slice(1).every(call => call.path.includes('snapshot=' + 'a'.repeat(64))));
+  assert.equal(f.element('inspection-next').disabled, true);
+  assert(f.element('inspection-state').textContent.includes('NOT approval'));
+  assert.equal(f.element('attest-review').disabled, true);
+  await f.element('inspection-next').listeners.get('click')(); assert.equal(f.calls.length, before + 9);
+  await f.openDraft(); assert.equal(f.element('inspection-progress').value, 0);
+  assert.equal(f.element('inspection-results').textContent, '');
+});
+
+for (const mismatch of ['draft', 'manifest', 'offset', 'pin', 'asset', 'size', 'authorization', 'scope']) test(`inspection rejects a ${mismatch} response and clears earlier progress`, async () => {
+  let pages = 0;
+  const f = fixture({ assetCount: 17, inspectionReply: result => {
+    if (++pages === 1) return result;
+    if (mismatch === 'draft') result.draftId = 'wrong';
+    if (mismatch === 'manifest') result.manifestSha256 = 'c'.repeat(64);
+    if (mismatch === 'offset') result.batch.offset = 0;
+    if (mismatch === 'pin') result.allocationSha256 = 'c'.repeat(64);
+    if (mismatch === 'asset') result.assets[0].assetId = 'wrong';
+    if (mismatch === 'size') result.assets[0].byteLength = 101;
+    if (mismatch === 'authorization') result.publicationAuthorized = true;
+    if (mismatch === 'scope') result.batchOnly = false;
+    return result;
+  } });
+  await f.openDraft(); await f.element('inspection-next').listeners.get('click')();
+  assert.equal(f.element('inspection-progress').value, 16);
+  await f.element('inspection-next').listeners.get('click')();
+  assert.equal(f.element('inspection-progress').value, 0); assert.equal(f.element('inspection-results').textContent, '');
+  assert.equal(f.element('inspection-next').disabled, true); assert(f.element('status').textContent.includes('does not match'));
+  await f.element('inspection-reset').listeners.get('click')(); assert.equal(f.element('inspection-next').disabled, false);
+});
+
+test('a malformed reply or double click cannot automatically continue a storage pass', async () => {
+  let release;
+  const f = fixture({ inspectionReply: () => new Promise(resolve => { release = resolve; }) });
+  await f.openDraft();
+  const first = f.element('inspection-next').listeners.get('click')();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.element('inspection-next').disabled, true);
+  await f.element('inspection-next').listeners.get('click')();
+  assert.equal(f.calls.filter(call => call.path.includes('/storage-inspection')).length, 1);
+  release({ error: 'Session expired' }); await first;
+  assert.equal(f.element('inspection-progress').value, 0); assert.equal(f.element('inspection-next').disabled, true);
+});
+
+test('an expired session stops inspection without retry or any write', async () => {
+  const f = fixture({ inspectionSessionExpired: true }); await f.openDraft();
+  const before = f.calls.length;
+  await f.element('inspection-next').listeners.get('click')();
+  assert.equal(f.calls.length, before + 1); assert.equal(f.calls.at(-1).options.method, 'GET');
+  assert(f.element('status').textContent.includes('session may have expired'));
+  assert.equal(f.element('inspection-progress').value, 0); assert.equal(f.element('inspection-next').disabled, true);
+});
+
+test('unsaved edits, missing files and archival lock inspection and editing clears a pass', async () => {
+  const f = fixture(); await f.openDraft(); await f.element('inspection-next').listeners.get('click')();
+  f.element('metadata-editor').value += ' '; f.element('metadata-editor').listeners.get('input')();
+  assert.equal(f.element('inspection-progress').value, 0); assert.equal(f.element('inspection-next').disabled, true);
+  const before = f.calls.length; await f.element('inspection-next').listeners.get('click')(); assert.equal(f.calls.length, before);
+  f.element('metadata-editor').value = JSON.stringify(f.draft.manifest, null, 2);
+  f.draft.missingAssets = ['a']; await f.openDraft(); assert.equal(f.element('inspection-next').disabled, true);
+  assert(f.element('draft-state').textContent.includes('1 missing'));
+  f.draft.missingAssets = []; f.draft.status = 'archived'; await f.openDraft(); assert.equal(f.element('inspection-next').disabled, true);
+  assert(f.element('draft-state').textContent.includes('archived'));
+});
 
 test('selecting a local report shows measurements but cannot automatically attest it', async () => {
   const f = fixture(); await f.openDraft();

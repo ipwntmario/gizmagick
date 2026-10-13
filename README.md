@@ -112,6 +112,8 @@ Phase 7L completes the [private-only Cloudflare rollout](docs/admin-cloud-batche
 
 The subsequent authorized private smoke test created **Lena's Home (batched review check)**, uploaded its existing Ogg and completed one batched review package through the deployed page. The same `1/1` progress survived a reload and read-only refresh. Database checks confirm no new approvals or public-library records. Browser file delivery could not be confirmed, so the administrator's manual package download, personal validator run and batched approval rechecks remain pending. In plain English: private preparation works; the new approval workflow is not yet cloud-verified. See the [smoke-test record](docs/admin-cloud-batched-rollout.md#authorized-private-package-smoke-test-october-13-2026).
 
+The administrator then downloaded the exact package and personally ran the validator successfully. An admin-client bug cleared the newly selected report file before reading it; the authorized [report-picker correction](docs/admin-cloud-batched-rollout.md#report-picker-correction-and-personal-validator-run) now preserves that file while resetting earlier review authority and confirmations. All 537 tests pass, including browser-like file-selection regressions. The corrected Worker is deployed with public writes still disabled, and the actual admin page accepts the existing report. No new attestation or public-library record was created. Personal review/confirmation and private batched approval verification remain pending.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

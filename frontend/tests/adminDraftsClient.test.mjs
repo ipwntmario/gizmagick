@@ -13,13 +13,21 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   let finalPass = null, finalAudit = null;
   let metadataFailure = false;
   const element = id => {
-    if (!elements.has(id)) elements.set(id, { value: '', checked: false, files: [], disabled: false,
-      textContent: '', listeners: new Map(), children: [],
-      addEventListener(event, callback) { this.listeners.set(event, callback); },
-      replaceChildren(...children) { this.children = children; },
-      append(...children) { this.children.push(...children); },
-      click() {}, remove() {},
-    });
+    if (!elements.has(id)) {
+      const control = { value: '', checked: false, files: [], disabled: false,
+        textContent: '', listeners: new Map(), children: [],
+        addEventListener(event, callback) { this.listeners.set(event, callback); },
+        replaceChildren(...children) { this.children = children; },
+        append(...children) { this.children.push(...children); },
+        click() {}, remove() {},
+      };
+      // Real file inputs discard their FileList when value is cleared.
+      if (id === 'review-report') Object.defineProperty(control, 'value', {
+        get() { return this.files.length ? 'C:\\fakepath\\review-report.json' : ''; },
+        set(value) { assert.equal(value, ''); this.files = []; },
+      });
+      elements.set(id, control);
+    }
     return elements.get(id);
   };
   const draft = { id: '11111111-1111-4111-8111-111111111111', title: 'Private test', status: 'draft',
@@ -653,6 +661,47 @@ test('selecting a local report shows measurements but cannot automatically attes
   assert.equal(f.element('attest-review').disabled, true);
   assert(!f.calls.some(call => call.path.endsWith('/attest-review')));
 });
+
+test('browser-like report selection preserves its file while clearing previous confirmation', async () => {
+  const f = fixture({ batchReview: true }); await f.openDraft();
+  await f.selectReport(f.report);
+  assert.equal(f.element('review-report').files.length, 1);
+  assert(f.element('review-summary').textContent.includes('audio/a.ogg: 180 s'));
+  f.element('review-confirm').checked = true;
+  f.element('verification-confirm').checked = true;
+  await f.selectReport(f.report);
+  assert.equal(f.element('review-report').files.length, 1);
+  assert.equal(f.element('review-confirm').checked, false);
+  assert.equal(f.element('verification-confirm').checked, false);
+  assert.equal(f.element('attest-review').disabled, true);
+  assert.equal(f.element('verification-start').disabled, true);
+  assert.equal(f.element('verification-attest').disabled, true);
+  assert(!f.calls.some(call => /attest-review|review-verification/.test(call.path)));
+  f.element('metadata-editor').value += ' ';
+  f.element('metadata-editor').listeners.get('input')();
+  assert.equal(f.element('review-report').files.length, 0);
+  assert.equal(f.element('review-confirm').disabled, true);
+});
+
+for (const failure of ['malformed', 'empty', 'oversized', 'unreadable', 'cancelled']) {
+  test(`browser-like report selection clears earlier authority for a ${failure} file`, async () => {
+    const f = fixture({ batchReview: true }); await f.openDraft(); await f.selectReport(f.report);
+    f.element('review-confirm').checked = true; f.element('verification-confirm').checked = true;
+    f.element('review-report').files = failure === 'cancelled' ? [] : [{
+      size: failure === 'empty' ? 0 : failure === 'oversized' ? 262145 : 2000,
+      text: async () => { if (failure === 'unreadable') throw new Error('File cannot be read.'); return '{'; },
+    }];
+    await f.element('review-report').listeners.get('change')();
+    assert.equal(f.element('review-summary').textContent, 'No successful report selected.');
+    assert.equal(f.element('review-confirm').checked, false);
+    assert.equal(f.element('review-confirm').disabled, true);
+    assert.equal(f.element('verification-confirm').checked, false);
+    assert.equal(f.element('verification-start').disabled, true);
+    assert.equal(f.element('verification-attest').disabled, true);
+    await f.element('attest-review').listeners.get('click')();
+    assert(!f.calls.some(call => /attest-review|review-verification/.test(call.path)));
+  });
+}
 
 test('explicit confirmation sends the policy through same-origin guarded API then shows persisted private attestation', async () => {
   const f = fixture(); await f.openDraft(); await f.selectReport(f.report);

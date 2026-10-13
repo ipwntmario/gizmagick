@@ -168,3 +168,64 @@ In plain English: uploading and preparing the private validation package work,
 including recovery after closing/reloading the page. Actual package delivery,
 the administrator's own audio check and the new private approval workflow are
 still pending. Do not treat preparation as approval or publication permission.
+
+## Report-picker correction and personal validator run
+
+The administrator subsequently downloaded that exact completed package and
+personally ran the documented CLI, reporting exit code 0. The ignored local
+package/report files match the job and snapshot above. Shared report validation
+passes with no errors or graph warnings: Opus, two channels, 48,000 Hz, 8,640,000
+samples, 180 seconds and the exact 3,961,537-byte uploaded fingerprint. Report
+SHA-256 is `528b255258cb44134e61058f706a50e1ffd61b1dc51e74e0b577a542ebee8067`.
+This verifies the downloaded package and reported personal run, not a completed
+human attestation or server-side decoding.
+
+Selecting the report in the deployed page exposed an admin-client regression.
+The report change handler called `clearReview()` before reading the selected
+file. That helper reset the input's `value` to an empty string, which discards a
+real browser's selected files. The reader then found no file and left **No
+successful report selected.** The earlier automated picker failure had the same
+cause; it was not evidence of a file-permission failure or an invalid report.
+
+With the user's approval, the change handler now preserves the newly selected
+file while still discarding earlier report authority and both confirmations.
+Other resets still empty the picker. The test fixture now models the browser's
+file-clearing behavior. A new regression failed against the old code and passes
+with the fix; additional cases retain fail-closed behavior for malformed, empty,
+oversized, unreadable and cancelled selections. Existing wrong-draft replacement
+checks remain in place. No approval or publishing guard was relaxed.
+
+All **537 tests** pass with isolated test-file execution. The first full run had
+one local Miniflare `ECONNRESET` in the Wrangler-bundled runtime test; both runtime
+tests passed on their focused rerun, then the complete suite passed. All 69
+admin-client tests, frontend/Worker lint, normal build and whitespace checks pass.
+Normal player outputs remain `index-FinxNOWL.css` (250.25 kB) and
+`index-CQBPIrW7.js` (387.48 kB).
+
+The authorized Worker deployment produced version
+`0835138e-1973-4ce9-9423-bdabac62c8ec`, created
+`2026-10-13T23:54:22.295604Z`, with message **Fix private report picker with public
+writes disabled**. Deployment readback confirms 100% traffic on this version,
+unchanged D1/R2/room bindings and the existing secret's presence without reading
+its value. All four intent/public-copy/final/publication switches remain false.
+No migration, configuration, Pages deployment, route or secret change was made.
+
+The first post-deployment browser reload still received the old script. After
+checking the live deployment and refreshing again, the page contained the fixed
+handler. Through its normal file picker, the existing report then loaded and
+displayed the expected draft/version/job, snapshot, audio measurements and
+checksum. The selected filename remained visible. Both confirmations were left
+unchecked, and approval/recheck-start buttons stayed disabled; no report was
+submitted for approval. Screenshot proof is the ignored
+`frontend/.track-manifests/phase7l-report-picker-fixed.jpg`.
+
+Read-only D1 checks confirm unchanged package identity, snapshot and expiry;
+three drafts, two assets/jobs, one preparation/batch, one existing review and
+zero verification passes. Public publications/commits/tracks/versions remain one
+each, with two copy receipts and no foreign-key violations. The public catalog
+still contains only the original published test track/version.
+
+In plain English: the app now reads the report instead of accidentally throwing
+away the selected file. The administrator's own measurements/warnings review and
+explicit confirmation, followed by private batched rechecks/attestation, remain
+the next gate. This correction neither approves nor publishes the new draft.

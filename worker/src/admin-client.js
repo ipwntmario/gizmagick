@@ -204,10 +204,10 @@ export function adminClient() {
       if (byId('review-state') && current.review) byId('review-state').textContent = reviewLabel(current.review);
     }
   }
-  function clearReview() {
+  function clearReview({ preserveSelectedFile = false } = {}) {
     reviewReport = null; reviewReportSha256 = null; clearVerificationConfirmation();
     if (byId('review-report')) {
-      byId('review-report').value = '';
+      if (!preserveSelectedFile) byId('review-report').value = '';
       byId('review-confirm').checked = false;
       byId('review-summary').textContent = 'Choose a successful report to inspect its measurements.';
     }
@@ -770,7 +770,8 @@ export function adminClient() {
     status('Review package downloaded. Run the local validator against its exact private audio files; no approval has been recorded.');
   }));
   byId('review-report')?.addEventListener('change', () => work(async () => {
-    clearReview(); byId('review-confirm').checked = false;
+    // Invalidate the earlier review without discarding the file we need to read.
+    clearReview({ preserveSelectedFile: true }); byId('review-confirm').checked = false;
     byId('review-summary').textContent = 'No successful report selected.';
     if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before selecting a report.');
     const report = await readJSON(byId('review-report'));

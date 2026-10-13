@@ -106,6 +106,8 @@ Phase 7I adds [bounded readiness and immutable publication intents](docs/admin-p
 
 Phase 7J adds [one-object conditional public copying](docs/admin-bounded-copy.md), locally tested with migration 0008 and a separate disabled flag. In plain English: each confirmed click copies one unchanged, approved file without overwriting anything; retrying the same object cannot accidentally copy the next file. Testing Time's 129-file graph, 256-file copying, interrupted requests and actual bundled Worker/local storage checks pass. All 488 tests pass. Catalog publication remains locked pending fresh bounded final verification. No remote migration, Worker deployment, cloud copy or player-source change occurred.
 
+Phase 7K adds [independent bounded final checks and atomic catalog publication](docs/admin-publication-final.md), tested locally with migration 0009 and a separate disabled flag. In plain English: freshly check the originals/copies in small groups, then separately confirm adding the exact approved track/version to the catalog. Complete recent checks, current ownership/review/allocations and exact receipts are required; catalog/audit/pointer writes save together or roll back together. The audit preserves the separate-batch trust boundary, and interrupted commits recover through read-only status. All 530 tests pass. The complete bounded new-track publisher is locally ready for rollout review; no remote migration, Worker deployment, cloud publication or live-player cutover occurred.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

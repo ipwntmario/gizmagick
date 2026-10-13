@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -30,11 +30,12 @@ function ogg(marker = 1) {
   bytes.set(new TextEncoder().encode('OpusHead'), 28); bytes[36] = marker;
   return bytes; // Identification fixture, not decodable audio.
 }
-function fixture(t, { verificationMigration = true, intentMigration = true, copyMigration = true } = {}) {
+function fixture(t, { verificationMigration = true, intentMigration = true, copyMigration = true, finalMigration = true } = {}) {
   const sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys = ON;');
   for (const [index, migration] of migrations.entries()) if (index < 5 || (index === 5 && verificationMigration)
-    || (index === 6 && verificationMigration && intentMigration) || (index === 7 && verificationMigration && intentMigration && copyMigration)) sql.exec(migration);
+    || (index === 6 && verificationMigration && intentMigration) || (index === 7 && verificationMigration && intentMigration && copyMigration)
+    || (index === 8 && verificationMigration && intentMigration && copyMigration && finalMigration)) sql.exec(migration);
   t.after(() => sql.close());
   function prepare(query, args = []) {
     return { bind: (...values) => prepare(query, values),
@@ -89,6 +90,11 @@ const intentInput = ready => ({ action: 'prepare', requestId: crypto.randomUUID(
   expectedReportSha256: hash(Buffer.from(JSON.stringify(ready.report))) });
 const reserveInput = prep => ({ action: 'reserve', preparationId: prep.id, publicationConfirmed: true, batchWindowConfirmed: true });
 const enableIntents = f => { enablePublicationPreview(f); f.env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED = 'true'; };
+const finalRequest = (f, draft, body, options = {}) => f.request(`/api/admin/drafts/${draft.id}/publication-final`,
+  { ...(body !== undefined ? { method: 'POST', body } : {}), ...options });
+const finalStart = intent => ({ action: 'start', publicationId: intent.id, expectedPlanSha256: intent.planSha256, requestId: crypto.randomUUID() });
+const finalBatch = (intent, pass, offset = 0) => ({ action: 'check-batch', publicationId: intent.id, expectedPlanSha256: intent.planSha256, passId: pass.id, offset });
+const finalCommit = (intent, pass) => ({ action: 'commit', publicationId: intent.id, expectedPlanSha256: intent.planSha256, passId: pass.id, publicationConfirmed: true, batchWindowConfirmed: true });
 // Contract-only measurements are never presented as decoder evidence.
 async function syntheticReport(job) {
   return createReviewReport(job, { trackId: job.snapshot.manifest.track.id, versionId: job.snapshot.manifest.versionId,
@@ -155,7 +161,7 @@ for (const count of [129, 256]) test(`bounded ${count}-asset intent rechecks sto
   assert.throws(() => f.sql.prepare('DELETE FROM admin_publication_intent_batches').run(), /retained/);
   assert.throws(() => f.sql.prepare('UPDATE admin_publication_intent_preparations SET expires_at = 0').run(), /retained/);
   assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_objects (publication_id, ordinal, etag) VALUES (?, 0, ?)').run(prep.id, 'fake'), /Bounded copy changed/);
-  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(prep.id, 'fake'), /not implemented/);
+  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(prep.id, 'fake'), /Bounded final verification/);
   f.env.GIZMAGICK_PUBLICATION_ENABLED = 'true';
   assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication`)).status, 409);
   assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication-step`, { method: 'POST', body: { publicationId: prep.id, publicationConfirmed: true } })).status, 409);
@@ -168,8 +174,8 @@ async function preparedIntent(f) {
   return { ...ready, input, preparation: (await response.json()).preparation };
 }
 
-async function copyReady(t, { count = 1, copyMigration = true, boundedReview = false } = {}) {
-  const f = fixture(t, { copyMigration });
+async function copyReady(t, { count = 1, copyMigration = true, boundedReview = false, finalMigration = true } = {}) {
+  const f = fixture(t, { copyMigration, finalMigration });
   let input = canonical();
   if (count === 129) {
     input = { requestId: crypto.randomUUID(), manifest: JSON.parse(await read('../public/tracks/Testing Time/manifest.json')) };
@@ -193,6 +199,201 @@ async function copyReady(t, { count = 1, copyMigration = true, boundedReview = f
   const copy = (ordinal = 0, options = {}) => intentRequest(f, ready.draft, body(ordinal), options);
   return { f, ready, intent, storage, body, copy };
 }
+
+async function finalReady(t, options = {}) {
+  const r = await copyReady(t, options);
+  for (let ordinal = 0; ordinal < r.intent.totalObjects; ordinal++) assert.equal((await r.copy(ordinal)).status, 200);
+  r.f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'true';
+  const input = finalStart(r.intent), started = await finalRequest(r.f, r.ready.draft, input);
+  if (options.finalMigration === false) { assert.equal(started.status, 503); return { ...r, input }; }
+  assert.equal(started.status, 201, await started.clone().text());
+  return { ...r, input, pass: (await started.json()).verification };
+}
+for (const count of [129, 256]) test(`final ${count}-asset verification is bounded, independent and atomically publishes only after confirmation`, async t => {
+  const { f, ready, intent, pass, storage } = await finalReady(t, { count, boundedReview: true });
+  let privateHeads = 0, publicHeads = 0;
+  const privateHead = f.env.GIZMAGICK_DRAFTS.head, publicHead = storage.bucket.head;
+  f.env.GIZMAGICK_DRAFTS.head = key => { privateHeads++; return privateHead(key); };
+  storage.bucket.head = key => { publicHeads++; return publicHead(key); };
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = storage.bucket.put = () => assert.fail('Final verification never reads audio bytes or writes R2');
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 409);
+  for (let offset = 0; offset < count + 1; offset += 16) {
+    privateHeads = publicHeads = 0;
+    const checked = await finalRequest(f, ready.draft, finalBatch(intent, pass, offset));
+    assert.equal(checked.status, 200, await checked.clone().text());
+    assert(privateHeads <= 16 && publicHeads <= 16);
+    assert.equal((await checked.json()).verification.checkedObjects, Math.min(offset + 16, count + 1));
+    assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  }
+  privateHeads = publicHeads = 0;
+  const published = await finalRequest(f, ready.draft, finalCommit(intent, pass));
+  assert.equal(published.status, 200, await published.clone().text());
+  const result = await published.json(); assert.equal(result.publication.state, 'published');
+  assert.equal(result.publication.finalAudit.storageCheckScope, 'bounded-batches'); assert.equal(privateHeads + publicHeads, 0);
+  const catalog = await handleLibraryRequest(new Request('https://app.example.com/api/library/catalog'), f.env);
+  assert.equal((await catalog.json()).tracks[intent.trackId].versionId, intent.versionId);
+  const track = f.sql.prepare('SELECT * FROM library_tracks').get(); assert.equal(track.owner_id, owner.id); assert.equal(track.legacy_key, null);
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+  for (const table of ['admin_publication_final_passes', 'admin_publication_final_batches']) {
+    assert.throws(() => f.sql.prepare(`DELETE FROM ${table}`).run(), /retained/);
+    assert.throws(() => f.sql.prepare(`UPDATE ${table} SET ${table.endsWith('passes') ? 'expires_at' : 'checked_at'} = 0`).run(), /retained/);
+  }
+  await f.request(`/api/admin/drafts/${ready.draft.id}/archive`, { method: 'POST' });
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+  f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'false';
+  const historical = await (await intentRequest(f, ready.draft)).json(); assert.equal(historical.intent.state, 'published'); assert(historical.intent.publishedAt);
+});
+
+test('final publication fails closed without flags or migration, and requires all copies', async t => {
+  const absent = await finalReady(t, { finalMigration: false });
+  absent.f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'false';
+  assert.equal((await finalRequest(absent.f, absent.ready.draft)).status, 503);
+  assert(!(await (await absent.f.request('/admin')).text()).includes('id="final-panel"'));
+  const r = await copyReady(t); r.f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'true';
+  assert.equal((await finalRequest(r.f, r.ready.draft, finalStart(r.intent))).status, 409);
+  assert.equal(r.f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_final_passes').get().n, 0);
+  const ready = await finalReady(t);
+  for (const flag of ['GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_INTENTS_ENABLED']) {
+    ready.f.env[flag] = 'false'; assert.equal((await finalRequest(ready.f, ready.ready.draft, finalCommit(ready.intent, ready.pass))).status, 503); ready.f.env[flag] = 'true';
+  }
+  assert((await (await ready.f.request('/admin')).text()).includes('id="final-panel"'));
+});
+
+test('final API enforces owner/admin, exact IDs, input limits, methods and separate confirmations', async t => {
+  const { f, ready, intent, input, pass } = await finalReady(t);
+  assert.equal((await finalRequest(f, ready.draft, input, { principal: other })).status, 404);
+  assert.equal((await finalRequest(f, ready.draft, input, { principal: { ...owner, role: 'user' } })).status, 403);
+  assert.equal((await finalRequest(f, ready.draft, input)).status, 200);
+  assert.equal((await finalRequest(f, ready.draft, { ...input, requestId: crypto.randomUUID() })).status, 409);
+  for (const body of [{ ...input, overwrite: true }, { ...finalBatch(intent, pass), offset: 1 }, { ...finalCommit(intent, pass), publicationConfirmed: false },
+    { ...finalCommit(intent, pass), batchWindowConfirmed: false }, { ...input, expectedPlanSha256: ['a'.repeat(64)] }]) assert.equal((await finalRequest(f, ready.draft, body)).status, 400);
+  assert.equal((await finalRequest(f, ready.draft, { ...input, expectedPlanSha256: 'a'.repeat(64) })).status, 409);
+  assert.equal((await finalRequest(f, ready.draft, finalBatch(intent, pass, 16))).status, 409);
+  assert.equal((await finalRequest(f, ready.draft, '{')).status, 415);
+  assert.equal((await finalRequest(f, ready.draft, 'x'.repeat(2049), { headers: { 'Content-Type': 'application/json' } })).status, 413);
+  assert.equal((await f.request(`/api/admin/drafts/${ready.draft.id}/publication-final?offset=0`)).status, 400);
+  const method = await finalRequest(f, ready.draft, undefined, { method: 'DELETE' }); assert.equal(method.status, 405); assert.equal(method.headers.get('Allow'), 'GET, HEAD, POST');
+  const head = await finalRequest(f, ready.draft, undefined, { method: 'HEAD' }); assert.equal(head.status, 200); assert.equal(await head.text(), '');
+  assert.equal(head.headers.get('Cache-Control'), 'private, no-store'); assert.equal(head.headers.get('Access-Control-Allow-Origin'), null);
+});
+
+for (const change of ['private-etag', 'private-sha', 'private-missing', 'public-etag', 'public-sha', 'public-marker', 'public-missing', 'review', 'allocation', 'archived', 'media-base']) test(`final checks refuse changed ${change}`, async t => {
+  const { f, ready, intent, pass, storage } = await finalReady(t);
+  const [privateKey, privateObject] = [...f.objects][0], [publicKey, publicObject] = [...storage.objects][0];
+  if (change === 'private-etag') privateObject.etag = 'changed';
+  if (change === 'private-sha') privateObject.sha256 = 'a'.repeat(64);
+  if (change === 'private-missing') f.objects.delete(privateKey);
+  if (change === 'public-etag') publicObject.etag = 'changed';
+  if (change === 'public-sha') publicObject.sha256 = 'a'.repeat(64);
+  if (change === 'public-marker') publicObject.customMetadata.gizmagickPlan = 'a'.repeat(64);
+  if (change === 'public-missing') storage.objects.delete(publicKey);
+  if (change === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET report_json = '{}'").run();
+  if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+  if (change === 'archived') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+  if (change === 'media-base') f.env.GIZMAGICK_MEDIA_BASE_URL = 'https://other.example.com';
+  assert.equal((await finalRequest(f, ready.draft, finalBatch(intent, pass))).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_final_batches').get().n, 0);
+});
+
+test('stale or future checks and expired passes require explicit restart; old passes cannot commit', async t => {
+  const { f, ready, intent, input, pass } = await finalReady(t);
+  await finalRequest(f, ready.draft, finalBatch(intent, pass));
+  for (const clock of ["unixepoch('now') - 301", "unixepoch('now') + 1"]) {
+    f.sql.prepare(`UPDATE admin_publication_final_batches SET checked_at = ${clock}`).run();
+    assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 409);
+  }
+  const restarted = await finalRequest(f, ready.draft, { ...input, restartPassId: pass.id });
+  assert.equal(restarted.status, 201); const next = (await restarted.json()).verification; assert.notEqual(next.id, pass.id);
+  assert.equal(next.checkedObjects, 0); assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 409);
+  await finalRequest(f, ready.draft, finalBatch(intent, next));
+  f.sql.prepare('UPDATE admin_publication_final_passes SET expires_at = 0').run();
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, next))).status, 409);
+});
+
+for (const stage of ['batch', 'commit']) for (const change of ['archive', 'allocation', 'review', 'lease', 'pass', 'freshness']) test(`final ${stage} atomic write fences ${change}`, async t => {
+  const { f, ready, intent, pass } = await finalReady(t);
+  if (stage === 'commit') assert.equal((await finalRequest(f, ready.draft, finalBatch(intent, pass))).status, 200);
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query), target = stage === 'batch' ? 'INSERT INTO admin_publication_final_batches' : 'INSERT INTO admin_publication_commits';
+    if (!query.startsWith(target)) return statement;
+    return { bind: (...values) => ({ run: async () => {
+      if (change === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+      if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+      if (change === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET report_json = '{}'").run();
+      if (change === 'lease') f.sql.prepare('UPDATE admin_publications SET lease_expires_at = 0').run();
+      if (change === 'pass') f.sql.prepare('UPDATE admin_publication_final_passes SET id = ?').run(crypto.randomUUID());
+      if (change === 'freshness') {
+        if (stage === 'batch') f.sql.prepare('UPDATE admin_publication_final_passes SET expires_at = 0').run();
+        else f.sql.prepare("UPDATE admin_publication_final_batches SET checked_at = unixepoch('now') - 301").run();
+      }
+      return statement.bind(...values).run();
+    } }) };
+  };
+  const result = await finalRequest(f, ready.draft, stage === 'batch' ? finalBatch(intent, pass) : finalCommit(intent, pass));
+  assert.equal(result.status, 409, await result.clone().text());
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+});
+
+test('failed catalog transaction rolls back all rows; lost commit reply recovers as a locked published result', async t => {
+  const { f, ready, intent, pass } = await finalReady(t);
+  await finalRequest(f, ready.draft, finalBatch(intent, pass));
+  f.sql.exec("CREATE TRIGGER test_final_rollback BEFORE INSERT ON library_track_versions BEGIN SELECT RAISE(ABORT, 'secret provider detail'); END;");
+  const failed = await finalRequest(f, ready.draft, finalCommit(intent, pass)); assert.equal(failed.status, 503); assert(!(await failed.text()).includes('secret'));
+  for (const table of ['library_tracks', 'library_track_versions', 'admin_publication_commits']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  f.sql.exec('DROP TRIGGER test_final_rollback;');
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_publication_commits')) return statement;
+    return { bind: (...values) => ({ run: async () => { await statement.bind(...values).run(); throw new Error('lost commit response'); } }) };
+  };
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 503);
+  const status = await (await finalRequest(f, ready.draft)).json(); assert.equal(status.publication.state, 'published');
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+  assert.equal((await finalRequest(f, ready.draft, finalStart(intent))).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+});
+
+test('final batch retries do not recheck or renew timestamps and concurrent final actions do not duplicate publication', async t => {
+  const { f, ready, intent, pass, storage } = await finalReady(t);
+  await finalRequest(f, ready.draft, finalBatch(intent, pass));
+  const timestamp = f.sql.prepare('SELECT checked_at FROM admin_publication_final_batches').get().checked_at;
+  f.env.GIZMAGICK_DRAFTS.head = storage.bucket.head = () => assert.fail('Repeated batch/status/commit must not perform HEADs');
+  assert.equal((await finalRequest(f, ready.draft, finalBatch(intent, pass))).status, 200);
+  assert.equal(f.sql.prepare('SELECT checked_at FROM admin_publication_final_batches').get().checked_at, timestamp);
+  const replies = await Promise.all([1, 2].map(() => finalRequest(f, ready.draft, finalCommit(intent, pass))));
+  assert(replies.some(reply => reply.status === 200)); assert(replies.every(reply => [200, 409].includes(reply.status)));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+});
+
+test('freshness starts before batch HEADs and records the whole check interval', async t => {
+  for (const age of [120, 301]) {
+    const { f, ready, intent, pass } = await finalReady(t), prepare = f.env.GIZMAGICK_DB.prepare;
+    f.env.GIZMAGICK_DB.prepare = query => query === "SELECT unixepoch('now') AS checkedAt"
+      ? { first: async () => ({ checkedAt: f.sql.prepare("SELECT unixepoch('now') AS n").get().n - age }) } : prepare(query);
+    const checked = await finalRequest(f, ready.draft, finalBatch(intent, pass));
+    assert.equal(checked.status, age === 120 ? 200 : 409);
+    if (age === 120) {
+      const interval = (await checked.json()).verification;
+      assert(interval.lastCheckedAt - interval.firstCheckedAt >= 120);
+      assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+    } else assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_final_batches').get().n, 0);
+  }
+});
+
+test('future final completion times and catalog identity collisions cannot pass the commit fence', async t => {
+  for (const change of ['finished', 'identity']) {
+    const { f, ready, intent, pass } = await finalReady(t);
+    await finalRequest(f, ready.draft, finalBatch(intent, pass));
+    if (change === 'finished') f.sql.prepare("UPDATE admin_publication_final_batches SET finished_at = unixepoch('now') + 60").run();
+    else f.sql.prepare('INSERT INTO library_tracks (id, owner_id) VALUES (?, ?)').run(intent.trackId, other.id);
+    assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 409);
+    assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+  }
+});
 
 for (const count of [129, 256]) test(`bounded copying handles ${count} files one at a time, manifest last, without catalog publication`, async t => {
   const { f, ready, intent, storage, copy } = await copyReady(t, { count, boundedReview: true });
@@ -221,7 +422,7 @@ for (const count of [129, 256]) test(`bounded copying handles ${count} files one
   assert.equal(status.catalogCommitEnabled, false); assert.equal(status.publishing, false);
   for (const object of plan.objects) assert.equal(hash(storage.objects.get(object.key).bytes), object.sha256);
   for (const table of ['admin_publication_commits', 'library_tracks', 'library_track_versions']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
-  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(intent.id, 'forged'), /not implemented/);
+  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(intent.id, 'forged'), /Bounded final verification/);
 });
 
 test('bounded copying requires all rollout gates and migration 0008 before any public write', async t => {

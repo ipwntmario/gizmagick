@@ -75,7 +75,10 @@ async function verifyBrowserInitialization(html) {
   assert.equal(element('intent-prepare').disabled, true);
   assert.equal(element('intent-reserve').disabled, true);
   assert(element('intent-refresh').listeners.has('click'));
-  assert(html.includes('Final catalog publication is still locked'));
+  assert(html.includes('Final verification and catalog publication'));
+  assert.equal(element('final-start').disabled, true);
+  assert.equal(element('final-commit').disabled, true);
+  assert(element('final-refresh').listeners.has('click'));
   assert.equal(element('intent-copy').disabled, true);
   assert.equal(element('intent-copy-confirm').disabled, true);
   assert(element('intent-copy').listeners.has('click'));
@@ -119,7 +122,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
     bindings: { GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
-      GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
+      GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
       assert.equal(req.url, `${issuer}/cdn-cgi/access/certs`);
@@ -129,7 +132,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -433,9 +436,33 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
       assert.equal(publicObject.size, object.byteLength);
       assert.equal(createHash('sha256').update(new Uint8Array(await publicObject.arrayBuffer())).digest('hex'), object.sha256);
     }
-    await assert.rejects(db.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').bind(prep3.id, 'forged').run(), /not implemented/);
+    await assert.rejects(db.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').bind(prep3.id, 'forged').run(), /Bounded final verification/);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 2);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM admin_publication_objects WHERE publication_id = ?').bind(prep3.id).first()).n, 2);
+    const finalUrl3 = `/api/admin/drafts/${draft3.id}/publication-final`, finalBase3 = { publicationId: intent3.id, expectedPlanSha256: intent3.planSha256 };
+    assert.equal((await request(finalUrl3, null)).status, 401);
+    assert.equal((await request(finalUrl3, issue('member@example.com'))).status, 403);
+    assert.equal((await request(finalUrl3, token, { method: 'POST', body: '{}' })).status, 403);
+    const startFinal3 = await request(finalUrl3, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ ...finalBase3, action: 'start', requestId: crypto.randomUUID() }) });
+    assert.equal(startFinal3.status, 201, await startFinal3.clone().text());
+    const finalPass3 = (await startFinal3.json()).verification;
+    const commitInput3 = JSON.stringify({ ...finalBase3, action: 'commit', passId: finalPass3.id, publicationConfirmed: true, batchWindowConfirmed: true });
+    assert.equal((await request(finalUrl3, token, { method: 'POST', headers: writeHeaders, body: commitInput3 })).status, 409);
+    const finalBatch3 = await request(finalUrl3, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ ...finalBase3, action: 'check-batch', passId: finalPass3.id, offset: 0 }) });
+    assert.equal(finalBatch3.status, 200, await finalBatch3.clone().text());
+    assert.equal((await finalBatch3.json()).verification.checkedObjects, 2);
+    const committed3 = await request(finalUrl3, token, { method: 'POST', headers: writeHeaders, body: commitInput3 });
+    assert.equal(committed3.status, 200, await committed3.clone().text());
+    const published3 = (await committed3.json()).publication;
+    assert.equal(published3.state, 'published'); assert.equal(published3.finalAudit.storageCheckScope, 'bounded-batches');
+    assert.equal((await request(finalUrl3, token, { method: 'POST', headers: writeHeaders, body: commitInput3 })).status, 200);
+    assert.equal((await (await request(intentUrl)).json()).intent.state, 'published');
+    const finalCatalog3 = await (await request('/api/library/catalog', null)).json();
+    assert.equal(finalCatalog3.tracks[intent3.trackId].versionId, intent3.versionId);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 3);
+    await assert.rejects(db.prepare('DELETE FROM admin_publication_final_batches WHERE pass_id = ?').bind(finalPass3.id).run(), /retained/);
     assert.equal(outbound.length, 1);
   } finally { await mf.dispose(); }
 });

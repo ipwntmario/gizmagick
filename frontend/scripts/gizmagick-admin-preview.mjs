@@ -57,7 +57,7 @@ try {
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: publicationPreview ? ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'] : ['GIZMAGICK_DRAFTS'],
     bindings: { GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer,
       GIZMAGICK_ACCESS_AUD: audience, GIZMAGICK_ADMIN_EMAILS: 'preview@example.invalid', GIZMAGICK_ADMIN_ORIGIN: origin,
-      ...(publicationPreview ? { GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true',
+      ...(publicationPreview ? { GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true',
         GIZMAGICK_MEDIA_BASE_URL: `${origin}/api/library/media`, GIZMAGICK_APP_ORIGINS: origin } : {}) },
     outboundService: request => {
       if (request.url !== `${issuer}/cdn-cgi/access/certs`) return new Response(null, { status: 503 });
@@ -67,7 +67,7 @@ try {
   const db = await mf.getD1Database('GIZMAGICK_DB');
   for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql',
     ...(publicationPreview ? ['0004_gizmagick_publications.sql'] : []), '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql',
-    ...(publicationPreview ? ['0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql'] : [])]) {
+    ...(publicationPreview ? ['0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql'] : [])]) {
     const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
     await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
   }

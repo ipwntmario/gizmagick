@@ -33,8 +33,10 @@ GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "false"
 GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "false"
 # Phase 7I readiness/reservation only; requires migrations 0006/0007. No public copies.
 GIZMAGICK_PUBLICATION_INTENTS_ENABLED = "false"
-# One-object v2 public copies require 0008 and both publication flags. Catalog commits stay blocked.
+# One-object v2 copies require 0008; catalog commits need the separate 0009 flag below.
 GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "false"
+# Independent recent final checks and catalog commit require 0009; local rollout only.
+GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = "false"
 # Local browser walkthrough and cloud preflight passed. Requires reviews enabled.
 GIZMAGICK_DRAFT_METADATA_ENABLED = "true"
 # Phase 7A only inspects attested drafts; it does not enable publication.

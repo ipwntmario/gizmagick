@@ -5,6 +5,10 @@ This document records the Phase 7I preparation checkpoint. Phase 7J now adds
 behind an additional disabled flag and migration 0008. Final catalog publication
 remains blocked. Reservation itself still copies nothing.
 
+Phase 7K now provides [independent final verification and a guarded catalog commit](admin-publication-final.md)
+locally, behind migration 0009 and an additional disabled flag. All cloud rollout
+and public testing remain separate gates.
+
 Implemented and tested locally. **This is not a complete large-track publisher.**
 No remote migration or Worker deployment occurred. The new
 `GIZMAGICK_PUBLICATION_INTENTS_ENABLED` flag remains `"false"` in project

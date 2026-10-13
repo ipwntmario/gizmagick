@@ -483,8 +483,18 @@ cannot yet be listed in the catalog through this workflow. The final database
 commit fence remains in place. All 488 tests pass; no cloud migration, Worker
 deployment, public copy or live player change occurred at this checkpoint.
 
-Next: implement independent fresh bounded private/public final verification
-and a separate guarded catalog commit for those intents, then review original
+Phase 7K completes [bounded final verification and atomic catalog publication](admin-publication-final.md)
+locally with migration 0009 and another disabled flag. At most 16 private/public
+objects are checked per manual batch; all batches must be recent at a separately
+confirmed commit. The audit retains the separate-batch, non-atomic storage scope.
+The catalog/version/pointer/commit transaction rolls back together on failure,
+and interrupted commits recover by reading locked published status. All 530 tests
+pass, including actual bundled Worker/local storage checks. No remote migration,
+Worker deployment, cloud publication or live frontend change occurred.
+
+Next: review the Cloudflare rollout of migrations 0005–0009 and the bounded
+workflow flags, privately verify integration, and separately authorize any public
+test. Then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

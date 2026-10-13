@@ -120,7 +120,7 @@ async function start(request, env, principal, row, reply) {
   return reply(await summary(env, saved), saved.id === id ? 201 : 200);
 }
 
-function verifyPublic(object, expected, publication, receipt) {
+export function verifyPublic(object, expected, publication, receipt) {
   if (!object || !object.etag || object.size !== expected.byteLength || sha256(object) !== expected.sha256
       || object.customMetadata?.sha256 !== expected.sha256
       || object.customMetadata?.gizmagickPublication !== publication.id

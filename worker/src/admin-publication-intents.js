@@ -73,7 +73,7 @@ export async function reviewedIntentPlan(env, principal, row) {
 
 // Same database predicates fence preparation/batch/intent writes. No storage
 // read receipt can change ownership, identities, review policy or public pointers.
-const guard = `EXISTS (SELECT 1 FROM admin_drafts d JOIN admin_draft_reviews r ON r.draft_id = d.id
+export const guard = `EXISTS (SELECT 1 FROM admin_drafts d JOIN admin_draft_reviews r ON r.draft_id = d.id
   JOIN admin_draft_review_jobs j ON j.draft_id = d.id AND j.id = r.job_id WHERE d.id = ? AND d.owner_id = ? AND d.status = 'draft'
   AND d.manifest_json = ? AND r.approved_by = ? AND r.policy = 'gizmagick-local-admin-v1' AND r.scope = 'administrator-attested'
   AND r.job_id = ? AND r.snapshot_sha256 = ? AND r.report_sha256 = ? AND r.manifest_sha256 = ?
@@ -85,7 +85,7 @@ const guard = `EXISTS (SELECT 1 FROM admin_drafts d JOIN admin_draft_reviews r O
     AND a.byte_length = json_extract(s.value, '$.byteLength') AND a.sha256 = json_extract(s.value, '$.sha256') AND a.state = 'uploaded'))
   AND NOT EXISTS (SELECT 1 FROM library_tracks WHERE id = ?)
   AND NOT EXISTS (SELECT 1 FROM library_track_versions WHERE track_id = ?)`;
-const guardArgs = (row, checked) => {
+export const guardArgs = (row, checked) => {
   const { plan, allocation } = checked, review = plan.review, audit = review.storageAudit;
   return [row.id, row.owner_id, row.manifest_json, row.owner_id, review.jobId, review.snapshotSha256, review.reportSha256,
     review.manifestSha256, plan.reportJson, plan.candidateJson, plan.snapshotJson, review.storageCheckScope,
@@ -100,7 +100,7 @@ async function batchesFor(env, prep) {
   for (const batch of results) { if (batch.offset !== end) fail(409, 'INTENT_PROGRESS', 'Intent-check progress is inconsistent. Restart preparation.'); end = batch.end_offset; }
   return { end, results, recent: results.every(batch => batch.recent) };
 }
-async function checkedStored(prep) {
+export async function checkedStored(prep) {
   if (new TextEncoder().encode(prep.plan_json).length > INTENT_LIMITS.planBytes) fail(409, 'INTENT_PLAN', 'Stored plan exceeds its limit.');
   const plan = JSON.parse(prep.plan_json);
   if (await jsonSha256(plan) !== prep.plan_sha256 || plan.planVersion !== 2 || plan.draftId !== prep.draft_id || plan.ownerId !== prep.owner_id
@@ -112,7 +112,7 @@ async function copySchema(env) {
   const installed = await env.GIZMAGICK_DB.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'admin_bounded_copy_guard'").first();
   if (!installed) fail(503, 'INTENT_COPY_SCHEMA', 'Bounded copying needs migration 0008 before it can be enabled. No public copy was attempted.');
 }
-async function copyProgress(env, intent, plan) {
+export async function copyProgress(env, intent, plan) {
   const { results } = await env.GIZMAGICK_DB.prepare('SELECT ordinal, etag FROM admin_publication_objects WHERE publication_id = ? ORDER BY ordinal LIMIT 258').bind(intent.id).all();
   if (results.length > plan.objects.length || results.some((receipt, index) => receipt.ordinal !== index || !receipt.etag)) fail(409, 'INTENT_PROGRESS', 'Stored public-copy progress is inconsistent. No continuation is permitted.');
   return results;
@@ -128,9 +128,10 @@ async function statusFor(env, row) {
     if (raw.planVersion !== 2) return { ...flags, preparation: null, intent: null, legacyPublication: { id: intent.id, state: intent.state } };
     const plan = await checkedStored(intent);
     const copied = await copyProgress(env, intent, plan), canCopy = enabled && row.status === 'draft' && intent.state === 'pending' && copied.length < plan.objects.length;
+    const commit = await env.GIZMAGICK_DB.prepare('SELECT published_at FROM admin_publication_commits WHERE publication_id = ?').bind(intent.id).first();
     return { ...flags, preparation: null, legacyPublication: null, intent: { id: intent.id, draftId: row.id,
       trackId: plan.candidate.track.id, versionId: plan.candidate.versionId, planSha256: intent.plan_sha256,
-      state: intent.state, copiedObjects: copied.length, totalObjects: plan.objects.length, nextAction: canCopy ? 'copy-one-object' : null,
+      state: intent.state, publishedAt: commit?.published_at ?? null, copiedObjects: copied.length, totalObjects: plan.objects.length, nextAction: canCopy ? 'copy-one-object' : null,
       continuationBlocked: !canCopy, storageCheckScope: plan.review.storageCheckScope } };
   }
   const prep = await preparationFor(env, row);

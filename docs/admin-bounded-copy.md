@@ -1,5 +1,10 @@
 # Phase 7J: one-object conditional public copying
 
+This records the Phase 7J copying checkpoint. Phase 7K now adds
+[independent final checks and catalog publication](admin-publication-final.md),
+locally only, behind migration 0009 and another disabled flag. Copying still
+never commits a catalog entry by itself.
+
 Implemented and tested locally, **not deployed or enabled on Cloudflare**.
 This is the copying portion of the large-track publisher, not its catalog commit.
 The repository keeps `GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED`,

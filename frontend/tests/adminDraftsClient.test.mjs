@@ -5,11 +5,12 @@ import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
-  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false } = {}) {
+  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply } = {}) {
   const elements = new Map(), calls = [], downloads = [];
   let preparation = null;
   let verification = null;
   let intentPreparation = null, reservedIntent = null;
+  let finalPass = null, finalAudit = null;
   let metadataFailure = false;
   const element = id => {
     if (!elements.has(id)) elements.set(id, { value: '', checked: false, files: [], disabled: false,
@@ -32,7 +33,7 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   if (intents) { draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-13',
     reportSha256: 'b'.repeat(64), snapshotSha256: 'a'.repeat(64), serverDecoded: false, publishing: false }; draft.metadataEditable = false; }
   runInNewContext(`(${adminClient.toString()})();`, {
-    document: { getElementById: id => (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
+    document: { getElementById: id => (id.startsWith('final-') && !finalizing) || (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
     crypto, TextEncoder, File: class File {}, confirm: () => packageConfirm, Blob,
     URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:local-test'; }, revokeObjectURL() {} }, setTimeout: callback => callback(),
     fetch: async (path, options) => {
@@ -64,6 +65,25 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
           serverDecoded: false, pointInTimeBatches: true, preparation: reservedIntent ? null : structuredClone(intentPreparation), intent: structuredClone(reservedIntent),
           legacyPublication: null };
         if (intentReply) result = await intentReply(result, body.action || 'status');
+      }
+      if (path.endsWith('/publication-final')) {
+        const body = options.body ? JSON.parse(options.body) : {};
+        if (body.action === 'start' && (!finalPass || body.restartPassId)) finalPass = { id: crypto.randomUUID(), requestId: body.requestId,
+          publicationId: reservedIntent.id, planSha256: reservedIntent.planSha256, receiptsSha256: 'e'.repeat(64), totalObjects: assetCount + 1,
+          checkedObjects: 0, expiresAt: Math.floor(Date.now() / 1000) + 900, recent: true, firstCheckedAt: null, lastCheckedAt: null };
+        if (body.action === 'check-batch') {
+          assert.equal(body.passId, finalPass.id); assert.equal(body.offset, finalPass.checkedObjects);
+          finalPass.checkedObjects = Math.min(finalPass.checkedObjects + 16, assetCount + 1);
+          finalPass.firstCheckedAt ??= Math.floor(Date.now() / 1000); finalPass.lastCheckedAt = Math.floor(Date.now() / 1000);
+        }
+        if (body.action === 'commit') {
+          assert.equal(body.passId, finalPass.id); assert.equal(body.publicationConfirmed, true); assert.equal(body.batchWindowConfirmed, true);
+          reservedIntent.state = 'published'; reservedIntent.publishedAt = new Date().toISOString(); reservedIntent.nextAction = null; reservedIntent.continuationBlocked = true;
+          finalAudit = { passId: finalPass.id, storageCheckScope: 'bounded-batches', checkedFrom: finalPass.firstCheckedAt, checkedUntil: finalPass.lastCheckedAt };
+        }
+        result = { workflowVersion: 1, catalogCommitEnabled: true, publicationAuthorized: false, serverDecoded: false, pointInTimeBatches: true,
+          publication: { ...structuredClone(reservedIntent), publishedAt: reservedIntent.publishedAt || null, finalAudit }, verification: structuredClone(finalPass) };
+        if (finalReply) result = await finalReply(result, body.action || 'status');
       }
       if (/\/(review-verification|review-verification-batch|attest-review-batched)$/.test(path)) {
         const body = options.body ? JSON.parse(options.body) : {};
@@ -165,6 +185,90 @@ async function reserveClientIntent(f) {
   f.element('intent-confirm').checked = true;
   await f.element('intent-reserve').listeners.get('click')();
 }
+async function beginClientFinal(f) {
+  await beginClientIntent(f);
+  const count = Object.keys(f.draft.manifest.assets).length + 1;
+  for (let offset = 0; offset < count; offset += 16) await f.element('intent-next').listeners.get('click')();
+  f.element('intent-confirm').checked = true; await f.element('intent-reserve').listeners.get('click')();
+  for (let ordinal = 0; ordinal < count; ordinal++) {
+    f.element('intent-copy-confirm').checked = true; await f.element('intent-copy').listeners.get('click')();
+  }
+  await f.element('final-refresh').listeners.get('click')(); await f.element('final-start').listeners.get('click')();
+}
+test('manual final checks have separate confirmation and publish only the exact completed pass', async () => {
+  const f = fixture({ intents: true, copies: true, finalizing: true, assetCount: 17 }); await beginClientFinal(f);
+  assert.equal(f.element('final-commit').disabled, true);
+  for (let i = 0; i < 2; i++) {
+    await f.element('final-next').listeners.get('click')(); assert.equal(f.element('final-progress').value, Math.min((i + 1) * 16, 18));
+    assert(!f.calls.some(call => call.path.endsWith('/publication-final') && call.options.body && JSON.parse(call.options.body).action === 'commit'));
+  }
+  const before = f.calls.length; await f.element('final-commit').listeners.get('click')(); assert.equal(f.calls.length, before);
+  await f.element('final-refresh').listeners.get('click')();
+  f.element('final-confirm').checked = true; f.element('final-confirm').listeners.get('change')();
+  assert.equal(f.element('final-commit').disabled, false); await f.element('final-commit').listeners.get('click')();
+  assert(f.element('final-state').textContent.includes('Published to the catalog')); assert.equal(f.element('final-confirm').checked, false);
+  assert(f.element('intent-state').textContent.includes('Published to the catalog')); assert.equal(f.element('final-start').disabled, true);
+  assert.equal(f.element('intent-copy').disabled, true);
+  const commit = f.calls.find(call => call.path.endsWith('/publication-final') && call.options.body && JSON.parse(call.options.body).action === 'commit');
+  assert.equal(JSON.parse(commit.options.body).batchWindowConfirmed, true); assert.equal(commit.options.headers['X-Gizmagick-Admin-Request'], '1');
+});
+
+test('reload and refresh read progress only, clear final confirmation and never auto-publish', async () => {
+  const f = fixture({ intents: true, copies: true, finalizing: true }); await beginClientFinal(f);
+  await f.element('final-next').listeners.get('click')(); f.element('final-confirm').checked = true;
+  await f.openDraft(); assert.equal(f.element('final-commit').disabled, true);
+  await f.element('final-refresh').listeners.get('click')(); assert.equal(f.calls.at(-1).options.method, 'GET');
+  assert.equal(f.element('final-progress').value, 2); assert.equal(f.element('final-confirm').checked, false);
+  assert(!f.calls.some(call => call.options.body && JSON.parse(call.options.body).action === 'commit'));
+  const before = f.calls.length; await f.element('final-restart').listeners.get('click')(); assert.equal(f.calls.length, before);
+});
+
+for (const mismatch of ['scope', 'plan', 'pass', 'progress', 'published-audit']) test(`invalid ${mismatch} final replies lock catalog writes`, async () => {
+  const f = fixture({ intents: true, copies: true, finalizing: true, finalReply: (result, action) => {
+    if (mismatch === 'scope') result.serverDecoded = true;
+    if (mismatch === 'plan' && result.verification) result.verification.planSha256 = 'a'.repeat(64);
+    if (mismatch === 'pass' && action === 'check-batch') result.verification.id = crypto.randomUUID();
+    if (mismatch === 'progress' && action === 'check-batch') result.verification.checkedObjects = 0;
+    if (mismatch === 'published-audit' && action === 'commit') result.publication.finalAudit.storageCheckScope = 'single-request';
+    return result;
+  } }); await beginClientFinal(f); await f.element('final-next').listeners.get('click')();
+  f.element('final-confirm').checked = true; await f.element('final-commit').listeners.get('click')();
+  assert.equal(f.element('final-commit').disabled, true); assert.equal(f.element('final-confirm').checked, false);
+  if (mismatch !== 'published-audit') assert(!f.calls.some(call => call.options.body && JSON.parse(call.options.body).action === 'commit'));
+});
+
+test('a lost final commit response is recovered only by read-only status and stays locked as published', async () => {
+  let fail = true;
+  const f = fixture({ intents: true, copies: true, finalizing: true, finalReply: (result, action) => {
+    if (action === 'commit' && fail) { fail = false; throw new Error('Lost commit response'); } return result;
+  } }); await beginClientFinal(f); await f.element('final-next').listeners.get('click')();
+  f.element('final-confirm').checked = true; await f.element('final-commit').listeners.get('click')();
+  assert.equal(f.element('final-commit').disabled, true); assert(f.element('status').textContent.includes('may have committed'));
+  await f.element('final-refresh').listeners.get('click')(); assert.equal(f.calls.at(-1).options.method, 'GET');
+  assert(f.element('final-state').textContent.includes('Published to the catalog')); assert.equal(f.element('final-start').disabled, true);
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'commit').length, 1);
+});
+
+test('stale final checks lock confirmation and explicit restart needs consent', async () => {
+  let stale = false;
+  const f = fixture({ intents: true, copies: true, finalizing: true, packageConfirm: true, finalReply: (result, action) => {
+    if (stale && action === 'status' && result.verification) result.verification.recent = false; return result;
+  } }); await beginClientFinal(f); await f.element('final-next').listeners.get('click')(); stale = true;
+  await f.element('final-refresh').listeners.get('click')(); assert.equal(f.element('final-commit').disabled, true);
+  stale = false; await f.element('final-restart').listeners.get('click')(); assert.equal(f.element('final-progress').value, 0);
+  assert.equal(f.element('final-confirm').checked, false);
+});
+
+test('busy guard prevents duplicate final commits', async () => {
+  let release;
+  const f = fixture({ intents: true, copies: true, finalizing: true, finalReply: (result, action) => action === 'commit'
+    ? new Promise(resolve => { release = () => resolve(result); }) : result }); await beginClientFinal(f);
+  await f.element('final-next').listeners.get('click')(); f.element('final-confirm').checked = true;
+  const first = f.element('final-commit').listeners.get('click')(); await new Promise(resolve => setImmediate(resolve));
+  await f.element('final-commit').listeners.get('click')();
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'commit').length, 1);
+  release(); await first;
+});
 test('bounded copy UI requires separate fresh confirmation for every exact ordinal and never commits a catalog', async () => {
   const f = fixture({ intents: true, copies: true }); await reserveClientIntent(f);
   assert.equal(f.element('intent-copy').disabled, true);

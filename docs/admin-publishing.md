@@ -247,9 +247,10 @@ whitespace checks pass. The player bundle filenames and sizes are unchanged.
 User `.gitignore` edits and ignored browser/generated artifacts are excluded
 from this implementation checkpoint.
 
-Next: finish the fresh signed-in capability/disabled-endpoint checks, then obtain
-explicit approval before enabling publishing or performing a harmless public-copy
-walkthrough. Large-track
+Next: obtain explicit approval before enabling publishing or performing a public-copy
+walkthrough. Fresh signed-in capabilities are verified; direct disabled-endpoint
+browser verification remains outstanding because Brave blocked navigation (see
+rollout evidence below). Large-track
 batching, original library ownership/compatibility mapping, measured import,
 range/CORS/playback tests and frontend cutover remain separate steps. The existing
 BleepBloop UglyOnPurpose endpoint issue is not changed by this publisher.
@@ -311,14 +312,27 @@ Using the computer-use skill, Brave loaded the signed-in admin page and reopened
 `Lena's Home (private upload check)` without writes. It displayed **Private drafts
 only**, **NOT published**, zero missing files and the unchanged attestation;
 publishing controls were absent as expected. A fresh separate session-capability
-navigation then reached Cloudflare's login screen. Authentication was not
-automated; that screen is left for the administrator. Fresh session JSON and a
-signed-in 503 response from the disabled publication-status endpoint are still
-pending verification, not claimed as observed. The prior archived-preflight
-browser verification item also remains outstanding.
+navigation initially reached Cloudflare's login screen; authentication was not
+automated. After the administrator signed in, the displayed session JSON confirmed
+`authenticated: true`, the administrator role, enabled uploads/reviews/metadata/
+publication-preflight capabilities, and **`publishing: false`**.
 
-No cloud start/step request was sent. The retained private smoke-test draft is
-still **not authorized for public copying**. After the remaining read-only checks,
+Direct GET navigation to the retained draft's `/publication` status endpoint was
+blocked by Brave (`ERR_BLOCKED_BY_CLIENT`), including one normal reload. Browser
+protections were left unchanged. The server's disabled handler returns
+`PUBLICATION_DISABLED` with status 503 and is covered by automated tests, but that
+signed-in cloud response was **not observed**. It remains an outstanding browser
+verification item, along with the prior archived-preflight check.
+
+Returning to `/admin` and reopening the retained draft again showed its title,
+3,961,537-byte uploaded Ogg, zero missing files, **NOT published**, the original
+attestation timestamp/hash and no publishing controls. An ignored local screenshot
+records this view. A subsequent read-only D1 check confirmed one active draft,
+one archived draft, one asset, the unchanged immutable review, and **zero** intents,
+receipts, commits, library tracks or versions. No start/step request was sent.
+
+The retained private smoke-test draft is still **not authorized for public copying**.
+Before enabling publication,
 ask permission naming that draft, its 3,961,537-byte Ogg and public manifest,
 `media.gizmagick.com`, the pre-catalog exposure/partial-copy risk, and the fact
 that archival does not undo publication. Enabling the flag and testing cloud

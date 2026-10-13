@@ -123,8 +123,11 @@ this does not alter saved drafts/reviews or public storage. No rollback was need
 
 The [Phase 7B backend and Phase 7C controls](admin-publishing.md) now implement
 immutable audit/retry rules, explicit confirmation and progress. Phase 7D applies
-migration 0004 and deploys them with cloud publishing still disabled; fresh
-session/disabled-publication endpoint checks await sign-in. Retain
+migration 0004 and deploys them with cloud publishing still disabled. Fresh
+signed-in session JSON confirms `publishing: false`; the retained draft and its
+review remain unchanged. Brave blocked direct publication-status navigation and
+one normal reload, so its signed-in disabled response remains unverified; browser
+protections were not changed. Retain
 the archived-preview browser check as an outstanding verification item. The
 publisher revalidates sources, uses conditional source reads and non-overwriting
 destination writes, verifies all public objects, and commits D1 publication

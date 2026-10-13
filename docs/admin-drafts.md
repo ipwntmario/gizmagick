@@ -246,8 +246,11 @@ implemented and tested locally. Phase 7D applies migration 0004 and deploys them
 to the existing Worker with cloud publication explicitly disabled. The separate
 `--publication` preview mode uses only temporary local storage and a synthetic
 sample attestation; the default preview remains private-only. The signed-in page
-and retained private draft loaded correctly; fresh session/disabled-publication
-endpoint checks await administrator sign-in. Enabling cloud publication and
+and retained private draft loaded correctly. After administrator sign-in, fresh
+session JSON confirmed `publishing: false`; the draft and its review remained
+unchanged. Brave blocked direct publication-status navigation and one normal
+reload, so the signed-in disabled-endpoint response remains unverified. No browser
+protections were changed. Enabling cloud publication and
 authorization for any real public copies remain pending.
 Following increments: reviewed ownership mapping; staged
 library import and frontend cutover. The visual graph editor and ordinary-user

@@ -79,7 +79,8 @@ test('explicit confirmation sends the policy through same-origin guarded API the
   assert.equal(call.options.headers['X-Gizmagick-Admin-Request'], '1');
   assert.deepEqual(JSON.parse(call.options.body), { report: f.report, policy: 'gizmagick-local-admin-v1', provenanceConfirmed: true });
   assert(f.element('review-state').textContent.includes('Administrator-attested'));
-  assert(f.element('review-state').textContent.includes('NOT server-decoded / NOT published'));
+  assert(f.element('review-state').textContent.includes('NOT server-decoded'));
+  assert(!f.element('review-state').textContent.includes('NOT published'));
   assert.equal(f.element('review-package').disabled, true);
   assert.equal(f.element('attest-review').disabled, true);
 });

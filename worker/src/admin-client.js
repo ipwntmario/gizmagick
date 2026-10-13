@@ -124,9 +124,9 @@ export function adminClient() {
     }
     current = draft;
     byId('draft-title').textContent = draft.title;
-    byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT audio-probed · NOT published`;
+    byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing ? '' : ' (writes disabled; existing public copies remain public)'}`;
     if (byId('review-state')) byId('review-state').textContent = draft.review
-      ? `Administrator-attested by ${draft.review.approvedBy} at ${draft.review.approvedAt}. NOT server-decoded / NOT published. Report SHA-256: ${draft.review.reportSha256}`
+      ? `Administrator-attested by ${draft.review.approvedBy} at ${draft.review.approvedAt}. NOT server-decoded. Report SHA-256: ${draft.review.reportSha256}`
       : 'No administrator attestation recorded.';
     byId('manifest-view').textContent = JSON.stringify(draft.manifest, null, 2);
     byId('manifest-download').href = `${pathFor(draft.id)}/manifest`;
@@ -163,7 +163,7 @@ export function adminClient() {
         showDraft(await api(pathFor(draft.id)));
         if (byId('metadata-editor')) byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
         await loadPublication();
-        status(publishing ? 'Draft loaded. Publication status was read only; no files were copied.' : current.missingAssets.length ? 'Private draft loaded. Choose its missing audio files to continue.' : 'Private draft loaded. All referenced files are stored privately; server decoding and publication remain disabled.');
+        status(publishing ? 'Draft loaded. Publication status was read only; no files were copied.' : 'Draft loaded. Publication status was not checked. New publishing writes are disabled; existing public copies remain public.');
       }));
       item.append(button); list.append(item);
     }

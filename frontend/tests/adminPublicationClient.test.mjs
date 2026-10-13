@@ -218,6 +218,24 @@ test('disabled publishing renders no publishing controls or calls, retaining pri
   assert(!f.calls.some(call => call.path.includes('/publication')));
 });
 
+test('disabled publishing does not mislabel earlier public copies or completed publications as private', async () => {
+  for (const state of ['pending', 'published']) {
+    const f = fixture({ enabled: false });
+    f.seed({ state, copiedObjects: state === 'published' ? 2 : 1,
+      nextAction: state === 'published' ? null : 'copy-one-object',
+      publishedAt: state === 'published' ? '2026-10-12T12:00:00Z' : null });
+    await f.open();
+    assert(f.element('draft-state').textContent.includes('Publication status not checked'));
+    assert(f.element('draft-state').textContent.includes('existing public copies remain public'));
+    assert(!f.element('draft-state').textContent.includes('NOT published'));
+    assert(!f.element('review-state').textContent.includes('NOT published'));
+    assert(f.element('status').textContent.includes('Publication status was not checked'));
+    assert(!f.element('status').textContent.includes('All referenced files are stored privately'));
+    assert(!f.calls.some(call => call.path.includes('/publication')));
+    assert.equal(f.writes().length, 0);
+  }
+});
+
 test('mismatched readiness response cannot authorize an intent', async () => {
   const f = fixture(); await f.open();
   f.alterPreview(value => ({ ...value, review: { ...value.review, reportSha256: 'wrong' } }));

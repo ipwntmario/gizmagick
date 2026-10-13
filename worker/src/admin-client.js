@@ -7,6 +7,33 @@ export function adminClient() {
   // undefined means unknown: no write is allowed until a successful status GET.
   let publication, publicationReady = false, publicationRequest = null;
   const inspecting = Boolean(byId('storage-inspection-panel'));
+  const batchPackaging = Boolean(byId('package-panel'));
+  let packagePreparation;
+  const packageEligible = () => Boolean(current?.status === 'draft' && !current.review && !current.missingAssets.length && !metadataDirty());
+  function renderPreparation() {
+    if (!batchPackaging) return;
+    byId('package-progress').max = packagePreparation?.totalAssets || 1;
+    byId('package-progress').value = packagePreparation?.checkedAssets || 0;
+    byId('package-next').textContent = packagePreparation?.checkedAssets === packagePreparation?.totalAssets && packagePreparation
+      ? packagePreparation.ready ? 'Download completed package again' : 'Finish and download review package' : 'Check next package batch';
+    byId('package-state').textContent = packagePreparation === undefined ? 'Preparation status unknown. Refresh, or deliberately start/resume preparation. No approval was recorded by preparation.'
+      : packagePreparation === null ? 'No package preparation. Start one explicitly; no audio is decoded or approved.'
+      : `${packagePreparation.checkedAssets}/${packagePreparation.totalAssets} file checks recorded. Package ${packagePreparation.jobId}\nExpires: ${new Date(packagePreparation.expiresAt * 1000).toISOString()}\n${packagePreparation.ready ? 'Package prepared, NOT approved. Run the local validator and confirm provenance separately.' : 'Paused until your next click; these checks happen at separate times, not as one atomic storage snapshot.'}`;
+  }
+  function acceptPreparation(result) {
+    const prep = result.preparation, total = Object.keys(current.manifest.assets).length;
+    if (result.audioProbed !== false || result.publishing !== false || result.publicationAuthorized !== false
+        || (prep !== null && (!prep || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(prep.jobId)
+          || prep.draftId !== current.id || prep.trackId !== current.manifest.track.id || prep.versionId !== current.manifest.versionId
+          || prep.manifestSha256 !== current.manifestSha256 || prep.totalAssets !== total || total < 1 || total > 256
+          || !Number.isInteger(prep.checkedAssets) || prep.checkedAssets < 0 || prep.checkedAssets > total
+          || (prep.checkedAssets !== total && prep.checkedAssets % 16 !== 0)
+          || typeof prep.ready !== 'boolean' || (prep.ready && prep.checkedAssets !== total)
+          || !Number.isSafeInteger(prep.expiresAt) || prep.expiresAt <= Date.now() / 1000 || prep.expiresAt > 8640000000000))) {
+      throw new Error('Package preparation response does not match the loaded draft. Refresh before continuing.');
+    }
+    packagePreparation = prep; renderPreparation();
+  }
   let inspectionOffset = 0, inspectionPin = null, inspectionStopped = false;
   function resetInspection(message = 'No files checked in this pass. This is not audio validation or approval.') {
     inspectionOffset = 0; inspectionPin = null; inspectionStopped = false;
@@ -60,6 +87,13 @@ export function adminClient() {
     for (const control of document.querySelectorAll('button,input,select,textarea')) control.disabled = value;
     byId('upload').disabled = value || !current || current.status !== 'draft' || Boolean(current.review) || !selectedFiles.length || metadataDirty();
     byId('archive').disabled = value || !current || current.status !== 'draft';
+    if (batchPackaging) {
+      byId('package-refresh').disabled = value || !current || current.status !== 'draft' || Boolean(current.review) || metadataDirty();
+      byId('package-start').disabled = value || !packageEligible();
+      byId('package-next').disabled = value || !packageEligible() || !packagePreparation;
+      byId('package-restart').disabled = value || !packageEligible() || !packagePreparation;
+      renderPreparation();
+    }
     if (inspecting) {
       byId('inspection-next').disabled = value || !current || current.status !== 'draft'
         || current.missingAssets.length > 0 || metadataDirty() || inspectionStopped;
@@ -138,6 +172,7 @@ export function adminClient() {
         : 'Editing locked: this draft is attested, archived, or metadata editing is disabled.';
     }
     current = draft;
+    packagePreparation = undefined;
     resetInspection();
     byId('draft-title').textContent = draft.title;
     byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing ? '' : ' (writes disabled; existing public copies remain public)'}`;
@@ -191,6 +226,65 @@ export function adminClient() {
     try { await operation(); } catch (error) { status(error.message); }
     finally { setBusy(false); }
   }
+  async function packageWork(operation) {
+    try { await operation(); }
+    catch (error) { packagePreparation = undefined; renderPreparation(); throw error; }
+  }
+  byId('package-refresh')?.addEventListener('click', () => work(() => packageWork(async () => {
+    if (!current || metadataDirty() || current.review) throw new Error('Open an active, saved, unreviewed draft.');
+    packagePreparation = undefined;
+    acceptPreparation(await api(`${pathFor(current.id)}/review-package-batches`));
+    status('Preparation status refreshed. No private file checks, approvals or public writes were requested.');
+  })));
+  byId('package-start')?.addEventListener('click', () => work(() => packageWork(async () => {
+    if (!packageEligible()) throw new Error('Upload every file and save metadata before preparing a package.');
+    clearReview(); packagePreparation = undefined;
+    acceptPreparation(await api(`${pathFor(current.id)}/review-package-batches`, 'POST', '{}'));
+    status('Private package preparation started or resumed. Click for each batch; no approval was recorded.');
+  })));
+  byId('package-restart')?.addEventListener('click', () => work(() => packageWork(async () => {
+    if (!packageEligible() || !packagePreparation) throw new Error('Refresh preparation before restarting.');
+    if (!confirm('Discard these package checks and invalidate this preparation’s completed package and reports? Audio will not be deleted.')) return;
+    const jobId = packagePreparation.jobId; clearReview(); packagePreparation = undefined;
+    acceptPreparation(await api(`${pathFor(current.id)}/review-package-batches`, 'POST', JSON.stringify({ restartJobId: jobId })));
+    status('Package checks restarted. Rerun the local validator with the replacement package before attesting.');
+  })));
+  function downloadPackage(job) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(job, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = 'draft-review-package.json';
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  byId('package-next')?.addEventListener('click', () => work(() => packageWork(async () => {
+    if (!packageEligible() || !packagePreparation) throw new Error('Refresh preparation before continuing.');
+    const expected = packagePreparation;
+    const finishing = expected.checkedAssets === expected.totalAssets;
+    const result = await api(`${pathFor(current.id)}/${finishing ? 'review-package-finish' : 'review-package-batch'}`, 'POST',
+      JSON.stringify({ jobId: expected.jobId, ...(finishing ? {} : { offset: expected.checkedAssets }) }));
+    acceptPreparation(result);
+    if (!packagePreparation || packagePreparation.jobId !== expected.jobId
+        || packagePreparation.checkedAssets !== (finishing ? expected.totalAssets : Math.min(expected.checkedAssets + 16, expected.totalAssets))) {
+      throw new Error('Preparation identity or batch order changed. Refresh its status.');
+    }
+    if (finishing) {
+      const job = result.package;
+      const digestJSON = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)))), byte => byte.toString(16).padStart(2, '0')).join('');
+      if (!packagePreparation.ready || job?.packageVersion !== 1 || job.policy !== 'gizmagick-local-admin-v1'
+          || job.jobId !== expected.jobId || job.expiresAt !== packagePreparation.expiresAt || job.snapshot?.draftId !== current.id
+          || !Array.isArray(job.snapshot.assets) || job.snapshot.assets.length !== expected.totalAssets
+          || job.snapshot.assets.some((asset, index) => {
+            const id = Object.keys(current.manifest.assets).sort()[index], uploaded = current.uploads.find(item => item.asset_id === id);
+            return asset.assetId !== id || asset.path !== current.manifest.assets[id].path || !uploaded || uploaded.state !== 'uploaded'
+              || asset.byteLength !== uploaded.byte_length || asset.sha256 !== uploaded.sha256 || typeof asset.etag !== 'string' || !asset.etag;
+          })
+          || await digestJSON(job.snapshot.manifest) !== current.manifestSha256 || await digestJSON(job.snapshot) !== job.snapshotSha256) {
+        throw new Error('Completed review package does not match this exact draft. Nothing was downloaded or approved.');
+      }
+      downloadPackage(job);
+      status('Review package prepared and download requested. Run the local validator and inspect its report; no approval or publication occurred.');
+    } else status('Private package batch recorded. Continue explicitly when ready; no audio approval or publication occurred.');
+  })));
   byId('inspection-reset')?.addEventListener('click', () => {
     if (busy) return;
     resetInspection(); setBusy(false);
@@ -307,7 +401,7 @@ export function adminClient() {
       await refreshList(); status('Draft archived. No files were deleted or unpublished.');
     });
   });
-  byId('metadata-editor')?.addEventListener('input', () => { resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
+  byId('metadata-editor')?.addEventListener('input', () => { packagePreparation = undefined; resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
   byId('reset-metadata')?.addEventListener('click', () => {
     if (!current || !confirm('Discard unsaved metadata edits? The saved draft will not change.')) return;
     byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
@@ -331,11 +425,7 @@ export function adminClient() {
   byId('review-package')?.addEventListener('click', () => work(async () => {
     if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before requesting a review package.');
     const job = await api(`${pathFor(current.id)}/review-package`, 'POST');
-    const url = URL.createObjectURL(new Blob([JSON.stringify(job, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url; link.download = 'draft-review-package.json';
-    document.body.append(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadPackage(job);
     status('Review package downloaded. Run the local validator against its exact private audio files; no approval has been recorded.');
   }));
   byId('review-report')?.addEventListener('change', () => work(async () => {

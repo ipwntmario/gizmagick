@@ -68,6 +68,9 @@ async function verifyBrowserInitialization(html) {
   assert.equal(element('publication-confirm').disabled, true);
   assert.equal(element('publication-refresh').disabled, true);
   assert.equal(element('publication-check').disabled, true);
+  assert.equal(element('package-start').disabled, true);
+  assert.equal(element('package-next').disabled, true);
+  assert(element('package-refresh').listeners.has('click'));
   assert.equal(element('inspection-next').disabled, true);
   assert.equal(element('inspection-reset').disabled, true);
   assert(element('inspection-next').listeners.has('click'));
@@ -104,7 +107,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
-    bindings: { GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -115,7 +118,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -131,6 +134,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(body.capabilities.metadata, true);
     assert.equal(body.capabilities.publicationPreflight, true);
     assert.equal(body.capabilities.publishing, true);
+    assert.equal(body.capabilities.batchPackages, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -200,9 +204,21 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal((await request(packageUrl, null, { method: 'POST', headers: writeHeaders })).status, 401);
     assert.equal((await request(packageUrl, token, { method: 'POST' })).status, 403);
     assert.equal((await request(packageUrl, issue('member@example.com'), { method: 'POST', headers: writeHeaders })).status, 403);
-    const jobResponse = await request(packageUrl, token, { method: 'POST', headers: writeHeaders });
+    const batchUrl = `/api/admin/drafts/${draft.id}/review-package-batches`;
+    assert.equal((await request(batchUrl, null)).status, 401);
+    assert.equal((await request(batchUrl, issue('member@example.com'))).status, 403);
+    assert.equal((await request(batchUrl, token, { method: 'POST', body: '{}' })).status, 403);
+    const startPackage = await request(batchUrl, token, { method: 'POST', headers: writeHeaders, body: '{}' });
+    assert.equal(startPackage.status, 201, await startPackage.clone().text());
+    const preparation = (await startPackage.json()).preparation;
+    const batchResponse = await request(`/api/admin/drafts/${draft.id}/review-package-batch`, token,
+      { method: 'POST', headers: writeHeaders, body: JSON.stringify({ jobId: preparation.jobId, offset: 0 }) });
+    assert.equal(batchResponse.status, 200, await batchResponse.clone().text());
+    assert.equal((await (await request(batchUrl)).json()).preparation.checkedAssets, 1);
+    const jobResponse = await request(`/api/admin/drafts/${draft.id}/review-package-finish`, token,
+      { method: 'POST', headers: writeHeaders, body: JSON.stringify({ jobId: preparation.jobId }) });
     assert.equal(jobResponse.status, 200, await jobResponse.clone().text());
-    const job = await jobResponse.json();
+    const job = (await jobResponse.json()).package;
     assert.equal(job.snapshot.assets[0].byteLength, bytes.length);
     // Run the actual local CLI against a package minted by the actual bundled
     // Worker and R2/D1 simulator, not a fabricated report or bypassed handler.

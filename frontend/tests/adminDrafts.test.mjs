@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -76,6 +76,8 @@ function fixture(t) {
 }
 
 const inspectionPath = (draft, offset = 0, pin) => `/api/admin/drafts/${draft.id}/storage-inspection?offset=${offset}${pin ? '&snapshot=' + pin : ''}`;
+const packageRequest = (f, draft, operation = 'batches', body, options = {}) => f.request(`/api/admin/drafts/${draft.id}/review-package-${operation}`,
+  { ...(body !== undefined ? { method: 'POST', body } : {}), ...options });
 async function uploadedDraft(f, input = canonical()) {
   const created = await f.create(input);
   assert.equal(created.status, 201, await created.clone().text());
@@ -86,6 +88,209 @@ async function uploadedDraft(f, input = canonical()) {
   }
   return draft;
 }
+
+for (const count of [129, 256]) test(`durable ${count}-file review packaging resumes bounded batches and produces a canonical package without approval`, async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const input = count === 129 ? { requestId: crypto.randomUUID(), manifest: JSON.parse(await read('../public/tracks/Testing Time/manifest.json')) } : canonical();
+  if (count === 129) for (const asset of Object.values(input.manifest.assets)) { delete asset.byteLength; delete asset.sha256; }
+  if (count === 256) for (let i = 1; i < count; i++) input.manifest.assets[crypto.randomUUID()] = { path: `audio/extra-${i}.ogg` };
+  const draft = await uploadedDraft(f, input);
+  assert.equal((await (await packageRequest(f, draft)).json()).preparation, null);
+  const started = await packageRequest(f, draft, 'batches', {});
+  assert.equal(started.status, 201, await started.clone().text());
+  const job = (await started.json()).preparation;
+  assert.equal(job.checkedAssets, 0); assert.equal(job.ready, false);
+  assert.equal((await (await packageRequest(f, draft, 'batches', {})).json()).preparation.jobId, job.jobId);
+  const head = f.env.GIZMAGICK_DRAFTS.head; let heads = 0;
+  f.env.GIZMAGICK_DRAFTS.head = key => { heads++; return head(key); };
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = () => assert.fail('Package preparation cannot read audio bytes or write R2');
+  f.env.GIZMAGICK_MEDIA.head = () => assert.fail('Package preparation cannot touch public storage');
+  assert.equal((await packageRequest(f, draft, 'finish', { jobId: job.jobId })).status, 409);
+  for (let offset = 0; offset < count; offset += 16) {
+    heads = 0;
+    const response = await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(heads, Math.min(16, count - offset));
+    const result = await response.json(); assert.equal(result.preparation.checkedAssets, Math.min(offset + 16, count));
+    assert.equal(result.preparation.ready, false); assert.equal(result.audioProbed, false); assert.equal(result.publicationAuthorized, false);
+    heads = 0;
+    const status = await packageRequest(f, draft);
+    assert.equal(status.headers.get('Cache-Control'), 'private, no-store');
+    assert.equal((await status.json()).preparation.checkedAssets, Math.min(offset + 16, count));
+    // Lost-response retry returns the durable receipt without inspecting again.
+    assert.equal((await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset })).status, 200); assert.equal(heads, 0);
+  }
+  const finish = await packageRequest(f, draft, 'finish', { jobId: job.jobId });
+  assert.equal(finish.status, 200, await finish.clone().text());
+  const completed = await finish.json(); assert.equal(completed.preparation.ready, true); assert.equal(heads, 0);
+  assert.equal(completed.package.packageVersion, 1); assert.equal(completed.package.policy, REVIEW_POLICY);
+  assert.equal(completed.package.jobId, job.jobId); assert.equal(completed.package.snapshot.assets.length, count);
+  assert.equal(completed.package.snapshot.draftId, draft.id);
+  assert.equal(completed.package.snapshotSha256, hash(Buffer.from(JSON.stringify(completed.package.snapshot))));
+  const writes = f.sql.prepare('SELECT total_changes() n').get().n;
+  assert.deepEqual((await (await packageRequest(f, draft, 'finish', { jobId: job.jobId })).json()).package, completed.package);
+  assert.equal(f.sql.prepare('SELECT total_changes() n').get().n, writes);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_package_batches').get().n, Math.ceil(count / 16));
+  for (const table of ['admin_draft_reviews', 'admin_publications', 'library_tracks']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+});
+
+test('batch packaging is disabled without migration 0005 and exposes controls only when enabled', async t => {
+  const f = fixture(t), draft = await uploadedDraft(f);
+  f.sql.exec('DROP TRIGGER admin_package_replace_batches; DROP TABLE admin_draft_package_batches; DROP TABLE admin_draft_package_preparations;');
+  for (const operation of ['batches', 'batch', 'finish']) assert.equal((await packageRequest(f, draft, operation, {})).status, 503);
+  assert(!(await (await f.request('/admin')).text()).includes('id="package-panel"'));
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.batchPackages, false);
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}/review-package`, { method: 'POST' })).status, 200);
+});
+
+test('batch packages preserve method, owner, input and order gates', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f);
+  assert((await (await f.request('/admin')).text()).includes('id="package-panel"'));
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.batchPackages, true);
+  assert.equal((await packageRequest(f, draft, 'batches', {}, { principal: other })).status, 404);
+  assert.equal((await packageRequest(f, draft, 'batches', {}, { principal: { ...owner, role: 'user' } })).status, 403);
+  for (const operation of ['batch', 'finish']) {
+    const rejected = await packageRequest(f, draft, operation);
+    assert.equal(rejected.status, 405); assert.equal(rejected.headers.get('Allow'), 'POST');
+  }
+  assert.equal((await packageRequest(f, draft, 'batches', {}, { method: 'DELETE' })).status, 405);
+  for (const body of [{ assets: [] }, { snapshot: {} }, { restartJobId: 'bad' }, []]) assert.equal((await packageRequest(f, draft, 'batches', body)).status, 400);
+  const job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  for (const body of [{ jobId: job.jobId, offset: -1 }, { jobId: job.jobId, offset: 1 }, { jobId: job.jobId, offset: 0, assets: [] }, { jobId: 'bad', offset: 0 }]) {
+    assert.equal((await packageRequest(f, draft, 'batch', body)).status, 400);
+  }
+  assert.equal((await packageRequest(f, draft, 'batch', { jobId: crypto.randomUUID(), offset: 0 })).status, 409);
+  assert.equal((await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 16 })).status, 409);
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}/review-package-batches?offset=0`)).status, 400);
+  assert.equal((await packageRequest(f, draft, 'batches', 'x'.repeat(2049))).status, 415);
+  assert.equal((await packageRequest(f, draft, 'batches', 'x'.repeat(2049), { headers: { 'Content-Type': 'application/json' } })).status, 413);
+  const statusHead = await packageRequest(f, draft, 'batches', undefined, { method: 'HEAD' });
+  assert.equal(statusHead.status, 200); assert.equal(await statusHead.text(), '');
+});
+
+test('restarting or expiring preparation replaces batches and invalidates its completed package', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 });
+  await packageRequest(f, draft, 'finish', { jobId: job.jobId });
+  assert.equal((await packageRequest(f, draft, 'batches', { restartJobId: crypto.randomUUID() })).status, 409);
+  const restarted = await packageRequest(f, draft, 'batches', { restartJobId: job.jobId });
+  assert.equal(restarted.status, 201, await restarted.clone().text());
+  const next = (await restarted.json()).preparation;
+  assert.notEqual(next.jobId, job.jobId); assert.equal(next.checkedAssets, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_package_batches').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_jobs').get().n, 0);
+  assert.equal((await packageRequest(f, draft, 'finish', { jobId: job.jobId })).status, 409);
+  f.sql.prepare('UPDATE admin_draft_package_preparations SET expires_at = 0 WHERE draft_id = ?').run(draft.id);
+  assert.equal((await packageRequest(f, draft)).status, 409);
+  assert.equal((await packageRequest(f, draft, 'batch', { jobId: next.jobId, offset: 0 })).status, 409);
+  assert.notEqual((await (await packageRequest(f, draft, 'batches', {})).json()).preparation.jobId, next.jobId);
+});
+
+test('package preparation refuses stale metadata and renews only on deliberate start', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  const changed = structuredClone(draft.manifest); changed.track.title = 'Changed';
+  f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(changed), draft.id);
+  assert.equal((await packageRequest(f, draft)).status, 409);
+  assert.equal((await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 })).status, 409);
+  const next = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  assert.notEqual(next.jobId, job.jobId); assert.equal(next.checkedAssets, 0);
+});
+
+for (const change of ['metadata', 'allocation', 'archive', 'restart']) test(`package receipt insertion rejects a ${change} race`, async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  const head = f.env.GIZMAGICK_DRAFTS.head;
+  f.env.GIZMAGICK_DRAFTS.head = async key => {
+    const object = await head(key);
+    if (change === 'metadata') {
+      draft.manifest.track.title = 'Race';
+      f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(draft.manifest), draft.id);
+    }
+    if (change === 'allocation') f.sql.prepare('UPDATE admin_draft_assets SET object_key = ? WHERE draft_id = ?').run(key + '-changed', draft.id);
+    if (change === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(draft.id);
+    if (change === 'restart') assert.equal((await packageRequest(f, draft, 'batches', { restartJobId: job.jobId })).status, 201);
+    return object;
+  };
+  assert.equal((await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_package_batches').get().n, 0);
+});
+
+test('concurrent same-batch requests append only one durable receipt', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  const responses = await Promise.all([0, 1].map(() => packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 })));
+  assert(responses.every(response => response.status === 200));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_package_batches').get().n, 1);
+});
+
+for (const change of ['archive', 'expiry', 'replacement', 'allocation']) test(`final package insertion fences a ${change} race`, async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 });
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_draft_review_jobs')) return statement;
+    return { bind: (...values) => ({ run: async () => {
+      if (change === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived' WHERE id = ?").run(draft.id);
+      if (change === 'expiry') f.sql.prepare('UPDATE admin_draft_package_preparations SET expires_at = 0 WHERE draft_id = ?').run(draft.id);
+      if (change === 'replacement') await packageRequest(f, draft, 'batches', { restartJobId: job.jobId });
+      if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending' WHERE draft_id = ?").run(draft.id);
+      return statement.bind(...values).run();
+    } }) };
+  };
+  assert.equal((await packageRequest(f, draft, 'finish', { jobId: job.jobId })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_jobs').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('storage failures leave package progress unchanged and internal errors sanitized', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  const head = f.env.GIZMAGICK_DRAFTS.head;
+  f.env.GIZMAGICK_DRAFTS.head = () => null;
+  assert.equal((await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 })).status, 409);
+  f.env.GIZMAGICK_DRAFTS.head = () => { throw new Error('secret credentials'); };
+  const failed = await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 });
+  assert.equal(failed.status, 503); assert(!(await failed.text()).includes('credentials'));
+  assert.equal((await (await packageRequest(f, draft)).json()).preparation.checkedAssets, 0);
+  f.env.GIZMAGICK_DRAFTS.head = head;
+  assert.equal((await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 })).status, 200);
+});
+
+test('corrupt durable batch fingerprints cannot be assembled into a review package', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 });
+  const row = f.sql.prepare('SELECT assets_json FROM admin_draft_package_batches').get();
+  const assets = JSON.parse(row.assets_json); assets[0].sha256 = 'a'.repeat(64);
+  f.sql.prepare('UPDATE admin_draft_package_batches SET assets_json = ?').run(JSON.stringify(assets));
+  assert.equal((await packageRequest(f, draft, 'finish', { jobId: job.jobId })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_jobs').get().n, 0);
+});
+
+test('preparation and finishing never approve changed audio; the original approval path rechecks the full snapshot', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';
+  const draft = await uploadedDraft(f), job = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  await packageRequest(f, draft, 'batch', { jobId: job.jobId, offset: 0 });
+  const packageResult = await (await packageRequest(f, draft, 'finish', { jobId: job.jobId })).json();
+  const report = await createReviewReport(packageResult.package, { trackId: draft.manifest.track.id, versionId: draft.manifest.versionId,
+    decoderVersions: { opus: '1.7.5', vorbis: '0.1.20' }, valid: true, errors: [], measurements: Object.fromEntries(packageResult.package.snapshot.assets.map(asset =>
+      [asset.assetId, { codec: 'opus', channels: 2, sampleRate: 48000, sampleCount: 8640000, containerSampleCount: 8640000,
+        initialOverlapSamples: 0, durationSeconds: 180, byteLength: asset.byteLength, sha256: asset.sha256 }])) });
+  // Contract-only synthetic measurements are NOT decoder evidence.
+  [...f.objects.values()][0].etag = 'changed-etag';
+  assert.equal((await packageRequest(f, draft, 'finish', { jobId: job.jobId })).status, 200);
+  const attest = () => f.request(`/api/admin/drafts/${draft.id}/attest-review`, { method: 'POST', body: { report, policy: REVIEW_POLICY, provenanceConfirmed: true } });
+  assert.equal((await attest()).status, 409);
+  delete [...f.objects.values()][0].etag;
+  assert.equal((await attest()).status, 201);
+  assert.equal((await packageRequest(f, draft, 'batches', { restartJobId: job.jobId })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
 
 for (const count of [129, 256]) test(`private inspection bounds each batch of a ${count}-file draft and writes nothing`, async t => {
   const f = fixture(t);

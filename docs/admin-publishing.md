@@ -457,8 +457,13 @@ locally, with no cloud deployment or writes. It is read-only and does not change
 review-package generation, preflight or the publisher's 16-file limit. A completed
 inspection pass is not authorization to publish.
 
-Next: implement durable batched review packaging and bounded large-track
-intent/copy/final verification, then review original
+Phase 7G implements [durable batched review packaging](admin-review-packages.md)
+locally. Migration 0005 and its enable flag are not applied/enabled in Cloudflare.
+Package preparation still grants no approval or publication permission; the
+existing full approval recheck and 16-file publisher limit remain intact.
+
+Next: implement bounded approval revalidation and large-track intent/copy/final
+verification, then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

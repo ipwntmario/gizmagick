@@ -60,9 +60,11 @@ still use their full private-file snapshot checks. This endpoint does not replac
 or weaken them. The publisher still refuses drafts with more than **16 audio
 files**, even after a successful inspection pass.
 
-Next increments must connect bounded inspection to a durable, exact review
-package workflow, preserve stale-data and administrator-provenance guards, and
-bound intent/copy/final verification before raising the publisher limit. Inspection
+Phase 7G now connects the shared bounded checks to a [durable review-package workflow](admin-review-packages.md)
+locally, with a separate disabled rollout flag. The read-only inspection response
+does not authorize those private package writes or become a durable receipt.
+Next increments must bound approval revalidation and intent/copy/final verification
+while preserving stale-data and administrator-provenance guards before raising the publisher limit. Inspection
 results alone must never unlock those operations. Original-library ownership and
 legacy mapping, measured import, cloud rollout, online-room verification and live
 frontend cutover remain separate gates. Keep the known BleepBloop UglyOnPurpose

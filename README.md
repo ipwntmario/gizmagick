@@ -98,6 +98,8 @@ Phase 7E completes the explicitly authorized first cloud publication of **Lena's
 
 Phase 7F adds a [bounded private storage inspection foundation](docs/admin-storage-inspection.md), tested locally but not yet deployed. The admin page checks up to 16 private files per manual request, pins metadata/allocation identity between batches, clears stale results, and explicitly grants no audio approval or publishing permission. Tests cover Testing Time's 129-file structure and the 256-file draft limit. Review packaging and large-track publishing remain separate increments; the publisher's 16-file limit and disabled cloud publishing configuration are unchanged. No cloud data or live player changes occurred.
 
+Phase 7G adds [resumable batched review packages](docs/admin-review-packages.md), implemented and tested locally with migration 0005 and a disabled-by-default rollout flag. Each manual batch checks at most 16 private files and records durable progress; a separate finish action creates the existing validator-compatible package. Preparation never grants approval or publication, and the original full approval recheck remains intact. Testing Time's 129-file structure and 256-file preparation are covered; the actual bundled Worker and real local validator pass with Lena's Home audio. No cloud migration/deployment, public copy or player change occurred. Bounded approval revalidation and larger-track publishing remain next.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

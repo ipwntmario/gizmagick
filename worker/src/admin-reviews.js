@@ -7,7 +7,7 @@ import { DraftError, readBoundedBody } from './admin-drafts.js';
 export const reviewsEnabled = env => env.GIZMAGICK_DRAFT_REVIEWS_ENABLED === 'true';
 const fail = (status, code, message, details) => { throw new DraftError(status, code, message, details); };
 const validate = manifest => validateManifestWithStructure(manifest, checkStructure);
-const packageFor = job => ({ packageVersion: 1, policy: REVIEW_POLICY, jobId: job.id,
+export const packageFor = job => ({ packageVersion: 1, policy: REVIEW_POLICY, jobId: job.id,
   expiresAt: job.expires_at, snapshotSha256: job.snapshot_sha256, snapshot: JSON.parse(job.snapshot_json) });
 const reviewSummary = row => row ? { scope: row.scope, approvedBy: row.approved_by, approvedAt: row.approved_at,
   reportSha256: row.report_sha256, snapshotSha256: row.snapshot_sha256, publishing: false, serverDecoded: false } : null;

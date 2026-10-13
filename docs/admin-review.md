@@ -27,6 +27,11 @@ review their own new-track drafts.
 
 ## Local walkthrough
 
+Phase 7G adds an optional [resumable batched package workflow](admin-review-packages.md),
+enabled in the isolated local preview but not deployed/enabled in Cloudflare.
+Its package is compatible with the same validator and attestation endpoint below;
+it does not replace the full approval recheck or change the human trust policy.
+
 From `frontend`, start the isolated preview:
 
 ```powershell

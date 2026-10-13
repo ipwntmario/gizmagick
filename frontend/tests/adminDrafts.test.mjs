@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -30,10 +30,10 @@ function ogg(marker = 1) {
   bytes.set(new TextEncoder().encode('OpusHead'), 28); bytes[36] = marker;
   return bytes; // Identification fixture, not decodable audio.
 }
-function fixture(t, { verificationMigration = true } = {}) {
+function fixture(t, { verificationMigration = true, intentMigration = true } = {}) {
   const sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys = ON;');
-  for (const migration of verificationMigration ? migrations : migrations.slice(0, -1)) sql.exec(migration);
+  for (const [index, migration] of migrations.entries()) if (index < 5 || (index === 5 && verificationMigration) || (index === 6 && verificationMigration && intentMigration)) sql.exec(migration);
   t.after(() => sql.close());
   function prepare(query, args = []) {
     return { bind: (...values) => prepare(query, values),
@@ -82,6 +82,12 @@ const verifyRequest = (f, draft, operation = 'review-verification', body, option
   { ...(body !== undefined ? { method: 'POST', body } : {}), ...options });
 const verifyBegin = report => ({ report, policy: REVIEW_POLICY, provenanceConfirmed: true });
 const verifyFinish = id => ({ verificationId: id, policy: REVIEW_POLICY, provenanceConfirmed: true, batchWindowConfirmed: true });
+const intentRequest = (f, draft, body, options = {}) => f.request(`/api/admin/drafts/${draft.id}/publication-intent`,
+  { ...(body !== undefined ? { method: 'POST', body } : {}), ...options });
+const intentInput = ready => ({ action: 'prepare', requestId: crypto.randomUUID(), expectedSnapshotSha256: ready.job.snapshotSha256,
+  expectedReportSha256: hash(Buffer.from(JSON.stringify(ready.report))) });
+const reserveInput = prep => ({ action: 'reserve', preparationId: prep.id, publicationConfirmed: true, batchWindowConfirmed: true });
+const enableIntents = f => { enablePublicationPreview(f); f.env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED = 'true'; };
 // Contract-only measurements are never presented as decoder evidence.
 async function syntheticReport(job) {
   return createReviewReport(job, { trackId: job.snapshot.manifest.track.id, versionId: job.snapshot.manifest.versionId,
@@ -101,6 +107,164 @@ async function uploadedDraft(f, input = canonical()) {
   }
   return draft;
 }
+
+for (const count of [129, 256]) test(`bounded ${count}-asset intent rechecks storage/destinations, reserves only an immutable plan and cannot publish`, async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = f.env.GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = 'true';
+  const input = count === 129 ? { requestId: crypto.randomUUID(), manifest: JSON.parse(await read('../public/tracks/Testing Time/manifest.json')) } : canonical();
+  if (count === 129) for (const asset of Object.values(input.manifest.assets)) { delete asset.byteLength; delete asset.sha256; }
+  if (count === 256) for (let i = 1; i < count; i++) input.manifest.assets[crypto.randomUUID()] = { path: `audio/extra-${i}.ogg` };
+  const draft = await uploadedDraft(f, input), prepared = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  for (let offset = 0; offset < count; offset += 16) await packageRequest(f, draft, 'batch', { jobId: prepared.jobId, offset });
+  const job = (await (await packageRequest(f, draft, 'finish', { jobId: prepared.jobId })).json()).package, report = await syntheticReport(job);
+  const pass = (await (await verifyRequest(f, draft, undefined, verifyBegin(report))).json()).verification;
+  for (let offset = 0; offset < count; offset += 16) await verifyRequest(f, draft, 'review-verification-batch', { verificationId: pass.id, offset });
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(pass.id))).status, 201);
+  enableIntents(f);
+  let privateHeads = 0, publicHeads = 0, databaseCalls = 0;
+  const head = f.env.GIZMAGICK_DRAFTS.head, prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DRAFTS.head = key => { privateHeads++; return head(key); };
+  f.env.GIZMAGICK_DB.prepare = query => { databaseCalls++; return prepare(query); };
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = f.env.GIZMAGICK_MEDIA.put = () => assert.fail('Intent readiness/reservation must not read bytes or write R2');
+  f.env.GIZMAGICK_MEDIA.head = async () => { publicHeads++; return null; };
+  const request = intentInput({ draft, job, report }), start = await intentRequest(f, draft, request);
+  assert.equal(start.status, 201, await start.clone().text());
+  const prep = (await start.json()).preparation;
+  assert.equal(prep.checkedObjects, 0); assert.equal(privateHeads + publicHeads, 0);
+  assert.equal((await intentRequest(f, draft, reserveInput(prep))).status, 409);
+  for (let offset = 0; offset < count + 1; offset += 16) {
+    privateHeads = 0; publicHeads = 0; databaseCalls = 0;
+    const response = await intentRequest(f, draft, { action: 'check-batch', preparationId: prep.id, offset });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert(privateHeads <= 16 && publicHeads <= 16);
+    assert(privateHeads + publicHeads + databaseCalls <= 80, `Bounded fixture-operation budget exceeded: ${privateHeads + publicHeads + databaseCalls}`);
+    assert.equal((await response.json()).preparation.checkedObjects, Math.min(offset + 16, count + 1));
+    privateHeads = 0; publicHeads = 0;
+    assert.equal((await intentRequest(f, draft, { action: 'check-batch', preparationId: prep.id, offset })).status, 200);
+    assert.equal(privateHeads + publicHeads, 0);
+  }
+  const reserved = await intentRequest(f, draft, reserveInput(prep));
+  assert.equal(reserved.status, 201, await reserved.clone().text());
+  const result = await reserved.json(); assert.equal(result.intent.id, prep.id);
+  assert.equal(result.intent.storageCheckScope, 'bounded-batches'); assert.equal(result.intent.copiedObjects, 0);
+  assert.equal(result.publicCopyEnabled, false); assert.equal(result.catalogCommitEnabled, false); assert.equal(result.publicationAuthorized, false);
+  assert.equal((await intentRequest(f, draft, reserveInput(prep))).status, 200);
+  assert.equal((await intentRequest(f, draft, request)).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 1);
+  for (const table of ['admin_publication_objects', 'admin_publication_commits', 'library_tracks']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  assert.throws(() => f.sql.prepare('DELETE FROM admin_publication_intent_batches').run(), /retained/);
+  assert.throws(() => f.sql.prepare('UPDATE admin_publication_intent_preparations SET expires_at = 0').run(), /retained/);
+  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_objects (publication_id, ordinal, etag) VALUES (?, 0, ?)').run(prep.id, 'fake'), /not implemented/);
+  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(prep.id, 'fake'), /not implemented/);
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = 'true';
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication`)).status, 409);
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication-step`, { method: 'POST', body: { publicationId: prep.id, publicationConfirmed: true } })).status, 409);
+});
+
+async function preparedIntent(f) {
+  const ready = await readyReview(f); await ready.attest(); enableIntents(f);
+  const input = intentInput(ready), response = await intentRequest(f, ready.draft, input);
+  assert.equal(response.status, 201, await response.clone().text());
+  return { ...ready, input, preparation: (await response.json()).preparation };
+}
+
+test('disabled intent workflow needs no migration 0007 and never queries its tables', async t => {
+  const f = fixture(t, { intentMigration: false }), ready = await readyReview(f); await ready.attest(); enablePublicationPreview(f);
+  assert.equal((await intentRequest(f, ready.draft)).status, 503);
+  assert.equal((await intentRequest(f, ready.draft, intentInput(ready))).status, 503);
+  assert(!(await (await f.request('/admin')).text()).includes('id="intent-panel"'));
+  assert.equal((await publicationPreview(f, ready.draft)).status, 200);
+});
+
+test('intent routes enforce admin/ownership, strict inputs, methods, exact request IDs and final confirmation', async t => {
+  const f = fixture(t), ready = await preparedIntent(f), { draft, input, preparation } = ready;
+  assert.equal((await intentRequest(f, draft, input, { principal: other })).status, 404);
+  assert.equal((await intentRequest(f, draft, input, { principal: { ...owner, role: 'user' } })).status, 403);
+  assert.equal((await intentRequest(f, draft, input)).status, 200);
+  assert.equal((await intentRequest(f, draft, { ...input, requestId: crypto.randomUUID() })).status, 409);
+  for (const body of [{ ...input, candidate: {} }, { action: 'copy' }, { action: 'check-batch', preparationId: preparation.id, offset: 1 }, { ...reserveInput(preparation), batchWindowConfirmed: false }]) assert.equal((await intentRequest(f, draft, body)).status, 400);
+  assert.equal((await intentRequest(f, draft, { action: 'check-batch', preparationId: preparation.id, offset: 16 })).status, 409);
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication-intent?offset=0`)).status, 400);
+  const unsupported = await intentRequest(f, draft, undefined, { method: 'DELETE' }); assert.equal(unsupported.status, 405); assert.equal(unsupported.headers.get('Allow'), 'GET, HEAD, POST');
+  const head = await intentRequest(f, draft, undefined, { method: 'HEAD' }); assert.equal(head.status, 200); assert.equal(await head.text(), '');
+  assert.equal(head.headers.get('Cache-Control'), 'private, no-store'); assert.equal(head.headers.get('Access-Control-Allow-Origin'), null);
+});
+
+for (const change of ['private-etag', 'private-checksum', 'missing', 'destination', 'review', 'allocation', 'media-base', 'archived', 'expired']) test(`intent readiness rejects ${change}`, async t => {
+  const f = fixture(t), ready = await preparedIntent(f), { draft, preparation } = ready;
+  const [key, object] = [...f.objects][0];
+  if (change === 'private-etag') object.etag = 'changed';
+  if (change === 'private-checksum') object.sha256 = 'c'.repeat(64);
+  if (change === 'missing') f.objects.delete(key);
+  if (change === 'destination') f.env.GIZMAGICK_MEDIA.head = async () => ({ size: 47, etag: 'unrelated' });
+  if (change === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET candidate_json = '{}'").run();
+  if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+  if (change === 'media-base') f.env.GIZMAGICK_MEDIA_BASE_URL = 'https://other.example/media';
+  if (change === 'archived') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+  if (change === 'expired') f.sql.prepare('UPDATE admin_publication_intent_preparations SET expires_at = 0').run();
+  assert.equal((await intentRequest(f, draft, { action: 'check-batch', preparationId: preparation.id, offset: 0 })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_intent_batches').get().n, 0);
+});
+
+for (const change of ['archive', 'allocation', 'review', 'freshness', 'replacement']) test(`intent reservation fences a ${change} race at its atomic insert`, async t => {
+  const f = fixture(t), ready = await preparedIntent(f), { draft, preparation } = ready;
+  await intentRequest(f, draft, { action: 'check-batch', preparationId: preparation.id, offset: 0 });
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_publications')) return statement;
+    return { bind: (...values) => ({ run: async () => {
+      if (change === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+      if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+      if (change === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET report_json = '{}'").run();
+      if (change === 'freshness') f.sql.prepare("UPDATE admin_publication_intent_batches SET checked_at = unixepoch('now') - 301").run();
+      if (change === 'replacement') await intentRequest(f, draft, { ...ready.input, restartPreparationId: preparation.id });
+      return statement.bind(...values).run();
+    } }) };
+  };
+  assert.equal((await intentRequest(f, draft, reserveInput(preparation))).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
+
+test('stale checks restart only explicitly; reserved intent and legacy intent cannot be replaced', async t => {
+  const f = fixture(t), ready = await preparedIntent(f), { draft, preparation } = ready;
+  await intentRequest(f, draft, { action: 'check-batch', preparationId: preparation.id, offset: 0 });
+  f.sql.prepare("UPDATE admin_publication_intent_batches SET checked_at = unixepoch('now') - 301").run();
+  assert.equal((await (await intentRequest(f, draft)).json()).preparation.recent, false);
+  assert.equal((await intentRequest(f, draft, reserveInput(preparation))).status, 409);
+  const restarted = (await (await intentRequest(f, draft, ready.input)).json()).preparation;
+  assert.notEqual(restarted.id, preparation.id); assert.equal(restarted.checkedObjects, 0);
+  await intentRequest(f, draft, { action: 'check-batch', preparationId: restarted.id, offset: 0 });
+  assert.equal((await intentRequest(f, draft, reserveInput(restarted))).status, 201);
+  assert.equal((await intentRequest(f, draft, { ...ready.input, restartPreparationId: restarted.id })).status, 409);
+  const legacy = await startedPublisher(t); enableIntents(legacy.f);
+  assert.equal((await (await intentRequest(legacy.f, legacy.ready.draft)).json()).legacyPublication.id, legacy.publication.id);
+  assert.equal((await intentRequest(legacy.f, legacy.ready.draft, intentInput(legacy.ready))).status, 409);
+});
+
+test('concurrent intent batches and reservations converge without public writes or duplicate identity', async t => {
+  const f = fixture(t), ready = await preparedIntent(f), { draft, preparation } = ready;
+  const batches = await Promise.all([0, 1].map(() => intentRequest(f, draft, { action: 'check-batch', preparationId: preparation.id, offset: 0 })));
+  assert(batches.every(response => response.status === 200));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_intent_batches').get().n, 1);
+  const reserved = await Promise.all([0, 1].map(() => intentRequest(f, draft, reserveInput(preparation))));
+  assert(reserved.every(response => [200, 201].includes(response.status)));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+});
+
+test('future-dated readiness receipts cannot reserve an intent and storage errors are sanitized', async t => {
+  const f = fixture(t), ready = await preparedIntent(f), { draft, preparation } = ready;
+  const head = f.env.GIZMAGICK_MEDIA.head;
+  f.env.GIZMAGICK_MEDIA.head = () => { throw new Error('secret credentials in provider failure'); };
+  const error = await intentRequest(f, draft, { action: 'check-batch', preparationId: preparation.id, offset: 0 });
+  assert.equal(error.status, 503); assert(!(await error.text()).includes('credentials'));
+  f.env.GIZMAGICK_MEDIA.head = head;
+  await intentRequest(f, draft, { action: 'check-batch', preparationId: preparation.id, offset: 0 });
+  f.sql.prepare("UPDATE admin_publication_intent_batches SET checked_at = unixepoch('now') + 300").run();
+  assert.equal((await intentRequest(f, draft, reserveInput(preparation))).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
 
 for (const count of [129, 256]) test(`${count}-file batched attestation uses fresh independent rechecks and a separate immutable human audit`, async t => {
   const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = f.env.GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = 'true';

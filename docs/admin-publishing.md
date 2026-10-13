@@ -468,8 +468,14 @@ new audit distinguishes recent separate-batch checks from the legacy single-requ
 path; the current preflight/publisher and UI explicitly reject this review type
 until a later bounded publisher supports it. Publishing remains disabled.
 
-Next: implement large-track intent/copy/final verification with an explicit policy
-for batched-review audits, then review original
+Phase 7I implements [bounded readiness and version-2 intent reservation](admin-publication-intents.md)
+locally. Migration 0007 and its separate flag are not applied/enabled in Cloudflare.
+It explicitly retains/rechecks the Phase 7H audit scope but makes no public copies
+or catalog changes. Database fences and the legacy publisher prevent version-2
+continuation until conditional copying and fresh final verification exist.
+
+Next: implement one-object conditional copying and bounded final verification
+for those intents, then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

@@ -72,6 +72,10 @@ async function verifyBrowserInitialization(html) {
   assert.equal(element('package-next').disabled, true);
   assert.equal(element('verification-start').disabled, true);
   assert.equal(element('verification-attest').disabled, true);
+  assert.equal(element('intent-prepare').disabled, true);
+  assert.equal(element('intent-reserve').disabled, true);
+  assert(element('intent-refresh').listeners.has('click'));
+  assert(html.includes('no public-copy or catalog-commit action yet'));
   assert(element('verification-refresh').listeners.has('click'));
   assert(html.includes('Earlier objects are not rechecked at final confirmation'));
   assert(element('package-refresh').listeners.has('click'));
@@ -111,7 +115,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
-    bindings: { GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -122,7 +126,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -140,6 +144,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(body.capabilities.publishing, true);
     assert.equal(body.capabilities.batchPackages, true);
     assert.equal(body.capabilities.batchReview, true);
+    assert.equal(body.capabilities.publicationIntents, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -379,11 +384,34 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     const attest3 = await request(`/api/admin/drafts/${draft3.id}/attest-review-batched`, token, { method: 'POST', headers: writeHeaders,
       body: JSON.stringify({ verificationId: pass3.id, policy: REVIEW_POLICY, provenanceConfirmed: true, batchWindowConfirmed: true }) });
     assert.equal(attest3.status, 201, await attest3.clone().text());
-    assert.equal((await attest3.json()).review.storageCheckScope, 'bounded-batches');
+    const review3 = (await attest3.json()).review;
+    assert.equal(review3.storageCheckScope, 'bounded-batches');
     const preview3 = await request(`/api/admin/drafts/${draft3.id}/publication-preview`);
     assert.equal(preview3.status, 409); assert.equal((await preview3.json()).code, 'PUBLICATION_PREFLIGHT_BATCH_REVIEW');
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 2);
     await assert.rejects(db.prepare('DELETE FROM admin_draft_review_verification_batches WHERE verification_id = ?').bind(pass3.id).run(), /retained/);
+    const intentUrl = `/api/admin/drafts/${draft3.id}/publication-intent`;
+    assert.equal((await request(intentUrl, null)).status, 401);
+    assert.equal((await request(intentUrl, issue('member@example.com'))).status, 403);
+    assert.equal((await request(intentUrl, token, { method: 'POST', body: '{}' })).status, 403);
+    const prep3Response = await request(intentUrl, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ action: 'prepare', requestId: crypto.randomUUID(), expectedSnapshotSha256: review3.snapshotSha256, expectedReportSha256: review3.reportSha256 }) });
+    assert.equal(prep3Response.status, 201, await prep3Response.clone().text());
+    const prep3 = (await prep3Response.json()).preparation;
+    const ready3 = await request(intentUrl, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ action: 'check-batch', preparationId: prep3.id, offset: 0 }) });
+    assert.equal(ready3.status, 200, await ready3.clone().text());
+    assert.equal((await (await request(intentUrl)).json()).preparation.checkedObjects, 2);
+    const reserved3 = await request(intentUrl, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ action: 'reserve', preparationId: prep3.id, publicationConfirmed: true, batchWindowConfirmed: true }) });
+    assert.equal(reserved3.status, 201, await reserved3.clone().text());
+    assert.equal((await reserved3.json()).intent.continuationBlocked, true);
+    const legacyRead3 = await request(`/api/admin/drafts/${draft3.id}/publication`);
+    assert.equal(legacyRead3.status, 409); assert.equal((await legacyRead3.json()).code, 'PUBLICATION_BOUNDED_WORKFLOW');
+    await assert.rejects(db.prepare('INSERT INTO admin_publication_objects (publication_id, ordinal, etag) VALUES (?, 0, ?)').bind(prep3.id, 'forged').run(), /not implemented/);
+    await assert.rejects(db.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').bind(prep3.id, 'forged').run(), /not implemented/);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 2);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM admin_publication_objects WHERE publication_id = ?').bind(prep3.id).first()).n, 0);
     assert.equal(outbound.length, 1);
   } finally { await mf.dispose(); }
 });

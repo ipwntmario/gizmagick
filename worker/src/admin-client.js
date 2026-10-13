@@ -6,6 +6,48 @@ export function adminClient() {
   const publishing = Boolean(byId('publication-panel'));
   // undefined means unknown: no write is allowed until a successful status GET.
   let publication, publicationReady = false, publicationRequest = null;
+  let legacyBoundedIntent = false;
+  const preparingIntents = Boolean(byId('intent-panel'));
+  let intentStatus, intentRequest = null;
+  const intentEligible = () => Boolean(current?.status === 'draft' && current.review && !current.missingAssets.length
+    && Object.keys(current.manifest.assets).length <= 256 && !metadataDirty());
+  function clearIntentConfirmation() { if (preparingIntents) byId('intent-confirm').checked = false; }
+  function renderIntent() {
+    if (!preparingIntents) return;
+    const prep = intentStatus?.preparation, intent = intentStatus?.intent;
+    byId('intent-progress').max = prep?.totalObjects || intent?.totalObjects || 1;
+    byId('intent-progress').value = prep?.checkedObjects || 0;
+    byId('intent-identity').textContent = current ? `Track: ${current.title}\nTrack ID: ${current.manifest.track.id}\nVersion: ${current.manifest.versionId}\nReview SHA-256: ${current.review?.reportSha256 || 'No attestation'}` : '';
+    byId('intent-state').textContent = intentStatus === undefined ? 'Intent status unknown. Refresh before any reservation; no public copying is enabled here.'
+      : intentStatus.legacyPublication ? `An existing legacy publication ${intentStatus.legacyPublication.id} reserves this draft (${intentStatus.legacyPublication.state}). Use the legacy publisher when enabled. Files may already be public; this panel does not replace or undo it.`
+      : intent ? `Immutable bounded intent ${intent.id} reserved. Public copying and final catalog verification are not implemented for this intent; continuation is locked. This workflow made no public copies. Archiving does not remove its identity reservation.`
+      : prep ? `${prep.checkedObjects}/${prep.totalObjects} proposed objects checked in separate batches. Preparation ${prep.id}\n${prep.recent ? 'Recent at this status read only; reservation is a separate confirmation.' : 'Expired or stale checks. Explicitly prepare/restart a fresh pass.'} No public copies or catalog changes were made.`
+      : 'No bounded preparation or intent. Explicitly prepare this reviewed draft; no public copying is enabled here.';
+  }
+  function acceptIntent(result) {
+    const prep = result.preparation, intent = result.intent, legacy = result.legacyPublication;
+    const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i, sha = /^[a-f0-9]{64}$/;
+    const total = Object.keys(current.manifest.assets).length + 1;
+    if (result.workflowVersion !== 2 || result.publishing !== false || result.publicCopyEnabled !== false
+        || result.catalogCommitEnabled !== false || result.publicationAuthorized !== false || result.serverDecoded !== false
+        || result.pointInTimeBatches !== true || [prep, intent, legacy].filter(value => value !== null).length > 1
+        || (legacy !== null && (!legacy || !uuid.test(legacy.id) || !['pending', 'published'].includes(legacy.state)))
+        || (prep !== null && (!prep || !uuid.test(prep.id) || !uuid.test(prep.requestId) || prep.draftId !== current.id
+          || prep.trackId !== current.manifest.track.id || prep.versionId !== current.manifest.versionId
+          || prep.manifestSha256 !== current.manifestSha256 || prep.reportSha256 !== current.review?.reportSha256
+          || prep.snapshotSha256 !== current.review?.snapshotSha256 || !sha.test(prep.planSha256)
+          || prep.totalObjects !== total || total < 2 || total > 257 || !Number.isInteger(prep.checkedObjects)
+          || prep.checkedObjects < 0 || prep.checkedObjects > total || (prep.checkedObjects !== total && prep.checkedObjects % 16)
+          || !Number.isSafeInteger(prep.expiresAt) || prep.expiresAt < 0 || prep.expiresAt > 8640000000000 || typeof prep.recent !== 'boolean'
+          || prep.storageCheckScope !== (current.review?.storageCheckScope || 'single-request')))
+        || (intent !== null && (!intent || !uuid.test(intent.id) || intent.draftId !== current.id || intent.trackId !== current.manifest.track.id
+          || intent.versionId !== current.manifest.versionId || intent.totalObjects !== total || !sha.test(intent.planSha256)
+          || intent.state !== 'pending' || intent.copiedObjects !== 0 || intent.nextAction !== null || intent.continuationBlocked !== true
+          || intent.storageCheckScope !== (current.review?.storageCheckScope || 'single-request')))) throw new Error('Intent status does not match this exact draft and reservation-only scope. Refresh before continuing.');
+    intentStatus = result;
+    if (prep) intentRequest = { action: 'prepare', requestId: prep.requestId, expectedSnapshotSha256: prep.snapshotSha256, expectedReportSha256: prep.reportSha256 };
+    renderIntent();
+  }
   const inspecting = Boolean(byId('storage-inspection-panel'));
   const batchPackaging = Boolean(byId('package-panel'));
   const batchReview = Boolean(byId('verification-panel'));
@@ -82,6 +124,7 @@ export function adminClient() {
   const status = message => { byId('status').textContent = message; };
   const metadataDirty = () => Boolean(current && byId('metadata-editor') && byId('metadata-editor').value !== JSON.stringify(current.manifest, null, 2));
   const publicationEligible = () => Boolean(current?.status === 'draft' && current.review
+    && !legacyBoundedIntent
     && current.review.storageCheckScope !== 'bounded-batches'
     && !current.missingAssets.length && Object.keys(current.manifest.assets).length <= 16 && !metadataDirty());
   const publicationWritable = () => publicationEligible() && publication !== undefined
@@ -100,6 +143,7 @@ export function adminClient() {
       : publication?.nextAction === 'verify-and-commit' ? 'Verify copies and publish to catalog'
       : publication ? 'Copy next file publicly' : 'Create publication intent (no copies yet)';
     byId('publication-state').textContent = !current ? 'Open a draft to read its publication status.'
+      : legacyBoundedIntent ? 'A bounded v2 intent reserves this draft. Use the bounded-intent status panel; this legacy publisher cannot copy or commit it.'
       : publication === undefined ? 'Status unknown. Refresh publication status before any write.'
       : published ? `Published to the catalog at ${publication.publishedAt}. ${publication.copiedObjects}/${publication.totalObjects} public copies verified. Archiving does not unpublish this track.`
       : publication ? `Publication intent ${publication.id}\n${publication.copiedObjects}/${publication.totalObjects} public copies recorded. Files may already be public even if a failed copy has no receipt. ${current.status !== 'draft' ? 'Archived: continuation is locked.' : publication.nextAction === 'verify-and-commit' ? 'All copies recorded. Final verification and catalog publication require a separate confirmation.' : 'Paused until you explicitly confirm and copy the next file.'}`
@@ -108,7 +152,7 @@ export function adminClient() {
       : publicationReady ? 'Readiness checks passed at this moment only. Creating an intent copies nothing; later actions recheck the exact review and files.'
       : 'No publication intent. Check readiness before creating one. No public files have been copied by this workflow.';
     if (current) {
-      byId('draft-state').textContent = `${current.status} · ${current.missingAssets.length} missing audio file(s) · NOT server-decoded · ${published ? 'Published' : publication === undefined ? 'Publication status unknown' : publication ? 'Publication pending; files may be public' : 'NOT published'}`;
+      byId('draft-state').textContent = `${current.status} · ${current.missingAssets.length} missing audio file(s) · NOT server-decoded · ${published ? 'Published' : legacyBoundedIntent ? 'Bounded intent reserved; continuation blocked' : publication === undefined ? 'Publication status unknown' : publication ? 'Publication pending; files may be public' : 'NOT published'}`;
       if (byId('review-state') && current.review) byId('review-state').textContent = reviewLabel(current.review);
     }
   }
@@ -125,6 +169,18 @@ export function adminClient() {
     for (const control of document.querySelectorAll('button,input,select,textarea')) control.disabled = value;
     byId('upload').disabled = value || !current || current.status !== 'draft' || Boolean(current.review) || !selectedFiles.length || metadataDirty();
     byId('archive').disabled = value || !current || current.status !== 'draft';
+    if (preparingIntents) {
+      const prep = intentStatus?.preparation, available = intentEligible() && intentStatus !== undefined
+        && !intentStatus?.intent && !intentStatus?.legacyPublication;
+      byId('intent-refresh').disabled = value || !current || metadataDirty();
+      byId('intent-prepare').disabled = value || !available;
+      byId('intent-restart').disabled = value || !available || !prep;
+      byId('intent-next').disabled = value || !available || !prep?.recent || prep.checkedObjects >= prep.totalObjects;
+      const ready = available && prep?.recent && prep.checkedObjects === prep.totalObjects && prep.expiresAt > Date.now() / 1000;
+      byId('intent-confirm').disabled = value || !ready;
+      byId('intent-reserve').disabled = value || !ready || !byId('intent-confirm').checked;
+      renderIntent();
+    }
     if (batchReview) {
       const eligible = packageEligible(), matches = Boolean(reviewReport && verification && reviewReportSha256 === verification.reportSha256);
       const pending = eligible && verification?.state === 'pending';
@@ -179,7 +235,7 @@ export function adminClient() {
     }, body });
     if (response.redirected || !response.headers.get('Content-Type')?.includes('application/json')) throw new Error('Your session may have expired. Reload and sign in again.');
     const result = await response.json();
-    if (!response.ok) throw new Error(`${result.error || 'Request failed'}${result.details ? '\n' + result.details.map(item => item.path + ': ' + item.message).join('\n') : ''}`);
+    if (!response.ok) throw Object.assign(new Error(`${result.error || 'Request failed'}${result.details ? '\n' + result.details.map(item => item.path + ': ' + item.message).join('\n') : ''}`), { code: result.code });
     return result;
   }
   const pathFor = id => `/api/admin/drafts/${encodeURIComponent(id)}`;
@@ -203,10 +259,13 @@ export function adminClient() {
     publication = undefined; publicationReady = false; clearPublicationConfirmation();
     byId('publication-preview').textContent = '';
     renderPublication();
-    acceptPublication(await api(`${pathFor(current.id)}/publication`));
+    try { acceptPublication(await api(`${pathFor(current.id)}/publication`)); }
+    catch (error) { if (error.code !== 'PUBLICATION_BOUNDED_WORKFLOW') throw error; legacyBoundedIntent = true; renderPublication(); }
   }
   function showDraft(draft) {
     const metadataChanged = current?.id !== draft.id || current?.manifestSha256 !== draft.manifestSha256;
+    legacyBoundedIntent = false; intentStatus = undefined; clearIntentConfirmation();
+    if (metadataChanged) intentRequest = null;
     if (current?.id !== draft.id) {
       selectedFiles = [];
       byId('audio-files').value = '';
@@ -280,6 +339,52 @@ export function adminClient() {
     try { await operation(); } catch (error) { status(error.message); }
     finally { setBusy(false); }
   }
+  async function intentWork(operation) {
+    try { await operation(); }
+    catch (error) { intentStatus = undefined; clearIntentConfirmation(); renderIntent(); throw error; }
+  }
+  byId('intent-refresh')?.addEventListener('click', () => work(() => intentWork(async () => {
+    if (!current || metadataDirty()) throw new Error('Open saved metadata before reading intent status.');
+    clearIntentConfirmation(); intentStatus = undefined;
+    acceptIntent(await api(`${pathFor(current.id)}/publication-intent`));
+    status('Intent status refreshed. No readiness batches, public copies or catalog changes were requested.');
+  })));
+  async function prepareIntent(restart = false) {
+    if (!intentEligible() || intentStatus === undefined || intentStatus.intent || intentStatus.legacyPublication) throw new Error('Refresh status and select an eligible reviewed new-track draft.');
+    const old = intentStatus.preparation;
+    if (restart && (!old || !confirm('Discard these readiness checks and start a new preparation? This does not remove an intent, audio or public files.'))) return;
+    if (!intentRequest || restart) intentRequest = { action: 'prepare', requestId: old?.requestId || crypto.randomUUID(),
+      expectedSnapshotSha256: current.review.snapshotSha256, expectedReportSha256: current.review.reportSha256 };
+    clearIntentConfirmation();
+    acceptIntent(await api(`${pathFor(current.id)}/publication-intent`, 'POST', JSON.stringify({ ...intentRequest,
+      ...(restart ? { restartPreparationId: old.id } : {}) })));
+    status('Bounded readiness preparation saved. No public objects or catalog entries were written.');
+  }
+  byId('intent-prepare')?.addEventListener('click', () => work(() => intentWork(() => prepareIntent())));
+  byId('intent-restart')?.addEventListener('click', () => work(() => intentWork(() => prepareIntent(true))));
+  byId('intent-next')?.addEventListener('click', () => work(() => intentWork(async () => {
+    const prep = intentStatus?.preparation;
+    if (!intentEligible() || !prep?.recent || prep.checkedObjects >= prep.totalObjects) throw new Error('Refresh or restart a current readiness preparation.');
+    clearIntentConfirmation();
+    const result = await api(`${pathFor(current.id)}/publication-intent`, 'POST', JSON.stringify({ action: 'check-batch', preparationId: prep.id, offset: prep.checkedObjects }));
+    acceptIntent(result);
+    if (intentStatus.preparation?.id !== prep.id || intentStatus.preparation.planSha256 !== prep.planSha256
+        || intentStatus.preparation.checkedObjects !== Math.min(prep.checkedObjects + 16, prep.totalObjects)) throw new Error('Readiness identity or batch order changed. Refresh progress.');
+    status('Readiness batch checked. No files were copied or published.');
+  })));
+  byId('intent-confirm')?.addEventListener('change', () => setBusy(busy));
+  byId('intent-reserve')?.addEventListener('click', () => work(() => intentWork(async () => {
+    const prep = intentStatus?.preparation;
+    if (!intentEligible() || !prep?.recent || prep.expiresAt <= Date.now() / 1000 || prep.checkedObjects !== prep.totalObjects
+        || !byId('intent-confirm').checked) throw new Error('Complete recent checks and a fresh separate intent confirmation are required.');
+    clearIntentConfirmation();
+    const result = await api(`${pathFor(current.id)}/publication-intent`, 'POST', JSON.stringify({ action: 'reserve', preparationId: prep.id,
+      publicationConfirmed: true, batchWindowConfirmed: true }));
+    acceptIntent(result);
+    if (intentStatus.intent?.id !== prep.id || intentStatus.intent.planSha256 !== prep.planSha256) throw new Error('The reserved intent does not match this preparation. Refresh its status.');
+    legacyBoundedIntent = true; if (publishing) renderPublication();
+    status('Immutable bounded intent reserved. Public copying and final verification are not implemented; no public copy or catalog change occurred.');
+  })));
   async function verificationWork(operation) {
     try { await operation(); }
     catch (error) { verification = undefined; clearVerificationConfirmation(); renderVerification(); throw error; }
@@ -508,7 +613,7 @@ export function adminClient() {
       await refreshList(); status('Draft archived. No files were deleted or unpublished.');
     });
   });
-  byId('metadata-editor')?.addEventListener('input', () => { verification = undefined; packagePreparation = undefined; resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
+  byId('metadata-editor')?.addEventListener('input', () => { intentStatus = undefined; clearIntentConfirmation(); verification = undefined; packagePreparation = undefined; resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
   byId('reset-metadata')?.addEventListener('click', () => {
     if (!current || !confirm('Discard unsaved metadata edits? The saved draft will not change.')) return;
     byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);

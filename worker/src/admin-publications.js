@@ -49,6 +49,9 @@ const receiptsFor = (env, publication) => env.GIZMAGICK_DB.prepare('SELECT * FRO
 async function checkedPlan(publication) {
   if (new TextEncoder().encode(publication.plan_json).length > PUBLICATION_LIMITS.planBytes) fail(409, 'PUBLICATION_PLAN', 'Stored publication plan exceeds its limit.');
   const plan = JSON.parse(publication.plan_json);
+  if (plan.planVersion === 2 && await jsonSha256(plan) === publication.plan_sha256) {
+    fail(409, 'PUBLICATION_BOUNDED_WORKFLOW', 'This is a bounded v2 intent. Public copying and final verification are not implemented for it yet; the legacy publisher cannot continue it.');
+  }
   if (await jsonSha256(plan) !== publication.plan_sha256 || plan.planVersion !== 1
       || plan.ownerId !== publication.owner_id || plan.draftId !== publication.draft_id
       || plan.candidate.track.id !== publication.track_id || plan.candidate.versionId !== publication.version_id) {
@@ -182,6 +185,7 @@ async function step(request, env, principal, row, reply) {
   if (!uuid(input.publicationId)) fail(400, 'PUBLICATION_INPUT', 'A UUID publicationId is required.');
   const publication = await publicationFor(env, row);
   if (!publication || publication.id !== input.publicationId) fail(404, 'PUBLICATION_NOT_FOUND', 'Publication not found.');
+  if (JSON.parse(publication.plan_json).planVersion === 2) await checkedPlan(publication);
   if (publication.state === 'published') return reply(await summary(env, publication));
   if (row.status !== 'draft') fail(409, 'PUBLICATION_ARCHIVED', 'Archived drafts cannot continue publication. Copied files may remain public.');
   requireSmallDraft(row);

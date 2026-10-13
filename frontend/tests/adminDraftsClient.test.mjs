@@ -5,10 +5,11 @@ import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
-  batchReview = false, verificationReply, verificationSessionExpired = false } = {}) {
+  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply } = {}) {
   const elements = new Map(), calls = [], downloads = [];
   let preparation = null;
   let verification = null;
+  let intentPreparation = null, reservedIntent = null;
   let metadataFailure = false;
   const element = id => {
     if (!elements.has(id)) elements.set(id, { value: '', checked: false, files: [], disabled: false,
@@ -28,13 +29,35 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   const report = { scope: 'administrator-review-candidate', valid: true, publishing: false, draftId: draft.id,
     versionId: draft.manifest.versionId, manifestSha256: draft.manifestSha256, jobId: '44444444-4444-4444-8444-444444444444', snapshotSha256: 'a'.repeat(64), errors: [],
     measurements: { a: { durationSeconds: 180, codec: 'opus', channels: 2, sampleRate: 48000, byteLength: 100, sha256: 'b'.repeat(64) } } };
+  if (intents) { draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-13',
+    reportSha256: 'b'.repeat(64), snapshotSha256: 'a'.repeat(64), serverDecoded: false, publishing: false }; draft.metadataEditable = false; }
   runInNewContext(`(${adminClient.toString()})();`, {
-    document: { getElementById: id => (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
+    document: { getElementById: id => (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
     crypto, TextEncoder, File: class File {}, confirm: () => packageConfirm, Blob,
     URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:local-test'; }, revokeObjectURL() {} }, setTimeout: callback => callback(),
     fetch: async (path, options) => {
       calls.push({ path, options });
       let result = path === '/api/admin/drafts' && options.method === 'GET' ? { drafts: [] } : structuredClone(draft);
+      if (path.endsWith('/publication-intent')) {
+        const body = options.body ? JSON.parse(options.body) : {};
+        if (body.action === 'prepare' && (!intentPreparation || body.restartPreparationId)) {
+          intentPreparation = { id: crypto.randomUUID(), requestId: body.requestId, draftId: draft.id, trackId: draft.manifest.track.id,
+            versionId: draft.manifest.versionId, manifestSha256: draft.manifestSha256, reportSha256: draft.review.reportSha256,
+            snapshotSha256: draft.review.snapshotSha256, planSha256: 'f'.repeat(64), totalObjects: assetCount + 1,
+            checkedObjects: 0, expiresAt: Math.floor(Date.now() / 1000) + 900, recent: true, storageCheckScope: draft.review.storageCheckScope || 'single-request' };
+        }
+        if (body.action === 'check-batch') {
+          assert.equal(body.preparationId, intentPreparation.id); assert.equal(body.offset, intentPreparation.checkedObjects);
+          intentPreparation.checkedObjects = Math.min(intentPreparation.checkedObjects + 16, assetCount + 1);
+        }
+        if (body.action === 'reserve') reservedIntent = { id: intentPreparation.id, draftId: draft.id, trackId: draft.manifest.track.id,
+          versionId: draft.manifest.versionId, planSha256: intentPreparation.planSha256, totalObjects: assetCount + 1, state: 'pending',
+          copiedObjects: 0, nextAction: null, continuationBlocked: true, storageCheckScope: draft.review.storageCheckScope || 'single-request' };
+        result = { workflowVersion: 2, publishing: false, publicCopyEnabled: false, catalogCommitEnabled: false, publicationAuthorized: false,
+          serverDecoded: false, pointInTimeBatches: true, preparation: reservedIntent ? null : structuredClone(intentPreparation), intent: reservedIntent,
+          legacyPublication: null };
+        if (intentReply) result = await intentReply(result, body.action || 'status');
+      }
       if (/\/(review-verification|review-verification-batch|attest-review-batched)$/.test(path)) {
         const body = options.body ? JSON.parse(options.body) : {};
         if (path.endsWith('/review-verification') && options.method === 'POST') {
@@ -124,6 +147,74 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   };
   return { element, calls, draft, report, openDraft, selectReport, downloads, failMetadata: () => { metadataFailure = true; } };
 }
+
+async function beginClientIntent(f) {
+  await f.openDraft(); await f.element('intent-refresh').listeners.get('click')(); await f.element('intent-prepare').listeners.get('click')();
+}
+test('intent preparation is explicit and bounded, with a separate confirmation and no public-copy action', async () => {
+  const f = fixture({ intents: true, assetCount: 129 }); await f.openDraft();
+  const before = f.calls.length;
+  await f.element('intent-prepare').listeners.get('click')(); assert.equal(f.calls.length, before);
+  await f.element('intent-refresh').listeners.get('click')(); assert.equal(f.calls.at(-1).options.method, 'GET');
+  await f.element('intent-prepare').listeners.get('click')();
+  for (let i = 0; i < 9; i++) {
+    await f.element('intent-next').listeners.get('click')();
+    assert.equal(f.element('intent-progress').value, Math.min((i + 1) * 16, 130));
+    assert(!f.calls.some(call => call.options.body && JSON.parse(call.options.body).action === 'reserve'));
+  }
+  assert.equal(f.element('intent-reserve').disabled, true);
+  f.element('intent-confirm').checked = true; f.element('intent-confirm').listeners.get('change')();
+  await f.element('intent-reserve').listeners.get('click')();
+  const call = f.calls.find(call => call.options.body && JSON.parse(call.options.body).action === 'reserve');
+  assert.equal(JSON.parse(call.options.body).publicationConfirmed, true); assert.equal(JSON.parse(call.options.body).batchWindowConfirmed, true);
+  assert.equal(call.options.headers['X-Gizmagick-Admin-Request'], '1');
+  assert(f.element('intent-state').textContent.includes('continuation is locked'));
+  assert.equal(f.element('intent-reserve').disabled, true); assert.equal(f.element('intent-next').disabled, true);
+});
+
+test('reload recovers checks only via read-only refresh; restart needs confirmation and refresh clears reservation confirmation', async () => {
+  const f = fixture({ intents: true, assetCount: 17 }); await beginClientIntent(f); await f.element('intent-next').listeners.get('click')();
+  await f.openDraft(); assert.equal(f.element('intent-next').disabled, true);
+  await f.element('intent-refresh').listeners.get('click')(); assert.equal(f.element('intent-progress').value, 16);
+  const before = f.calls.length; await f.element('intent-restart').listeners.get('click')(); assert.equal(f.calls.length, before);
+  f.element('intent-confirm').checked = true;
+  await f.element('intent-refresh').listeners.get('click')(); assert.equal(f.element('intent-confirm').checked, false);
+});
+
+for (const mismatch of ['identity', 'order', 'copy-permission', 'reservation']) test(`invalid ${mismatch} intent replies cannot enable reservation or copying`, async () => {
+  const f = fixture({ intents: true, intentReply: (result, action) => {
+    if (mismatch === 'identity' && result.preparation) result.preparation.draftId = 'wrong';
+    if (mismatch === 'order' && action === 'check-batch') result.preparation.checkedObjects = 0;
+    if (mismatch === 'copy-permission') result.publicCopyEnabled = true;
+    if (mismatch === 'reservation' && result.intent) result.intent.planSha256 = 'a'.repeat(64);
+    return result;
+  } }); await beginClientIntent(f); await f.element('intent-next').listeners.get('click')();
+  f.element('intent-confirm').checked = true; await f.element('intent-reserve').listeners.get('click')();
+  assert.equal(f.element('intent-reserve').disabled, true); assert.equal(f.element('intent-next').disabled, true);
+  if (mismatch !== 'reservation') assert(!f.calls.some(call => call.options.body && JSON.parse(call.options.body).action === 'reserve'));
+});
+
+test('a lost reservation response is recovered by status without automatic mutation replay', async () => {
+  let fail = true;
+  const f = fixture({ intents: true, intentReply: (result, action) => {
+    if (fail && action === 'reserve') { fail = false; throw new Error('Lost reservation response'); } return result;
+  } }); await beginClientIntent(f); await f.element('intent-next').listeners.get('click')();
+  f.element('intent-confirm').checked = true; await f.element('intent-reserve').listeners.get('click')();
+  assert.equal(f.element('intent-reserve').disabled, true);
+  await f.element('intent-refresh').listeners.get('click')();
+  assert(f.element('intent-state').textContent.includes('continuation is locked'));
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'reserve').length, 1);
+});
+
+test('busy guard prevents duplicate readiness scans', async () => {
+  let release;
+  const f = fixture({ intents: true, intentReply: (result, action) => action === 'check-batch'
+    ? new Promise(resolve => { release = () => resolve(result); }) : result }); await beginClientIntent(f);
+  const first = f.element('intent-next').listeners.get('click')(); await new Promise(resolve => setImmediate(resolve));
+  await f.element('intent-next').listeners.get('click')();
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'check-batch').length, 1);
+  release(); await first;
+});
 
 async function beginClientVerification(f) {
   await f.openDraft(); await f.selectReport(f.report);

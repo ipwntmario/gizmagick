@@ -117,8 +117,12 @@ Wrangler-bundled Worker tests use temporary D1/R2 and real Lena's Home audio wit
 measurements from the real pinned local decoder. Browser-like script tests cover
 the controls; no actual browser download/cloud sign-in walkthrough is claimed.
 
-Next: implement bounded large-track publication intent/copy/final verification
-and decide how the publisher explicitly supports this storage-check scope.
+Phase 7I now implements [bounded intent preparation/reservation](admin-publication-intents.md)
+locally, independently rechecking the historical audit and selected storage.
+Its version-2 plan preserves this scope; public copying and catalog commits are
+still blocked. The original preflight/publisher continue rejecting this review type.
+Next: implement independent conditional copies and fresh bounded final verification
+for the new intent workflow, without treating old batch receipts as permission to publish.
 Review rollout of migrations 0005/0006 separately; do not enable publishing as
 part of that deployment. Original-library identity mapping/import, user uploads,
 cleanup, deployed multi-client room checks and live frontend cutover remain

@@ -102,6 +102,8 @@ Phase 7G adds [resumable batched review packages](docs/admin-review-packages.md)
 
 Phase 7H adds [bounded administrator approval rechecks](docs/admin-review-verification.md), tested locally with migration 0006 and a disabled rollout flag. Each manual request rechecks at most 16 private files against an exact locally validated package/report. A separate fresh personal-run and batch-window confirmation records an immutable, distinctly labeled audit; all checks must be at most five minutes old. This is not an atomic storage snapshot or server decoding, and the current publisher/UI reject the new review type until bounded publication supports it. The legacy single-request review remains unchanged. No remote migration, Worker deployment, public upload or live-player change occurred.
 
+Phase 7I adds [bounded readiness and immutable publication intents](docs/admin-publication-intents.md), tested locally with migration 0007 and a disabled rollout flag. It reconstructs the exact administrator-attested plan (including Phase 7H's distinct batch scope), checks up to 16 private sources and 16 public destinations per manual request, and reserves a version-2 intent only after separate confirmation and complete recent checks. All 448 tests pass. No public-copy or catalog-commit path exists for these intents yet; the legacy publisher and database fences reject continuation. No remote migration, Worker deployment, public upload or player change occurred. Conditional copying and independent bounded final verification are next.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

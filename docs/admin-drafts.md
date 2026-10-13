@@ -4,10 +4,14 @@ Implemented/tested locally in Phase 6A and deployed in Phase 6B on October 6,
 2026. This is private new-track intake, not the whole publication/editor phase.
 The separate `gizmagick-drafts` bucket is verified private, both D1 migrations
 are applied, and the Worker has its project-configured draft binding and enable
-flag. Production library import, trusted audio probing, publication, and live
-frontend cutover remain disabled/pending. **Real signed-in cloud creation,
+flag. At that rollout, production library import, trusted audio probing,
+publication, and live frontend cutover remained disabled/pending. **Real signed-in cloud creation,
 audio upload, and resumption after reload are verified.** See the rollout record
 below for the retained private test draft and the packaging fix it exposed.
+The retained test draft was later explicitly authorized and published in
+[Phase 7E](admin-publishing.md#phase-7e-first-authorized-cloud-publication).
+New publishing writes are disabled again; existing public copies remain public.
+The original library import and live frontend cutover are still pending.
 
 ## What works
 
@@ -250,8 +254,12 @@ and retained private draft loaded correctly. After administrator sign-in, fresh
 session JSON confirmed `publishing: false`; the draft and its review remained
 unchanged. Brave blocked direct publication-status navigation and one normal
 reload, so the signed-in disabled-endpoint response remains unverified. No browser
-protections were changed. Enabling cloud publication and
-authorization for any real public copies remain pending.
+protections were changed. That Phase 7D checkpoint did not authorize public copies.
+Phase 7E subsequently obtained explicit authorization for the retained Lena's Home
+draft, published it, verified cloud delivery/local-preview playback and disabled
+new publishing writes again. Its review and private source files remain unchanged.
+When publishing controls are disabled, the page does not check publication status
+and no longer labels possibly public drafts as unpublished or entirely private.
 Following increments: reviewed ownership mapping; staged
 library import and frontend cutover. The visual graph editor and ordinary-user
 identity/moderation remain later work.

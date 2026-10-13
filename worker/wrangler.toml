@@ -31,8 +31,8 @@ GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 GIZMAGICK_DRAFT_METADATA_ENABLED = "true"
 # Phase 7A only inspects attested drafts; it does not enable publication.
 GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = "true"
-# Phase 7D: migration 0004 is applied; publisher/UI deployed but writes disabled.
-# Enable only for a separately authorized public-exposure walkthrough.
+# Phase 7E: approved Lena's Home cloud test completed; new publication disabled.
+# Existing public objects/catalog entries remain public when this flag is false.
 GIZMAGICK_PUBLICATION_ENABLED = "false"
 GIZMAGICK_MEDIA_BASE_URL = "https://media.gizmagick.com"
 GIZMAGICK_APP_ORIGINS = "https://gizmagick.com,https://www.gizmagick.com,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5180,http://127.0.0.1:5180"

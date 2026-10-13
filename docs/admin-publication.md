@@ -137,6 +137,14 @@ before catalog publication. Public copying must therefore require explicit
 publication authorization. Do not assume archived drafts/private uploads can be
 recalled from a public bucket or that pointer changes delete cached objects.
 
+[Phase 7E](admin-publishing.md#phase-7e-first-authorized-cloud-publication) later
+obtained explicit authorization and published only the retained Lena's Home test
+draft. Cloud delivery, checksums, pinned-version reads, CORS/range requests and
+playback in a local remote-source preview passed. New publishing writes are now
+disabled again; the test objects and catalog entry remain public. Preflight itself
+is still read-only, and the historical browser-blocked checks are not claimed as
+observed. Further publication requires separate authorization.
+
 Reviewed ownership/compatibility mapping for the original library, measured audio
 validation of every imported track, controlled import, CORS/range/browser playback,
 two-client pinned-room checks, and an explicit frontend cutover remain separate

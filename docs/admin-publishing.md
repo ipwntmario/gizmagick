@@ -1,9 +1,11 @@
-# Phases 7B–7D: gated new-track publishing
+# Phases 7B–7E: gated new-track publishing
 
 Implemented and tested locally on October 12, 2026, then deployed to the existing
 Cloudflare Worker in Phase 7D with **publishing explicitly disabled**. Migration
-0004 is applied to the existing D1 database. No public copy, publication intent,
-catalog import or live-player cutover was performed. The separate
+0004 is applied to the existing D1 database. Phase 7E subsequently completed one
+explicitly authorized Lena's Home cloud publication and disabled new writes again.
+Its public objects and catalog entry remain public. No original-library import or
+live-player cutover was performed. The separate
 [Phase 7A preflight](admin-publication.md) remains enabled and read-only.
 
 Phase 7B implements the server protocol and durable audit/retry rules. Phase 7C
@@ -247,12 +249,12 @@ whitespace checks pass. The player bundle filenames and sizes are unchanged.
 User `.gitignore` edits and ignored browser/generated artifacts are excluded
 from this implementation checkpoint.
 
-Next: obtain explicit approval before enabling publishing or performing a public-copy
-walkthrough. Fresh signed-in capabilities are verified; direct disabled-endpoint
-browser verification remains outstanding because Brave blocked navigation (see
-rollout evidence below). Large-track
-batching, original library ownership/compatibility mapping, measured import,
-range/CORS/playback tests and frontend cutover remain separate steps. The existing
+The first authorized cloud walkthrough and single-track delivery/playback checks
+are now completed in Phase 7E below. Direct disabled-endpoint browser verification
+remains outstanding because Brave blocked navigation. Next: large-track batching,
+original-library ownership/compatibility mapping, measured import, deployed
+two-client room checks and frontend cutover. Further public copies still require
+explicit authorization. The existing
 BleepBloop UglyOnPurpose endpoint issue is not changed by this publisher.
 
 ## Phase 7D: Cloudflare rollout with publishing disabled
@@ -342,3 +344,117 @@ If this disabled rollout needs a Worker rollback, the previous version is record
 above. Keep publishing disabled and retain the additive migration/audit tables;
 do not drop tables, restore D1 or delete partial/public objects as an assumed
 rollback. No rollback was needed during this rollout.
+
+## Phase 7E: first authorized cloud publication
+
+Performed October 12, 2026 local time (October 13 UTC). The administrator explicitly
+authorized enabling publishing and publishing **Lena's Home (private upload check)**
+as the first test, including its 3,961,537-byte Ogg and public manifest on
+`media.gizmagick.com`, pre-catalog/partial-copy exposure and no archival undo.
+This authorization did not cover other drafts, the original library or frontend
+cutover. Before proceeding, the existing disabled deployment, unchanged review,
+zero publishing records and empty catalog were checked again.
+
+All 325 tests passed before temporary enablement. No migration, bucket/CORS/domain,
+Access, secret, route or Pages changes were needed. Worker deployments:
+
+- Temporary enabled version: `12e565b4-d179-4b4f-a1b8-c64770aaee53`.
+- Writes disabled after completion: `9efe732f-5885-4d4d-99a7-7bb8454a8769`.
+- Final tested status-label correction, still disabled:
+  `21c87bbd-cba3-4cb9-8b1a-1e106cae28a1`.
+
+Using the computer-use skill, the existing signed-in Brave admin page showed the
+enabled controls and the exact reviewed destinations. Readiness passed with no
+graph warnings. Explicit confirmation preceded each individual action:
+
+1. Recorded intent `2ef4c3be-eeb6-4df3-af81-d8affdc5ddff` with **0/2** receipts.
+   Public HEADs returned 404 and the catalog remained empty.
+2. Copied the Ogg, recording **1/2** receipts. Reload/reopen preserved the same
+   intent/progress, cleared confirmation and performed no automatic copy.
+3. Copied the manifest, recording **2/2** receipts. Both canonical public GETs
+   returned the exact reviewed bytes/checksums; the catalog was still empty.
+4. Separately verified all copies and committed the catalog entry at
+   **`2026-10-13T00:34:35.894Z`**. Reload/reopen showed **Published**, **2/2** verified
+   copies, unchecked/disabled confirmation and **Already published** locked.
+
+Final D1 verification found one published intent, two immutable object receipts,
+one completion record, one public track and one published version with its current
+pointer. A final read after disabling writes confirmed those counts, the same
+active/archived drafts, one private asset and unchanged review. Anonymous admin
+and private-asset HEADs still redirected to Access (302). IDs:
+
+- Draft: `cc8e145a-1baf-43c1-aa26-b4d2782a6886`.
+- Track: `32dec11c-96b5-47be-9ffb-76faec7dce8a`.
+- Version: `8199557d-6ce1-4d51-8869-1812e1e93f6b`.
+- Immutable plan SHA-256:
+  `061d0bf02c1770fa018c29c3ff1f2ebd3db8b6eb8e4f5c22d0d6de3581a648ae`.
+
+Public objects under
+`tracks/32dec11c-96b5-47be-9ffb-76faec7dce8a/versions/8199557d-6ce1-4d51-8869-1812e1e93f6b/`:
+
+| Object | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `audio/Lena's Home.ogg` | 3,961,537 | `954d31b74c8c6db4409d673b277b48c887c26d09dcf9f86cd82fc1abfa81f66b` |
+| `manifest.json` | 765 | `eafaa0339c986cb7bb385ecd0b7a33fbce222d727f365589501cf267d573e461` |
+
+The title retains its test suffix, and the catalog key is the new UUID with no
+legacy-name mapping. The existing review hashes/approval time and private source
+files were unchanged; no re-attestation, metadata change or archival occurred.
+
+Read-only public checks after disabling writes passed:
+
+- Catalog and exact pinned-version reads returned 200 with matching identity and
+  media URLs; catalog caching remains `no-store`.
+- Both canonical public GETs matched length/hash and immutable one-year cache
+  metadata. Audio was served from cache (`HIT`); JSON was `DYNAMIC`.
+- Both files' HEADs allowed each of the six configured site/local origins, used
+  `Vary: Origin`, and exposed the configured ETag/range headers.
+- `Range: bytes=0-63` returned 206, exactly 64 bytes and
+  `Content-Range: bytes 0-63/3961537`. `Accept-Ranges` was absent on that response;
+  it was not required to establish the observed successful range operation.
+- Range preflight returned 204 with `GET, HEAD` (no upload methods). An unlisted
+  origin received no media CORS allowance; the catalog rejected it with 403.
+  This does not restrict non-browser downloads of public objects.
+- Worker health and the live site returned 200. Pages production is still
+  deployment `2435ec44-d022-4c7b-b40a-92f4bef6e3da`, `main` at `076a5cc`.
+
+An early canonical audio HEAD briefly returned 404 after its receipt; later
+canonical HEAD/GETs returned 200 without a purge or storage rewrite. A fresh
+diagnostic query also returned 200. This is consistent with
+[R2 custom-domain negative caching](https://developers.cloudflare.com/r2/reference/consistency/),
+but the precise cause of the early response was not independently proved. No
+cache/security settings were changed. JSON responses included a charset and
+JSON HEADs omitted Content-Length; decoded GET length/hash checks
+remain the source of exact-byte verification.
+
+For actual browser playback, a temporary Vite remote-source preview at
+`http://127.0.0.1:5180/` used terminal-only overrides for the cloud catalog and
+media base. It displayed one track, loaded the R2 audio, advanced past one minute
+with **PLAYING** status and paused successfully. This checks the existing player
+against real public storage; it is not a production Pages deployment or a
+two-client online-room test. The preview was stopped afterward.
+
+New publishing writes were disabled again before finishing. Source review exposed
+a disabled-mode labeling bug: without a status read, the client unconditionally
+said **NOT published** and implied all files were private. Commit `7c66f4e`
+replaces that claim with **Publication status not checked** and a warning that
+existing public copies remain public. The server's disabled status endpoint still
+fails closed, controls remain absent and no status query/write is added. Regression
+coverage includes previously pending and published drafts. The corrected labels
+were verified on the deployed page. A final direct session-page navigation/reload
+was blocked by Brave; fresh session JSON and a cloud disabled-endpoint 503 were
+not observed in this checkpoint. The final version's configuration confirms
+`GIZMAGICK_PUBLICATION_ENABLED = "false"`; no browser protections were changed.
+
+All **326 tests**, frontend/Worker lint, the normal frontend build and Git
+whitespace checks pass. Player bundle names/sizes remain `index-FinxNOWL.css`
+(250.25 kB) and `index-CQBPIrW7.js` (387.48 kB). Browser proof and the one-off
+read-only delivery checker are ignored local artifacts, excluded from commits
+along with the administrator's `.gitignore` edit.
+
+Next: support bounded large-track publication/inspection, then review original
+library ownership/legacy mapping and measured import. Keep the known BleepBloop
+UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
+and explicit live frontend cutover remain separate gates. Do not delete this
+public test, restore D1 or archive it as an assumed rollback; those actions were
+not authorized by this test.

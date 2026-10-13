@@ -499,8 +499,15 @@ The migration syntax fix preserves all guards. Signed-in read-only checks passed
 and the existing catalog/audio/review/commit records are unchanged. All 531 tests
 pass. No new draft, private review, upload or publication occurred.
 
-Next: authorize a fresh private draft for the deployed batched-review walkthrough,
-then separately authorize any public test after private verification. Then review original
+The subsequently authorized fresh private draft now verifies upload, batched
+package preparation and reload recovery, but browser file delivery could not be
+confirmed. See the [private smoke-test record](admin-cloud-batched-rollout.md#authorized-private-package-smoke-test-october-13-2026).
+Personal validation and batched approval rechecks remain pending; no approval or
+public write was added.
+
+Next: finish that draft's manual package download and personal validation, then
+verify private batched approval. Separately authorize any public test only after
+private verification. Then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

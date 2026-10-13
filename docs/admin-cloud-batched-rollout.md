@@ -122,3 +122,49 @@ published test must not be reused as an assumed rollback or modified for this.
 Original-library ownership/mapping/import, the known BleepBloop UglyOnPurpose
 timing issue, two-client pinned-room verification and the live player cutover
 remain separate steps.
+
+## Authorized private package smoke test (October 13, 2026)
+
+After the administrator approved one fresh private test and renewed sign-in,
+the browser connection recovered. Through the deployed admin page, the agent
+created **Lena's Home (batched review check)** from the existing JSON pair,
+selected first section `Lena's Home`, marked it simple/test, and uploaded the
+existing Ogg file. This did not reuse or modify the original published test.
+
+- Draft: `405b26f8-fd51-4f82-b3d7-9f676056eb72`.
+- Version: `5bc50912-36f2-4328-80f6-11602a2bddab`.
+- Asset: `dfd1317e-e6ff-41ab-8fec-833c4615add5`.
+- Preparation/completed package: `23c55f96-a4f3-4bf7-ad81-5b22b39d2f83`.
+- Snapshot SHA-256: `c63e589b4de0c21d8cd50742635b0363764a6eba42c06197ab652602dd13fe5e`.
+- Package expiry: `2026-10-14T22:02:00.000Z` (October 14, 6:02 p.m. Eastern).
+
+The normal UI started preparation, checked one private file, and recorded offset
+0 through 1 at `2026-10-13T22:02:11.063Z`. The receipt pins 3,961,537 bytes and
+SHA-256 `954d31b74c8c6db4409d673b277b48c887c26d09dcf9f86cd82fc1abfa81f66b`,
+matching the repository audio. Reloading, reopening the draft and using read-only
+preparation refresh recovered the same package identity and `1/1` progress
+without rerunning the batch. A separate finish completed the package; repeating
+the completed-package download preserved the same job. The page shows no graph
+warnings and no administrator attestation.
+
+Both normal browser download-event waits timed out; the page reported only
+download requested, and no matching package file was found in the standard
+Downloads directory. File delivery and local decoding are **not verified** by
+this smoke test. The browser policy prevents automated access to its internal
+downloads page; no workaround, token extraction or direct database package export
+was used. The administrator must click **Download completed package again**, save
+that exact package, and personally run/review the pinned validator before any
+personal-run confirmation or approval recheck. Ignored screenshot proof is
+`frontend/.track-manifests/phase7l-batched-package-check.jpg`.
+
+Read-only D1 checks confirm three drafts, two assets, one preparation/batch and
+zero verification passes. Reviews/publications/commits/tracks/versions remain one
+each, and public copy receipts remain two; foreign-key checks pass. No new
+attestation, public copy or catalog publication occurred. All public-write flags
+remain disabled; no Worker/Pages deployment, migration, route, secret or player
+change was made for this test. The test draft and audio are retained privately.
+
+In plain English: uploading and preparing the private validation package work,
+including recovery after closing/reloading the page. Actual package delivery,
+the administrator's own audio check and the new private approval workflow are
+still pending. Do not treat preparation as approval or publication permission.

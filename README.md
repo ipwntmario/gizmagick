@@ -110,6 +110,8 @@ Phase 7K adds [independent bounded final checks and atomic catalog publication](
 
 Phase 7L completes the [private-only Cloudflare rollout](docs/admin-cloud-batched-rollout.md): migrations 0005–0009 are applied and the Worker is deployed with private batched packages/rechecks enabled. In plain English, the private-review tools are now live, while all intent/public-copy/catalog-publication switches remain off. A remote migration guard-syntax incompatibility was fixed without removing safeguards, and an ignored recovery backup was rehearsed locally. All 531 tests pass; signed-in read-only storage checks and unchanged public catalog/audio fingerprints pass. No new draft, upload, approval or publication was created, and the player remains unchanged. A separately authorized fresh private workflow test is next.
 
+The subsequent authorized private smoke test created **Lena's Home (batched review check)**, uploaded its existing Ogg and completed one batched review package through the deployed page. The same `1/1` progress survived a reload and read-only refresh. Database checks confirm no new approvals or public-library records. Browser file delivery could not be confirmed, so the administrator's manual package download, personal validator run and batched approval rechecks remain pending. In plain English: private preparation works; the new approval workflow is not yet cloud-verified. See the [smoke-test record](docs/admin-cloud-batched-rollout.md#authorized-private-package-smoke-test-october-13-2026).
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

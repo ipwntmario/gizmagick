@@ -3,8 +3,7 @@ ALTER TABLE admin_publication_objects ADD COLUMN lease_token TEXT;
 DROP TRIGGER admin_bounded_copy_pending;
 CREATE TRIGGER admin_bounded_copy_guard BEFORE INSERT ON admin_publication_objects
 WHEN (SELECT json_extract(plan_json, '$.planVersion') FROM admin_publications WHERE id = NEW.publication_id) = 2
-BEGIN
-  SELECT CASE WHEN NOT EXISTS (
+  AND NOT EXISTS (
     SELECT 1 FROM admin_publications p JOIN admin_drafts d ON d.id = p.draft_id
     JOIN admin_draft_reviews r ON r.draft_id = p.draft_id
     JOIN admin_draft_review_jobs j ON j.id = r.job_id AND j.draft_id = p.draft_id
@@ -32,5 +31,5 @@ BEGIN
         SELECT 1 FROM admin_draft_assets a WHERE a.draft_id = p.draft_id AND a.state = 'uploaded'
           AND a.asset_id = json_extract(s.value, '$.assetId') AND a.object_key = json_extract(s.value, '$.objectKey')
           AND a.byte_length = json_extract(s.value, '$.byteLength') AND a.sha256 = json_extract(s.value, '$.sha256')))
-  ) THEN RAISE(ABORT, 'Bounded copy changed before receipt') END;
-END;
+  )
+BEGIN SELECT RAISE(ABORT, 'Bounded copy changed before receipt'); END;

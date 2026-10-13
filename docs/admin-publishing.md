@@ -492,9 +492,15 @@ and interrupted commits recover by reading locked published status. All 530 test
 pass, including actual bundled Worker/local storage checks. No remote migration,
 Worker deployment, cloud publication or live frontend change occurred.
 
-Next: review the Cloudflare rollout of migrations 0005–0009 and the bounded
-workflow flags, privately verify integration, and separately authorize any public
-test. Then review original
+Phase 7L completes the [private-only Cloudflare rollout](admin-cloud-batched-rollout.md).
+Migrations 0005–0009 are applied; private package/recheck flags are enabled in the
+deployed Worker, while intent/public-copy/final/publication switches remain off.
+The migration syntax fix preserves all guards. Signed-in read-only checks passed,
+and the existing catalog/audio/review/commit records are unchanged. All 531 tests
+pass. No new draft, private review, upload or publication occurred.
+
+Next: authorize a fresh private draft for the deployed batched-review walkthrough,
+then separately authorize any public test after private verification. Then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

@@ -42,8 +42,7 @@ BEGIN SELECT RAISE(ABORT, 'published final checks retained'); END;
 DROP TRIGGER admin_bounded_commit_pending;
 CREATE TRIGGER admin_bounded_final_commit_guard BEFORE INSERT ON admin_publication_commits
 WHEN (SELECT json_extract(plan_json, '$.planVersion') FROM admin_publications WHERE id = NEW.publication_id) = 2
-BEGIN
-  SELECT CASE WHEN NOT EXISTS (
+  AND NOT EXISTS (
     SELECT 1 FROM admin_publications p JOIN admin_publication_final_passes f ON f.publication_id = p.id
     JOIN admin_draft_reviews r ON r.draft_id = p.draft_id
     WHERE p.id = NEW.publication_id AND p.state = 'pending' AND p.lease_token = NEW.lease_token AND p.lease_expires_at > unixepoch('now')
@@ -65,5 +64,5 @@ BEGIN
         AND (b.checked_at < unixepoch('now') - 300 OR b.checked_at > unixepoch('now') OR b.finished_at < b.checked_at OR b.finished_at > unixepoch('now')
           OR b.offset >= json_array_length(p.plan_json, '$.objects')
           OR b.end_offset != MIN(b.offset + 16, json_array_length(p.plan_json, '$.objects'))))
-  ) THEN RAISE(ABORT, 'Bounded final verification changed before commit') END;
-END;
+  )
+BEGIN SELECT RAISE(ABORT, 'Bounded final verification changed before commit'); END;

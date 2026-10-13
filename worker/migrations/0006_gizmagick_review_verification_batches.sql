@@ -47,8 +47,7 @@ BEGIN SELECT RAISE(ABORT, 'attested verification checks retained'); END;
 
 CREATE TRIGGER admin_batched_review_guard BEFORE INSERT ON admin_draft_reviews
 WHEN NEW.storage_check_scope = 'bounded-batches'
-BEGIN
-  SELECT CASE WHEN NOT EXISTS (
+  AND NOT EXISTS (
     SELECT 1 FROM admin_draft_review_verifications v JOIN admin_draft_review_jobs j ON j.draft_id = v.draft_id AND j.id = v.job_id
     WHERE v.id = NEW.storage_verification_id AND v.draft_id = NEW.draft_id AND v.owner_id = NEW.approved_by
       AND v.job_id = NEW.job_id AND v.snapshot_sha256 = NEW.snapshot_sha256
@@ -65,8 +64,8 @@ BEGIN
       AND NOT EXISTS (SELECT 1 FROM admin_draft_review_verification_batches b WHERE b.verification_id = v.id
         AND (b.offset >= json_array_length(j.snapshot_json, '$.assets')
           OR b.end_offset != MIN(b.offset + 16, json_array_length(j.snapshot_json, '$.assets'))))
-  ) THEN RAISE(ABORT, 'batched review requires recent exact verification') END;
-END;
+  )
+BEGIN SELECT RAISE(ABORT, 'batched review requires recent exact verification'); END;
 CREATE TRIGGER admin_batched_review_retained_update BEFORE UPDATE ON admin_draft_reviews
 WHEN OLD.storage_check_scope = 'bounded-batches' OR NEW.storage_check_scope = 'bounded-batches'
 BEGIN SELECT RAISE(ABORT, 'batched administrator attestation immutable'); END;

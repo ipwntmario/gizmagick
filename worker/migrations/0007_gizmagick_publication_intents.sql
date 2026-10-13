@@ -35,8 +35,7 @@ BEGIN SELECT RAISE(ABORT, 'reserved intent checks retained'); END;
 
 CREATE TRIGGER admin_bounded_intent_guard BEFORE INSERT ON admin_publications
 WHEN json_extract(NEW.plan_json, '$.planVersion') = 2
-BEGIN
-  SELECT CASE WHEN NOT EXISTS (
+  AND NOT EXISTS (
     SELECT 1 FROM admin_publication_intent_preparations s
     WHERE s.id = NEW.id AND s.draft_id = NEW.draft_id AND s.owner_id = NEW.owner_id AND s.request_id = NEW.request_id
       AND s.plan_json = NEW.plan_json AND s.plan_sha256 = NEW.plan_sha256 AND s.expires_at > unixepoch('now')
@@ -48,8 +47,8 @@ BEGIN
         AND (b.checked_at < unixepoch('now') - 300 OR b.checked_at > unixepoch('now')
           OR b.offset >= json_array_length(s.plan_json, '$.objects')
           OR b.end_offset != MIN(b.offset + 16, json_array_length(s.plan_json, '$.objects'))))
-  ) THEN RAISE(ABORT, 'bounded intent requires exact recent preparation') END;
-END;
+  )
+BEGIN SELECT RAISE(ABORT, 'bounded intent requires exact recent preparation'); END;
 -- Defence in depth: neither the old publisher nor raw use of its commit table
 -- can publish a v2 intent before independent bounded copy/final checks exist.
 CREATE TRIGGER admin_bounded_copy_pending BEFORE INSERT ON admin_publication_objects

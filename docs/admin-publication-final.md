@@ -1,5 +1,10 @@
 # Phase 7K: bounded final verification and atomic catalog publication
 
+This records the local Phase 7K checkpoint. The [Phase 7L rollout](admin-cloud-batched-rollout.md)
+now installs migrations through 0009 and deploys the code, but public intent,
+copying and final publication flags remain disabled. Only private review tools
+are newly enabled on Cloudflare.
+
 Implemented and tested locally. **Not deployed or enabled on Cloudflare.**
 The repository keeps `GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED` and the
 publication/copy/preparation flags false. No remote migration, Worker deployment,

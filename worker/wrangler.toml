@@ -27,10 +27,10 @@ bucket_name = "gizmagick-drafts"
 GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
 # Migration 0003 is applied. Administrator attestations remain private only.
 GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
-# Phase 7G is local-only; migration 0005 must be applied before enabling.
-GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "false"
-# Phase 7H is local-only; migration 0006 must be applied before enabling.
-GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "false"
+# Phase 7L private-only rollout: apply migrations 0005-0009 before deployment.
+# Preparing packages or rechecking private audio never publishes a track.
+GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "true"
+GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "true"
 # Phase 7I readiness/reservation only; requires migrations 0006/0007. No public copies.
 GIZMAGICK_PUBLICATION_INTENTS_ENABLED = "false"
 # One-object v2 copies require 0008; catalog commits need the separate 0009 flag below.

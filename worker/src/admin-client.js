@@ -8,6 +8,42 @@ export function adminClient() {
   let publication, publicationReady = false, publicationRequest = null;
   const inspecting = Boolean(byId('storage-inspection-panel'));
   const batchPackaging = Boolean(byId('package-panel'));
+  const batchReview = Boolean(byId('verification-panel'));
+  let verification, reviewReportSha256 = null;
+  const digestJSON = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)))), byte => byte.toString(16).padStart(2, '0')).join('');
+  const reviewLabel = review => `Administrator-attested by ${review.approvedBy} at ${review.approvedAt}. NOT server-decoded. Report SHA-256: ${review.reportSha256}`
+    + (review.storageCheckScope === 'bounded-batches' ? `\nPrivate storage checked in separate batches from ${new Date(review.storageCheckedFrom * 1000).toISOString()} to ${new Date(review.storageCheckedUntil * 1000).toISOString()}; not an atomic snapshot. This review type cannot be published yet.` : '');
+  function clearVerificationConfirmation() { if (batchReview) byId('verification-confirm').checked = false; }
+  function renderVerification() {
+    if (!batchReview) return;
+    byId('verification-progress').max = verification?.totalAssets || 1;
+    byId('verification-progress').value = verification?.checkedAssets || 0;
+    byId('verification-state').textContent = verification === undefined ? 'Recheck status unknown. Refresh or explicitly start a pass; no new approval may be inferred.'
+      : verification === null ? 'No approval recheck pass. Choose your personally validated report and confirm provenance to start.'
+      : `${verification.checkedAssets}/${verification.totalAssets} files rechecked. Report SHA-256: ${verification.reportSha256}\nPackage: ${verification.jobId}\nVerification: ${verification.id}\n${verification.state === 'attested' ? 'Administrator attestation recorded with point-in-time batch scope. NOT server-decoded; publishing unsupported for this review type.' : `Expires: ${new Date(verification.expiresAt * 1000).toISOString()}. Every check must be at most five minutes old at final confirmation. Checking alone grants no approval.`}`;
+  }
+  function acceptVerification(result) {
+    const value = result.verification, total = Object.keys(current.manifest.assets).length;
+    const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i, sha = /^[a-f0-9]{64}$/;
+    if (result.audioProbed !== false || result.serverDecoded !== false || result.publishing !== false
+        || result.publicationAuthorized !== false || result.pointInTimeBatches !== true
+        || (value !== null && (!value || !uuid.test(value.id) || !uuid.test(value.jobId)
+          || value.draftId !== current.id || value.trackId !== current.manifest.track.id || value.versionId !== current.manifest.versionId
+          || value.manifestSha256 !== current.manifestSha256 || !sha.test(value.reportSha256) || !sha.test(value.snapshotSha256)
+          || value.totalAssets !== total || total < 1 || total > 256 || !Number.isInteger(value.checkedAssets)
+          || value.checkedAssets < 0 || value.checkedAssets > total || (value.checkedAssets !== total && value.checkedAssets % 16)
+          || !['pending', 'attested'].includes(value.state) || !Number.isSafeInteger(value.expiresAt) || value.expiresAt > 8640000000000
+          || (value.state === 'pending' && value.expiresAt <= Date.now() / 1000)
+          || (value.checkedAssets === 0 ? value.firstCheckedAt !== null || value.lastCheckedAt !== null
+            : !Number.isSafeInteger(value.firstCheckedAt) || !Number.isSafeInteger(value.lastCheckedAt)
+              || value.firstCheckedAt > value.lastCheckedAt || value.firstCheckedAt < 0 || value.lastCheckedAt > 8640000000000)
+          || (value.state === 'attested' && (value.checkedAssets !== total || result.review?.storageCheckScope !== 'bounded-batches'
+            || result.review.storageVerificationId !== value.id || result.review.reportSha256 !== value.reportSha256
+            || result.review.storageCheckedFrom !== value.firstCheckedAt || result.review.storageCheckedUntil !== value.lastCheckedAt
+            || result.review.serverDecoded !== false)))) || (value === null && result.review !== null)
+        || (value?.state === 'pending' && result.review !== null)) throw new Error('Recheck response does not match the loaded draft and verification scope. Refresh before continuing.');
+    verification = value; renderVerification();
+  }
   let packagePreparation;
   const packageEligible = () => Boolean(current?.status === 'draft' && !current.review && !current.missingAssets.length && !metadataDirty());
   function renderPreparation() {
@@ -46,6 +82,7 @@ export function adminClient() {
   const status = message => { byId('status').textContent = message; };
   const metadataDirty = () => Boolean(current && byId('metadata-editor') && byId('metadata-editor').value !== JSON.stringify(current.manifest, null, 2));
   const publicationEligible = () => Boolean(current?.status === 'draft' && current.review
+    && current.review.storageCheckScope !== 'bounded-batches'
     && !current.missingAssets.length && Object.keys(current.manifest.assets).length <= 16 && !metadataDirty());
   const publicationWritable = () => publicationEligible() && publication !== undefined
     && (publication === null ? publicationReady : publication.state === 'pending');
@@ -66,16 +103,17 @@ export function adminClient() {
       : publication === undefined ? 'Status unknown. Refresh publication status before any write.'
       : published ? `Published to the catalog at ${publication.publishedAt}. ${publication.copiedObjects}/${publication.totalObjects} public copies verified. Archiving does not unpublish this track.`
       : publication ? `Publication intent ${publication.id}\n${publication.copiedObjects}/${publication.totalObjects} public copies recorded. Files may already be public even if a failed copy has no receipt. ${current.status !== 'draft' ? 'Archived: continuation is locked.' : publication.nextAction === 'verify-and-commit' ? 'All copies recorded. Final verification and catalog publication require a separate confirmation.' : 'Paused until you explicitly confirm and copy the next file.'}`
+      : current.review?.storageCheckScope === 'bounded-batches' ? 'This review used separate storage batches. The current publisher does not support this review type; public writes are locked.'
       : !publicationEligible() ? 'No publication intent. An active, saved, administrator-attested draft with all audio uploaded and at most 16 audio files is required.'
       : publicationReady ? 'Readiness checks passed at this moment only. Creating an intent copies nothing; later actions recheck the exact review and files.'
       : 'No publication intent. Check readiness before creating one. No public files have been copied by this workflow.';
     if (current) {
       byId('draft-state').textContent = `${current.status} · ${current.missingAssets.length} missing audio file(s) · NOT server-decoded · ${published ? 'Published' : publication === undefined ? 'Publication status unknown' : publication ? 'Publication pending; files may be public' : 'NOT published'}`;
-      if (byId('review-state') && current.review) byId('review-state').textContent = `Administrator-attested by ${current.review.approvedBy} at ${current.review.approvedAt}. NOT server-decoded. Report SHA-256: ${current.review.reportSha256}`;
+      if (byId('review-state') && current.review) byId('review-state').textContent = reviewLabel(current.review);
     }
   }
   function clearReview() {
-    reviewReport = null;
+    reviewReport = null; reviewReportSha256 = null; clearVerificationConfirmation();
     if (byId('review-report')) {
       byId('review-report').value = '';
       byId('review-confirm').checked = false;
@@ -87,6 +125,20 @@ export function adminClient() {
     for (const control of document.querySelectorAll('button,input,select,textarea')) control.disabled = value;
     byId('upload').disabled = value || !current || current.status !== 'draft' || Boolean(current.review) || !selectedFiles.length || metadataDirty();
     byId('archive').disabled = value || !current || current.status !== 'draft';
+    if (batchReview) {
+      const eligible = packageEligible(), matches = Boolean(reviewReport && verification && reviewReportSha256 === verification.reportSha256);
+      const pending = eligible && verification?.state === 'pending';
+      byId('verification-refresh').disabled = value || !current || metadataDirty();
+      byId('verification-start').disabled = value || !eligible || !reviewReport || !byId('review-confirm').checked;
+      byId('verification-restart').disabled = value || !pending || !matches || !byId('review-confirm').checked;
+      byId('verification-next').disabled = value || !pending || verification.checkedAssets >= verification.totalAssets
+        || Boolean(reviewReport && !matches);
+      const final = pending && matches && verification.checkedAssets === verification.totalAssets
+        && verification.expiresAt > Date.now() / 1000 && verification.firstCheckedAt >= Date.now() / 1000 - 300 && byId('review-confirm').checked;
+      byId('verification-confirm').disabled = value || !final;
+      byId('verification-attest').disabled = value || !final || !byId('verification-confirm').checked;
+      renderVerification();
+    }
     if (batchPackaging) {
       byId('package-refresh').disabled = value || !current || current.status !== 'draft' || Boolean(current.review) || metadataDirty();
       byId('package-start').disabled = value || !packageEligible();
@@ -104,7 +156,8 @@ export function adminClient() {
       byId('review-package').disabled = cannotReview;
       byId('review-report').disabled = cannotReview;
       byId('review-confirm').disabled = cannotReview || !reviewReport;
-      byId('attest-review').disabled = cannotReview || !reviewReport || !byId('review-confirm').checked;
+      byId('attest-review').disabled = cannotReview || !reviewReport || !byId('review-confirm').checked
+        || (batchReview && (verification?.state === 'pending' || Object.keys(current?.manifest.assets || {}).length > 16));
     }
     if (byId('metadata-editor')) {
       byId('metadata-editor').disabled = value || !current?.metadataEditable;
@@ -172,12 +225,13 @@ export function adminClient() {
         : 'Editing locked: this draft is attested, archived, or metadata editing is disabled.';
     }
     current = draft;
+    verification = undefined; clearVerificationConfirmation();
     packagePreparation = undefined;
     resetInspection();
     byId('draft-title').textContent = draft.title;
     byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing ? '' : ' (writes disabled; existing public copies remain public)'}`;
     if (byId('review-state')) byId('review-state').textContent = draft.review
-      ? `Administrator-attested by ${draft.review.approvedBy} at ${draft.review.approvedAt}. NOT server-decoded. Report SHA-256: ${draft.review.reportSha256}`
+      ? reviewLabel(draft.review)
       : 'No administrator attestation recorded.';
     byId('manifest-view').textContent = JSON.stringify(draft.manifest, null, 2);
     byId('manifest-download').href = `${pathFor(draft.id)}/manifest`;
@@ -226,6 +280,60 @@ export function adminClient() {
     try { await operation(); } catch (error) { status(error.message); }
     finally { setBusy(false); }
   }
+  async function verificationWork(operation) {
+    try { await operation(); }
+    catch (error) { verification = undefined; clearVerificationConfirmation(); renderVerification(); throw error; }
+  }
+  async function applyVerification(result) {
+    acceptVerification(result);
+    if (verification?.state === 'attested') { showDraft(await api(pathFor(current.id))); acceptVerification(result); }
+  }
+  byId('verification-refresh')?.addEventListener('click', () => work(() => verificationWork(async () => {
+    if (!current || metadataDirty()) throw new Error('Open saved metadata before refreshing recheck status.');
+    clearVerificationConfirmation(); verification = undefined;
+    await applyVerification(await api(`${pathFor(current.id)}/review-verification`));
+    status('Recheck status refreshed. No file checks or new approval were requested.');
+  })));
+  async function startVerification(restart = false) {
+    if (!packageEligible() || !reviewReport || !byId('review-confirm').checked) throw new Error('Select your exact successful report and confirm that you personally validated it.');
+    const expectedHash = reviewReportSha256;
+    const restartId = restart ? verification?.id : null;
+    if (restart && (!restartId || !confirm('Discard this unapproved recheck pass and start again? This does not delete audio or recorded attestations.'))) return;
+    clearVerificationConfirmation(); verification = undefined;
+    const result = await api(`${pathFor(current.id)}/review-verification`, 'POST', JSON.stringify({ report: reviewReport,
+      policy: 'gizmagick-local-admin-v1', provenanceConfirmed: true, ...(restartId ? { restartVerificationId: restartId } : {}) }));
+    acceptVerification(result);
+    if (verification?.reportSha256 !== expectedHash || verification.jobId !== reviewReport.jobId || verification.snapshotSha256 !== reviewReport.snapshotSha256) throw new Error('Verification was started for a different report. Refresh status.');
+    byId('review-confirm').checked = false;
+    status('Private recheck pass started or resumed. Check each batch, then confirm provenance and batch scope again before attesting.');
+  }
+  byId('verification-start')?.addEventListener('click', () => work(() => verificationWork(() => startVerification())));
+  byId('verification-restart')?.addEventListener('click', () => work(() => verificationWork(() => startVerification(true))));
+  byId('verification-next')?.addEventListener('click', () => work(() => verificationWork(async () => {
+    if (!packageEligible() || verification?.state !== 'pending' || verification.checkedAssets >= verification.totalAssets
+        || (reviewReport && reviewReportSha256 !== verification.reportSha256)) throw new Error('Refresh a pending pass for this exact report before continuing.');
+    const expected = verification; clearVerificationConfirmation();
+    const result = await api(`${pathFor(current.id)}/review-verification-batch`, 'POST', JSON.stringify({ verificationId: expected.id, offset: expected.checkedAssets }));
+    acceptVerification(result);
+    if (!verification || verification.id !== expected.id || verification.reportSha256 !== expected.reportSha256
+        || verification.snapshotSha256 !== expected.snapshotSha256 || verification.checkedAssets !== Math.min(expected.checkedAssets + 16, expected.totalAssets)
+        || verification.state !== 'pending') throw new Error('Recheck identity or batch order changed. Refresh progress before continuing.');
+    status('Private files rechecked against the exact package. No approval was recorded; final confirmation remains separate.');
+  })));
+  byId('verification-confirm')?.addEventListener('change', () => setBusy(busy));
+  byId('verification-attest')?.addEventListener('click', () => work(() => verificationWork(async () => {
+    if (!packageEligible() || verification?.state !== 'pending' || verification.checkedAssets !== verification.totalAssets
+        || verification.expiresAt <= Date.now() / 1000 || verification.firstCheckedAt < Date.now() / 1000 - 300
+        || !reviewReport || reviewReportSha256 !== verification.reportSha256 || !byId('review-confirm').checked
+        || !byId('verification-confirm').checked) throw new Error('Exact report, complete recent checks and fresh personal-run/batch-window confirmations are required.');
+    const expected = verification; clearVerificationConfirmation(); byId('review-confirm').checked = false;
+    const result = await api(`${pathFor(current.id)}/attest-review-batched`, 'POST', JSON.stringify({ verificationId: expected.id,
+      policy: 'gizmagick-local-admin-v1', provenanceConfirmed: true, batchWindowConfirmed: true }));
+    acceptVerification(result);
+    if (verification?.id !== expected.id || verification.reportSha256 !== expected.reportSha256 || verification.state !== 'attested') throw new Error('The recorded attestation does not match this pass. Refresh status.');
+    clearReview(); await applyVerification(result);
+    status('Administrator attestation recorded with recent, separate-batch storage scope. NOT server-decoded; this review type cannot be published yet.');
+  })));
   async function packageWork(operation) {
     try { await operation(); }
     catch (error) { packagePreparation = undefined; renderPreparation(); throw error; }
@@ -269,7 +377,6 @@ export function adminClient() {
     }
     if (finishing) {
       const job = result.package;
-      const digestJSON = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)))), byte => byte.toString(16).padStart(2, '0')).join('');
       if (!packagePreparation.ready || job?.packageVersion !== 1 || job.policy !== 'gizmagick-local-admin-v1'
           || job.jobId !== expected.jobId || job.expiresAt !== packagePreparation.expiresAt || job.snapshot?.draftId !== current.id
           || !Array.isArray(job.snapshot.assets) || job.snapshot.assets.length !== expected.totalAssets
@@ -401,7 +508,7 @@ export function adminClient() {
       await refreshList(); status('Draft archived. No files were deleted or unpublished.');
     });
   });
-  byId('metadata-editor')?.addEventListener('input', () => { packagePreparation = undefined; resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
+  byId('metadata-editor')?.addEventListener('input', () => { verification = undefined; packagePreparation = undefined; resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
   byId('reset-metadata')?.addEventListener('click', () => {
     if (!current || !confirm('Discard unsaved metadata edits? The saved draft will not change.')) return;
     byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
@@ -429,7 +536,7 @@ export function adminClient() {
     status('Review package downloaded. Run the local validator against its exact private audio files; no approval has been recorded.');
   }));
   byId('review-report')?.addEventListener('change', () => work(async () => {
-    reviewReport = null; byId('review-confirm').checked = false;
+    clearReview(); byId('review-confirm').checked = false;
     byId('review-summary').textContent = 'No successful report selected.';
     if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before selecting a report.');
     const report = await readJSON(byId('review-report'));
@@ -442,11 +549,13 @@ export function adminClient() {
     byId('review-summary').textContent = `Draft: ${report.draftId}\nVersion: ${report.versionId}\nPackage: ${report.jobId}\nSnapshot SHA-256: ${report.snapshotSha256}\n\n`
       + Object.entries(report.measurements).map(([id, asset]) => `${current.manifest.assets[id]?.path || id}: ${asset.durationSeconds} s · ${asset.codec} · ${asset.channels} channel(s) · ${asset.sampleRate} Hz\n${asset.byteLength} bytes · SHA-256 ${asset.sha256}`).join('\n\n');
     reviewReport = report;
+    if (batchReview) reviewReportSha256 = await digestJSON(report);
     status('Inspect the measurements and graph warnings, then confirm that you ran the validator yourself. The server will check the exact package and stored files again.');
   }));
   byId('review-confirm')?.addEventListener('change', () => setBusy(busy));
   byId('attest-review')?.addEventListener('click', () => work(async () => {
     if (metadataDirty() || !reviewReport || !byId('review-confirm').checked) throw new Error('Saved metadata, a report and explicit administrator confirmation are required.');
+    if (batchReview && (verification?.state === 'pending' || Object.keys(current.manifest.assets).length > 16)) throw new Error('Use the separate batched attestation controls for this review.');
     await api(`${pathFor(current.id)}/attest-review`, 'POST', JSON.stringify({ report: reviewReport, policy: 'gizmagick-local-admin-v1', provenanceConfirmed: true }));
     reviewReport = null; byId('review-confirm').checked = false;
     showDraft(await api(pathFor(current.id)));

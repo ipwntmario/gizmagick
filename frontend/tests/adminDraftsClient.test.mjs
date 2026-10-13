@@ -4,9 +4,11 @@ import { runInNewContext } from 'node:vm';
 import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 
-function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false } = {}) {
+function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
+  batchReview = false, verificationReply, verificationSessionExpired = false } = {}) {
   const elements = new Map(), calls = [], downloads = [];
   let preparation = null;
+  let verification = null;
   let metadataFailure = false;
   const element = id => {
     if (!elements.has(id)) elements.set(id, { value: '', checked: false, files: [], disabled: false,
@@ -27,12 +29,38 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
     versionId: draft.manifest.versionId, manifestSha256: draft.manifestSha256, jobId: '44444444-4444-4444-8444-444444444444', snapshotSha256: 'a'.repeat(64), errors: [],
     measurements: { a: { durationSeconds: 180, codec: 'opus', channels: 2, sampleRate: 48000, byteLength: 100, sha256: 'b'.repeat(64) } } };
   runInNewContext(`(${adminClient.toString()})();`, {
-    document: { getElementById: id => id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
+    document: { getElementById: id => (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
     crypto, TextEncoder, File: class File {}, confirm: () => packageConfirm, Blob,
     URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:local-test'; }, revokeObjectURL() {} }, setTimeout: callback => callback(),
     fetch: async (path, options) => {
       calls.push({ path, options });
       let result = path === '/api/admin/drafts' && options.method === 'GET' ? { drafts: [] } : structuredClone(draft);
+      if (/\/(review-verification|review-verification-batch|attest-review-batched)$/.test(path)) {
+        const body = options.body ? JSON.parse(options.body) : {};
+        if (path.endsWith('/review-verification') && options.method === 'POST') {
+          if (!verification || body.restartVerificationId) verification = { id: crypto.randomUUID(), draftId: draft.id,
+            trackId: draft.manifest.track.id, versionId: draft.manifest.versionId, manifestSha256: draft.manifestSha256,
+            jobId: body.report.jobId, reportSha256: await jsonSha256(body.report), snapshotSha256: body.report.snapshotSha256,
+            totalAssets: assetCount, checkedAssets: 0, expiresAt: Math.floor(Date.now() / 1000) + 900,
+            firstCheckedAt: null, lastCheckedAt: null, state: 'pending' };
+        }
+        if (path.endsWith('/review-verification-batch')) {
+          assert.equal(body.verificationId, verification.id); assert.equal(body.offset, verification.checkedAssets);
+          verification.checkedAssets = Math.min(assetCount, verification.checkedAssets + 16);
+          verification.firstCheckedAt ??= Math.floor(Date.now() / 1000); verification.lastCheckedAt = Math.floor(Date.now() / 1000);
+        }
+        if (path.endsWith('/attest-review-batched')) {
+          verification.state = 'attested';
+          draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-13',
+            reportSha256: verification.reportSha256, snapshotSha256: verification.snapshotSha256, publishing: false, serverDecoded: false,
+            storageCheckScope: 'bounded-batches', storageVerificationId: verification.id,
+            storageCheckedFrom: verification.firstCheckedAt, storageCheckedUntil: verification.lastCheckedAt };
+          draft.metadataEditable = false;
+        }
+        result = { verification: structuredClone(verification), review: draft.review, audioProbed: false, serverDecoded: false,
+          publishing: false, publicationAuthorized: false, pointInTimeBatches: true };
+        if (verificationReply) result = await verificationReply(result, path);
+      }
       if (/\/review-package-(batches|batch|finish)$/.test(path)) {
         const body = options.body ? JSON.parse(options.body) : {};
         if (path.endsWith('-batches') && options.method === 'POST' && (!preparation || body.restartJobId)) {
@@ -78,7 +106,8 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
           result = structuredClone(draft);
         }
       }
-      return { ok: !(metadataFailure && path.endsWith('/metadata')), redirected: inspectionSessionExpired && path.includes('/storage-inspection?'), headers: { get: () => 'application/json' }, json: async () => result };
+      return { ok: !(metadataFailure && path.endsWith('/metadata')), redirected: (inspectionSessionExpired && path.includes('/storage-inspection?'))
+        || (verificationSessionExpired && path.includes('/review-verification')), headers: { get: () => 'application/json' }, json: async () => result };
     },
   });
   const selectReport = async value => {
@@ -95,6 +124,102 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   };
   return { element, calls, draft, report, openDraft, selectReport, downloads, failMetadata: () => { metadataFailure = true; } };
 }
+
+async function beginClientVerification(f) {
+  await f.openDraft(); await f.selectReport(f.report);
+  f.element('review-confirm').checked = true; f.element('review-confirm').listeners.get('change')();
+  await f.element('verification-start').listeners.get('click')();
+}
+test('batched review requires explicit provenance, separate manual rechecks and fresh final window confirmation', async () => {
+  const f = fixture({ batchReview: true, assetCount: 129 });
+  await f.openDraft(); await f.selectReport(f.report);
+  assert(!f.calls.some(call => call.path.includes('/review-verification')));
+  const before = f.calls.length;
+  await f.element('verification-start').listeners.get('click')(); assert.equal(f.calls.length, before);
+  f.element('review-confirm').checked = true;
+  await f.element('verification-start').listeners.get('click')();
+  assert.equal(f.element('review-confirm').checked, false);
+  assert.equal(f.element('attest-review').disabled, true);
+  for (let i = 0; i < 9; i++) {
+    await f.element('verification-next').listeners.get('click')();
+    assert.equal(f.element('verification-progress').value, Math.min((i + 1) * 16, 129));
+    assert(!f.calls.some(call => call.path.endsWith('/attest-review-batched')));
+  }
+  assert.equal(f.element('verification-attest').disabled, true);
+  f.element('review-confirm').checked = true; f.element('review-confirm').listeners.get('change')();
+  f.element('verification-confirm').checked = true; f.element('verification-confirm').listeners.get('change')();
+  assert.equal(f.element('verification-attest').disabled, false);
+  await f.element('verification-attest').listeners.get('click')();
+  const call = f.calls.find(call => call.path.endsWith('/attest-review-batched'));
+  assert.equal(JSON.parse(call.options.body).batchWindowConfirmed, true); assert.equal(JSON.parse(call.options.body).provenanceConfirmed, true);
+  assert.equal(call.options.headers['X-Gizmagick-Admin-Request'], '1');
+  assert(f.element('review-state').textContent.includes('separate batches'));
+  assert(f.element('review-state').textContent.includes('cannot be published yet'));
+  assert.equal(f.element('verification-attest').disabled, true); assert.equal(f.element('metadata-editor').disabled, true);
+});
+
+test('reopening recovers only on read-only refresh and requires reselection/reconfirmation of the exact report', async () => {
+  const f = fixture({ batchReview: true, assetCount: 17 }); await beginClientVerification(f);
+  await f.element('verification-next').listeners.get('click')(); await f.openDraft();
+  assert.equal(f.element('verification-next').disabled, true);
+  await f.element('verification-refresh').listeners.get('click')();
+  assert.equal(f.calls.at(-1).options.method, 'GET'); assert.equal(f.element('verification-progress').value, 16);
+  await f.element('verification-next').listeners.get('click')();
+  assert.equal(f.element('verification-confirm').checked, false); assert.equal(f.element('verification-attest').disabled, true);
+  const other = structuredClone(f.report); other.jobId = crypto.randomUUID(); await f.selectReport(other);
+  f.element('review-confirm').checked = true; f.element('verification-confirm').checked = true;
+  f.element('review-confirm').listeners.get('change')(); assert.equal(f.element('verification-attest').disabled, true);
+});
+
+for (const mismatch of ['scope', 'report', 'order', 'identity', 'audit']) test(`invalid ${mismatch} verification responses lock approval`, async () => {
+  const f = fixture({ batchReview: true, verificationReply: (result, path) => {
+    if (mismatch === 'scope') result.serverDecoded = true;
+    if (mismatch === 'report') result.verification.reportSha256 = 'e'.repeat(64);
+    if (mismatch === 'identity') result.verification.draftId = 'wrong';
+    if (mismatch === 'order' && path.endsWith('-batch')) result.verification.checkedAssets = 0;
+    if (mismatch === 'audit' && path.endsWith('-batched')) result.review.storageCheckScope = 'single-request';
+    return result;
+  } }); await beginClientVerification(f);
+  await f.element('verification-next').listeners.get('click')();
+  f.element('review-confirm').checked = true; f.element('verification-confirm').checked = true;
+  await f.element('verification-attest').listeners.get('click')();
+  assert.equal(f.element('verification-attest').disabled, true);
+  if (mismatch !== 'audit') assert(!f.calls.some(call => call.path.endsWith('/attest-review-batched')));
+});
+
+test('lost final response is recovered by a status read, never by automatic approval replay', async () => {
+  let fail = true;
+  const f = fixture({ batchReview: true, verificationReply: (result, path) => {
+    if (fail && path.endsWith('/attest-review-batched')) { fail = false; throw new Error('Lost approval response'); }
+    return result;
+  } }); await beginClientVerification(f); await f.element('verification-next').listeners.get('click')();
+  f.element('review-confirm').checked = true; f.element('verification-confirm').checked = true;
+  await f.element('verification-attest').listeners.get('click')();
+  assert.equal(f.element('verification-attest').disabled, true); assert.equal(f.element('verification-confirm').checked, false);
+  await f.element('verification-refresh').listeners.get('click')();
+  assert.equal(f.calls.filter(call => call.path.endsWith('/attest-review-batched')).length, 1);
+  assert.equal(f.element('verification-next').disabled, true); assert(f.element('review-state').textContent.includes('separate batches'));
+});
+
+test('session expiry and unsaved metadata stop rechecks with no automatic retries', async () => {
+  const f = fixture({ batchReview: true, verificationSessionExpired: true }); await beginClientVerification(f);
+  assert.equal(f.element('verification-next').disabled, true); assert(f.element('status').textContent.includes('session may have expired'));
+  const good = fixture({ batchReview: true }); await beginClientVerification(good);
+  good.element('metadata-editor').value += ' '; good.element('metadata-editor').listeners.get('input')();
+  assert.equal(good.element('verification-next').disabled, true); assert.equal(good.element('verification-confirm').checked, false);
+});
+
+test('busy guard prevents duplicate recheck requests', async () => {
+  let release;
+  const f = fixture({ batchReview: true, verificationReply: (result, path) => path.endsWith('/review-verification-batch')
+    ? new Promise(resolve => { release = () => resolve(result); }) : result });
+  await beginClientVerification(f);
+  const first = f.element('verification-next').listeners.get('click')(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.element('verification-next').disabled, true);
+  await f.element('verification-next').listeners.get('click')();
+  assert.equal(f.calls.filter(call => call.path.endsWith('/review-verification-batch')).length, 1);
+  release(); await first;
+});
 
 test('batch package controls perform one guarded private action per click and download only a finished package', async () => {
   const f = fixture({ assetCount: 129, batchPackages: true }); await f.openDraft();

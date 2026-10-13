@@ -110,9 +110,12 @@ temporary Miniflare storage, and its package passes the real local CLI and
 existing administrator-attestation/publisher pipeline. Scripted browser-like
 tests verify controls; no real-browser download or cloud walkthrough is claimed.
 
-Next: bounded approval revalidation and large-track publication intent/copy/final
-verification. The current approval/preflight paths still inspect all files per
-request, and the publisher still refuses more than **16 audio assets**, regardless
+Phase 7H now adds a separate [bounded approval-recheck workflow](admin-review-verification.md)
+locally, with explicit recent-batch audit scope and its own disabled rollout flag.
+It is not an atomic storage snapshot and the current publisher rejects that
+new review type. The legacy approval/preflight paths still inspect all files per
+request. Next: large-track publication intent/copy/final verification; the publisher
+still refuses more than **16 audio assets**, regardless
 of a finished package or administrator attestation. No public-library import,
 live-player cutover, user-upload moderation or cleanup is included. Review and
 apply migration 0005 before a separately verified cloud rollout; do not enable

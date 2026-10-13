@@ -9,8 +9,11 @@ const fail = (status, code, message, details) => { throw new DraftError(status, 
 const validate = manifest => validateManifestWithStructure(manifest, checkStructure);
 export const packageFor = job => ({ packageVersion: 1, policy: REVIEW_POLICY, jobId: job.id,
   expiresAt: job.expires_at, snapshotSha256: job.snapshot_sha256, snapshot: JSON.parse(job.snapshot_json) });
-const reviewSummary = row => row ? { scope: row.scope, approvedBy: row.approved_by, approvedAt: row.approved_at,
-  reportSha256: row.report_sha256, snapshotSha256: row.snapshot_sha256, publishing: false, serverDecoded: false } : null;
+export const reviewSummary = row => row ? { scope: row.scope, approvedBy: row.approved_by, approvedAt: row.approved_at,
+  reportSha256: row.report_sha256, snapshotSha256: row.snapshot_sha256, publishing: false, serverDecoded: false,
+  ...(row.storage_check_scope === 'bounded-batches' ? { storageCheckScope: row.storage_check_scope,
+    storageVerificationId: row.storage_verification_id, storageCheckedFrom: row.storage_checked_from,
+    storageCheckedUntil: row.storage_checked_until } : {}) } : null;
 
 export async function getDraftReview(env, id) {
   if (!reviewsEnabled(env)) return null;

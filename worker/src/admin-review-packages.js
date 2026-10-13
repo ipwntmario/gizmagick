@@ -9,13 +9,13 @@ export const batchPackagesEnabled = env => draftsEnabled(env) && reviewsEnabled(
 const fail = (status, code, message) => { throw new DraftError(status, code, message); };
 const changed = result => Number(result.meta?.changes ?? result.changes ?? 0);
 // The same allocation/ownership/attestation predicates fence every database write.
-const currentGuard = `EXISTS (SELECT 1 FROM admin_drafts WHERE id = ? AND owner_id = ? AND status = 'draft' AND manifest_json = ?)
+export const currentGuard = `EXISTS (SELECT 1 FROM admin_drafts WHERE id = ? AND owner_id = ? AND status = 'draft' AND manifest_json = ?)
   AND NOT EXISTS (SELECT 1 FROM admin_draft_reviews WHERE draft_id = ?)
   AND (SELECT COUNT(*) FROM admin_draft_assets WHERE draft_id = ?) = ?
   AND NOT EXISTS (SELECT 1 FROM json_each(?) s WHERE NOT EXISTS (SELECT 1 FROM admin_draft_assets a
     WHERE a.draft_id = ? AND a.asset_id = json_extract(s.value, '$.assetId') AND a.object_key = json_extract(s.value, '$.objectKey')
       AND a.byte_length = json_extract(s.value, '$.byteLength') AND a.sha256 = json_extract(s.value, '$.sha256') AND a.state = 'uploaded'))`;
-const guardArgs = (row, principal, snapshot) => [row.id, principal.id, row.manifest_json, row.id, row.id,
+export const guardArgs = (row, principal, snapshot) => [row.id, principal.id, row.manifest_json, row.id, row.id,
   snapshot.assets.length, JSON.stringify(snapshot.assets), row.id];
 
 async function inputFor(request, operation) {

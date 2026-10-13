@@ -55,7 +55,7 @@ origin = `http://127.0.0.1:${server.address().port}`;
 try {
   mf = new Miniflare(convertV4MiniflareOptions({ modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: publicationPreview ? ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'] : ['GIZMAGICK_DRAFTS'],
-    bindings: { GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer,
+    bindings: { GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer,
       GIZMAGICK_ACCESS_AUD: audience, GIZMAGICK_ADMIN_EMAILS: 'preview@example.invalid', GIZMAGICK_ADMIN_ORIGIN: origin,
       ...(publicationPreview ? { GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true',
         GIZMAGICK_MEDIA_BASE_URL: `${origin}/api/library/media`, GIZMAGICK_APP_ORIGINS: origin } : {}) },
@@ -66,7 +66,7 @@ try {
   }));
   const db = await mf.getD1Database('GIZMAGICK_DB');
   for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql',
-    ...(publicationPreview ? ['0004_gizmagick_publications.sql'] : []), '0005_gizmagick_review_package_batches.sql']) {
+    ...(publicationPreview ? ['0004_gizmagick_publications.sql'] : []), '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql']) {
     const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
     await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
   }

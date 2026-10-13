@@ -100,6 +100,8 @@ Phase 7F adds a [bounded private storage inspection foundation](docs/admin-stora
 
 Phase 7G adds [resumable batched review packages](docs/admin-review-packages.md), implemented and tested locally with migration 0005 and a disabled-by-default rollout flag. Each manual batch checks at most 16 private files and records durable progress; a separate finish action creates the existing validator-compatible package. Preparation never grants approval or publication, and the original full approval recheck remains intact. Testing Time's 129-file structure and 256-file preparation are covered; the actual bundled Worker and real local validator pass with Lena's Home audio. No cloud migration/deployment, public copy or player change occurred. Bounded approval revalidation and larger-track publishing remain next.
 
+Phase 7H adds [bounded administrator approval rechecks](docs/admin-review-verification.md), tested locally with migration 0006 and a disabled rollout flag. Each manual request rechecks at most 16 private files against an exact locally validated package/report. A separate fresh personal-run and batch-window confirmation records an immutable, distinctly labeled audit; all checks must be at most five minutes old. This is not an atomic storage snapshot or server decoding, and the current publisher/UI reject the new review type until bounded publication supports it. The legacy single-request review remains unchanged. No remote migration, Worker deployment, public upload or live-player change occurred.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

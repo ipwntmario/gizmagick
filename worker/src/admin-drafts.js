@@ -8,6 +8,7 @@ import { previewDraftPublication, PublicationPreviewError } from './admin-public
 import { handlePublicationRequest } from './admin-publications.js';
 import { inspectPrivateStorage } from './admin-storage-inspection.js';
 import { handleBatchPackageRequest } from './admin-review-packages.js';
+import { handleBatchReviewRequest } from './admin-review-verification.js';
 
 export const DRAFT_LIMITS = Object.freeze({ metadataBytes: 262144, audioBytes: 16777216,
   draftBytes: 268435456, ownerBytes: 536870912, activeDrafts: 20, assets: 256, clips: 2048, sections: 128 });
@@ -192,7 +193,7 @@ async function uploadAsset(request, env, principal, row, assetId) {
 
 export async function handleDraftRequest(request, env, principal, reply, headers) {
   const path = new URL(request.url).pathname;
-  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest|metadata|review-package|attest-review|publication-preview|publication|publication-step|storage-inspection|review-package-batches|review-package-batch|review-package-finish))?$/);
+  const route = path.match(/^\/api\/admin\/drafts\/([^/]+)(?:\/(assets\/([^/]+)|archive|manifest|metadata|review-package|attest-review|publication-preview|publication|publication-step|storage-inspection|review-package-batches|review-package-batch|review-package-finish|review-verification|review-verification-batch|attest-review-batched))?$/);
   if (path !== '/api/admin/drafts' && !route) return null;
   if (!draftsEnabled(env)) return reply({ error: 'Private draft storage is not enabled.', code: 'DRAFT_NOT_CONFIGURED' }, 503);
   try {
@@ -227,6 +228,9 @@ export async function handleDraftRequest(request, env, principal, reply, headers
       }
     } else {
       const row = await ownDraft(env.GIZMAGICK_DB, route[1], principal.id);
+      if (['review-verification', 'review-verification-batch', 'attest-review-batched'].includes(route[2])) {
+        return await handleBatchReviewRequest(request, env, principal, row, route[2], reply, headers);
+      }
       if (['review-package-batches', 'review-package-batch', 'review-package-finish'].includes(route[2])) {
         return await handleBatchPackageRequest(request, env, principal, row, route[2], reply, headers);
       }

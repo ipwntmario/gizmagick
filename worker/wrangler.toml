@@ -29,6 +29,8 @@ GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
 GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 # Phase 7G is local-only; migration 0005 must be applied before enabling.
 GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "false"
+# Phase 7H is local-only; migration 0006 must be applied before enabling.
+GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "false"
 # Local browser walkthrough and cloud preflight passed. Requires reviews enabled.
 GIZMAGICK_DRAFT_METADATA_ENABLED = "true"
 # Phase 7A only inspects attested drafts; it does not enable publication.

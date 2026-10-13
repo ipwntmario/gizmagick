@@ -462,8 +462,14 @@ locally. Migration 0005 and its enable flag are not applied/enabled in Cloudflar
 Package preparation still grants no approval or publication permission; the
 existing full approval recheck and 16-file publisher limit remain intact.
 
-Next: implement bounded approval revalidation and large-track intent/copy/final
-verification, then review original
+Phase 7H implements [bounded administrator approval rechecks](admin-review-verification.md)
+locally. Migration 0006 and its flag are not applied/enabled in Cloudflare. The
+new audit distinguishes recent separate-batch checks from the legacy single-request
+path; the current preflight/publisher and UI explicitly reject this review type
+until a later bounded publisher supports it. Publishing remains disabled.
+
+Next: implement large-track intent/copy/final verification with an explicit policy
+for batched-review audits, then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

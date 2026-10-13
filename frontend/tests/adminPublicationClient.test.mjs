@@ -80,6 +80,17 @@ test('opening, readiness and checking the exposure box never publish or copy', a
   assert.equal(f.writes().length, 0);
 });
 
+test('separate-batch storage review locks publishing controls even for a one-file track', async () => {
+  const f = fixture(); Object.assign(f.draft.review, { storageCheckScope: 'bounded-batches',
+    storageCheckedFrom: 1791840000, storageCheckedUntil: 1791840001 });
+  await f.open();
+  assert.equal(f.element('publication-check').disabled, true);
+  assert.equal(f.element('publication-action').disabled, true);
+  assert(f.element('publication-state').textContent.includes('does not support this review type'));
+  await f.click('publication-check'); f.confirmPublication(); await f.click('publication-action');
+  assert.equal(f.writes().length, 0); assert(!f.calls.some(call => call.path.endsWith('/publication-preview')));
+});
+
 test('intent, individual copies and final catalog publication each require fresh confirmation', async () => {
   const f = fixture(); await f.ready();
   await f.click('publication-action'); assert.equal(f.writes().length, 0);

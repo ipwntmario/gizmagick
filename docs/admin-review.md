@@ -10,6 +10,12 @@ it does not implement publication, editing, cleanup, or public-user uploads.
 
 ## Trust boundary
 
+Phase 7H adds a separate, optional [bounded storage-recheck attestation](admin-review-verification.md)
+locally, not enabled in Cloudflare. Its audit explicitly records separate-batch
+scope and a recent check interval; it is not an atomic snapshot and the current
+publisher rejects it. The original single-request recheck described below remains
+compatible and unchanged. Package preparation alone still cannot approve a draft.
+
 Local JSON reports are unsigned. Neither a checksum nor a server-issued package
 proves that a trusted decoder ran. A report alone cannot approve anything.
 The verified administrator must personally run the repository's pinned validator,

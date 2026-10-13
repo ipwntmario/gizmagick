@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -30,10 +30,10 @@ function ogg(marker = 1) {
   bytes.set(new TextEncoder().encode('OpusHead'), 28); bytes[36] = marker;
   return bytes; // Identification fixture, not decodable audio.
 }
-function fixture(t) {
+function fixture(t, { verificationMigration = true } = {}) {
   const sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys = ON;');
-  for (const migration of migrations) sql.exec(migration);
+  for (const migration of verificationMigration ? migrations : migrations.slice(0, -1)) sql.exec(migration);
   t.after(() => sql.close());
   function prepare(query, args = []) {
     return { bind: (...values) => prepare(query, values),
@@ -78,6 +78,19 @@ function fixture(t) {
 const inspectionPath = (draft, offset = 0, pin) => `/api/admin/drafts/${draft.id}/storage-inspection?offset=${offset}${pin ? '&snapshot=' + pin : ''}`;
 const packageRequest = (f, draft, operation = 'batches', body, options = {}) => f.request(`/api/admin/drafts/${draft.id}/review-package-${operation}`,
   { ...(body !== undefined ? { method: 'POST', body } : {}), ...options });
+const verifyRequest = (f, draft, operation = 'review-verification', body, options = {}) => f.request(`/api/admin/drafts/${draft.id}/${operation}`,
+  { ...(body !== undefined ? { method: 'POST', body } : {}), ...options });
+const verifyBegin = report => ({ report, policy: REVIEW_POLICY, provenanceConfirmed: true });
+const verifyFinish = id => ({ verificationId: id, policy: REVIEW_POLICY, provenanceConfirmed: true, batchWindowConfirmed: true });
+// Contract-only measurements are never presented as decoder evidence.
+async function syntheticReport(job) {
+  return createReviewReport(job, { trackId: job.snapshot.manifest.track.id, versionId: job.snapshot.manifest.versionId,
+    decoderVersions: { opus: '1.7.5', vorbis: '0.1.20' }, valid: true, errors: [], measurements: Object.fromEntries(job.snapshot.assets.map(asset => {
+      const sampleCount = Math.round((job.snapshot.manifest.assets[asset.assetId].durationSeconds || 180) * 48000);
+      return [asset.assetId, { codec: 'opus', channels: 2, sampleRate: 48000, sampleCount, containerSampleCount: sampleCount,
+        initialOverlapSamples: 0, durationSeconds: sampleCount / 48000, byteLength: asset.byteLength, sha256: asset.sha256 }];
+    })) });
+}
 async function uploadedDraft(f, input = canonical()) {
   const created = await f.create(input);
   assert.equal(created.status, 201, await created.clone().text());
@@ -88,6 +101,183 @@ async function uploadedDraft(f, input = canonical()) {
   }
   return draft;
 }
+
+for (const count of [129, 256]) test(`${count}-file batched attestation uses fresh independent rechecks and a separate immutable human audit`, async t => {
+  const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = f.env.GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = 'true';
+  const input = count === 129 ? { requestId: crypto.randomUUID(), manifest: JSON.parse(await read('../public/tracks/Testing Time/manifest.json')) } : canonical();
+  if (count === 129) for (const asset of Object.values(input.manifest.assets)) { delete asset.byteLength; delete asset.sha256; }
+  if (count === 256) for (let i = 1; i < count; i++) input.manifest.assets[crypto.randomUUID()] = { path: `audio/extra-${i}.ogg` };
+  const draft = await uploadedDraft(f, input), prep = (await (await packageRequest(f, draft, 'batches', {})).json()).preparation;
+  for (let offset = 0; offset < count; offset += 16) await packageRequest(f, draft, 'batch', { jobId: prep.jobId, offset });
+  const job = (await (await packageRequest(f, draft, 'finish', { jobId: prep.jobId })).json()).package, report = await syntheticReport(job);
+  assert.equal((await (await verifyRequest(f, draft)).json()).verification, null);
+  const started = await verifyRequest(f, draft, undefined, verifyBegin(report));
+  assert.equal(started.status, 200, await started.clone().text());
+  const attempt = (await started.json()).verification;
+  assert.equal(attempt.checkedAssets, 0); // Preparation batches cannot count as approval checks.
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(attempt.id))).status, 409);
+  let heads = 0, databaseCalls = 0; const head = f.env.GIZMAGICK_DRAFTS.head, prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => { databaseCalls++; return prepare(query); };
+  f.env.GIZMAGICK_DRAFTS.head = key => { heads++; return head(key); };
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = () => assert.fail('Rechecking must not decode or write audio');
+  f.env.GIZMAGICK_MEDIA.head = () => assert.fail('Private review must not inspect public storage');
+  for (let offset = 0; offset < count; offset += 16) {
+    heads = 0; databaseCalls = 0;
+    const response = await verifyRequest(f, draft, 'review-verification-batch', { verificationId: attempt.id, offset });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(heads, Math.min(16, count - offset));
+    assert(heads + databaseCalls < 50, `Conservative fixture-operation budget exceeded: ${heads + databaseCalls}`);
+    assert.equal((await response.json()).verification.checkedAssets, Math.min(offset + 16, count));
+    heads = 0;
+    assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: attempt.id, offset })).status, 200);
+    assert.equal((await (await verifyRequest(f, draft)).json()).verification.checkedAssets, Math.min(offset + 16, count));
+    assert.equal(heads, 0); assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+  }
+  const confirmed = await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(attempt.id));
+  assert.equal(confirmed.status, 201, await confirmed.clone().text());
+  const result = await confirmed.json();
+  assert.equal(heads, 0); assert.equal(result.review.storageCheckScope, 'bounded-batches');
+  assert.equal(result.review.storageVerificationId, attempt.id); assert.equal(result.review.serverDecoded, false);
+  assert.equal(result.pointInTimeBatches, true); assert.equal(result.publicationAuthorized, false);
+  assert.equal(result.verification.state, 'attested');
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(attempt.id))).status, 200);
+  assert.equal((await (await verifyRequest(f, draft)).json()).review.reportSha256, result.review.reportSha256);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+  assert.throws(() => f.sql.prepare("UPDATE admin_draft_reviews SET storage_check_scope = 'single-request'").run(), /immutable/);
+  assert.throws(() => f.sql.prepare('DELETE FROM admin_draft_reviews').run(), /retained/);
+  assert.throws(() => f.sql.prepare('UPDATE admin_draft_review_verifications SET expires_at = 0').run(), /retained/);
+  assert.throws(() => f.sql.prepare('DELETE FROM admin_draft_review_verification_batches').run(), /retained/);
+});
+
+test('disabled batched verification needs no new tables and leaves legacy review unchanged', async t => {
+  const f = fixture(t, { verificationMigration: false }), ready = await readyReview(f);
+  for (const operation of ['review-verification', 'review-verification-batch', 'attest-review-batched']) assert.equal((await verifyRequest(f, ready.draft, operation, {})).status, 503);
+  assert(!(await (await f.request('/admin')).text()).includes('id="verification-panel"'));
+  assert.equal((await ready.attest()).status, 201);
+});
+
+async function startedVerification(f, input = canonical()) {
+  f.env.GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = 'true';
+  const ready = await readyReview(f, input), response = await verifyRequest(f, ready.draft, undefined, verifyBegin(ready.report));
+  assert.equal(response.status, 200, await response.clone().text());
+  return { ...ready, verification: (await response.json()).verification };
+}
+
+test('verification requires exact report/provenance, admin ownership, method guards and a fresh final window confirmation', async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready;
+  assert.equal((await verifyRequest(f, draft, undefined, verifyBegin(ready.report), { principal: other })).status, 404);
+  assert.equal((await verifyRequest(f, draft, undefined, verifyBegin(ready.report), { principal: { ...owner, role: 'user' } })).status, 403);
+  for (const body of [{ ...verifyBegin(ready.report), provenanceConfirmed: false }, { ...verifyBegin(ready.report), serverDecoded: true }]) assert.equal((await verifyRequest(f, draft, undefined, body)).status, 400);
+  const broken = structuredClone(ready.report); broken.measurements[Object.keys(broken.measurements)[0]].sampleCount = 1;
+  assert.equal((await verifyRequest(f, draft, undefined, verifyBegin(broken))).status, 422);
+  assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 16 })).status, 409);
+  assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 1 })).status, 400);
+  assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0, assets: [] })).status, 400);
+  assert.equal((await verifyRequest(f, draft, 'review-verification-batch')).status, 405);
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', { ...verifyFinish(verification.id), batchWindowConfirmed: false })).status, 400);
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}/review-verification?offset=0`)).status, 400);
+  await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 });
+  const head = await verifyRequest(f, draft, 'review-verification', undefined, { method: 'HEAD' });
+  assert.equal(head.status, 200); assert.equal(await head.text(), '');
+  assert.equal(head.headers.get('Cache-Control'), 'private, no-store'); assert.equal(head.headers.get('Access-Control-Allow-Origin'), null);
+});
+
+for (const change of ['etag', 'missing', 'sha', 'metadata', 'allocation', 'package', 'report', 'expired']) test(`batched verification rejects ${change}`, async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready;
+  const [key, object] = [...f.objects][0];
+  if (change === 'etag') object.etag = 'changed';
+  if (change === 'missing') f.objects.delete(key);
+  if (change === 'sha') object.sha256 = 'b'.repeat(64);
+  if (change === 'metadata') { draft.manifest.track.title = 'Changed'; f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(draft.manifest), draft.id); }
+  if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+  if (change === 'package') f.sql.prepare('UPDATE admin_draft_review_jobs SET id = ?').run(crypto.randomUUID());
+  if (change === 'report') f.sql.prepare("UPDATE admin_draft_review_verifications SET report_json = '{}'").run();
+  if (change === 'expired') f.sql.prepare('UPDATE admin_draft_review_verifications SET expires_at = 0').run();
+  const response = await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 });
+  assert.equal(response.status, 409, await response.clone().text());
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_verification_batches').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('recent-check window prevents using old receipts; only explicit restart clears them', async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready;
+  await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 });
+  f.sql.prepare("UPDATE admin_draft_review_verification_batches SET checked_at = unixepoch('now') - 301").run();
+  assert.equal((await verifyRequest(f, draft)).status, 409);
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id))).status, 409);
+  const next = await (await verifyRequest(f, draft, undefined, verifyBegin(ready.report))).json();
+  assert.notEqual(next.verification.id, verification.id); assert.equal(next.verification.checkedAssets, 0);
+  assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 })).status, 409);
+});
+
+test('future-dated receipts cannot satisfy the freshness window', async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready;
+  await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 });
+  f.sql.prepare("UPDATE admin_draft_review_verification_batches SET checked_at = unixepoch('now') + 3600").run();
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id))).status, 409);
+  assert.notEqual((await (await verifyRequest(f, draft, undefined, verifyBegin(ready.report))).json()).verification.id, verification.id);
+});
+
+test('concurrent rechecks/final confirmations converge on one receipt and audit; completed retries only acknowledge history', async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready;
+  const batches = await Promise.all([0, 1].map(() => verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 })));
+  assert(batches.every(response => response.status === 200));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_verification_batches').get().n, 1);
+  const finishes = await Promise.all([0, 1].map(() => verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id))));
+  assert(finishes.every(response => [200, 201].includes(response.status)));
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 1);
+  await f.request(`/api/admin/drafts/${draft.id}/archive`, { method: 'POST' });
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id))).status, 200);
+  assert.equal((await verifyRequest(f, draft, undefined, verifyBegin(ready.report))).status, 409);
+});
+
+for (const race of ['archive', 'ownership', 'package', 'expiry']) test(`verification receipt rejects a ${race} change during storage checks`, async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready, head = f.env.GIZMAGICK_DRAFTS.head;
+  f.env.GIZMAGICK_DRAFTS.head = async key => {
+    const object = await head(key);
+    if (race === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+    if (race === 'ownership') f.sql.prepare('UPDATE admin_drafts SET owner_id = ?').run(other.id);
+    if (race === 'package') f.sql.prepare('UPDATE admin_draft_review_jobs SET id = ?').run(crypto.randomUUID());
+    if (race === 'expiry') f.sql.prepare('UPDATE admin_draft_review_verifications SET expires_at = 0').run();
+    return object;
+  };
+  assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_verification_batches').get().n, 0);
+});
+
+for (const race of ['archive', 'allocation', 'replacement', 'expiry']) test(`atomic batched attestation rejects a ${race} race`, async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready;
+  await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 });
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_draft_reviews')) return statement;
+    return { bind: (...values) => ({ run: async () => {
+      if (race === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+      if (race === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+      if (race === 'replacement') await verifyRequest(f, draft, undefined, { ...verifyBegin(ready.report), restartVerificationId: verification.id });
+      if (race === 'expiry') f.sql.prepare("UPDATE admin_draft_review_verification_batches SET checked_at = unixepoch('now') - 301").run();
+      return statement.bind(...values).run();
+    } }) };
+  };
+  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id))).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_reviews').get().n, 0);
+});
+
+test('batched reviews are labeled point-in-time and cannot enter the current publisher', async t => {
+  const f = fixture(t), ready = await startedVerification(f), { draft, verification } = ready;
+  await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset: 0 });
+  // Earlier objects are not checked again at final confirmation. Never claim atomicity.
+  [...f.objects.values()][0].etag = 'externally-changed-after-batch';
+  const response = await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id));
+  assert.equal(response.status, 201); assert.equal((await response.json()).pointInTimeBatches, true);
+  enablePublisher(f);
+  const preview = await publicationPreview(f, draft); assert.equal(preview.status, 409);
+  assert.equal((await preview.json()).code, 'PUBLICATION_PREFLIGHT_BATCH_REVIEW');
+  assert.equal((await startPublication(f, ready)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
 
 for (const count of [129, 256]) test(`durable ${count}-file review packaging resumes bounded batches and produces a canonical package without approval`, async t => {
   const f = fixture(t); f.env.GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = 'true';

@@ -70,6 +70,10 @@ async function verifyBrowserInitialization(html) {
   assert.equal(element('publication-check').disabled, true);
   assert.equal(element('package-start').disabled, true);
   assert.equal(element('package-next').disabled, true);
+  assert.equal(element('verification-start').disabled, true);
+  assert.equal(element('verification-attest').disabled, true);
+  assert(element('verification-refresh').listeners.has('click'));
+  assert(html.includes('Earlier objects are not rechecked at final confirmation'));
   assert(element('package-refresh').listeners.has('click'));
   assert.equal(element('inspection-next').disabled, true);
   assert.equal(element('inspection-reset').disabled, true);
@@ -107,7 +111,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
-    bindings: { GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -118,7 +122,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -135,6 +139,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(body.capabilities.publicationPreflight, true);
     assert.equal(body.capabilities.publishing, true);
     assert.equal(body.capabilities.batchPackages, true);
+    assert.equal(body.capabilities.batchReview, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -350,6 +355,35 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     await db.exec('DROP TRIGGER simulate_publication_failure;');
     assert.equal((await request(steps2Url, token, { method: 'POST', headers: writeHeaders, body: steps2Input })).status, 200);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 2);
+    // Separate real-file batched review: it must not enter the publisher.
+    const draft3 = await (await request('/api/admin/drafts', token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ requestId: crypto.randomUUID(), manifest }) })).json();
+    const assetId3 = Object.keys(draft3.manifest.assets)[0];
+    assert.equal((await request(`/api/admin/drafts/${draft3.id}/assets/${assetId3}`, token,
+      { method: 'PUT', headers: { ...writeHeaders, 'Content-Type': 'application/octet-stream' }, body: bytes })).status, 200);
+    const job3 = await (await request(`/api/admin/drafts/${draft3.id}/review-package`, token, { method: 'POST', headers: writeHeaders })).json();
+    const report3 = await createReviewReport(job3, { trackId: draft3.manifest.track.id, versionId: draft3.manifest.versionId,
+      decoderVersions: report.decoderVersions, valid: true, errors: [], measurements: { [assetId3]: report.measurements[assetId] } });
+    const verifyUrl = `/api/admin/drafts/${draft3.id}/review-verification`;
+    assert.equal((await request(verifyUrl, null)).status, 401);
+    assert.equal((await request(verifyUrl, issue('member@example.com'))).status, 403);
+    assert.equal((await request(verifyUrl, token, { method: 'POST', body: '{}' })).status, 403);
+    const start3 = await request(verifyUrl, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ report: report3, policy: REVIEW_POLICY, provenanceConfirmed: true }) });
+    assert.equal(start3.status, 200, await start3.clone().text());
+    const pass3 = (await start3.json()).verification;
+    const batch3 = await request(`/api/admin/drafts/${draft3.id}/review-verification-batch`, token,
+      { method: 'POST', headers: writeHeaders, body: JSON.stringify({ verificationId: pass3.id, offset: 0 }) });
+    assert.equal(batch3.status, 200, await batch3.clone().text());
+    assert.equal((await (await request(verifyUrl)).json()).verification.checkedAssets, 1);
+    const attest3 = await request(`/api/admin/drafts/${draft3.id}/attest-review-batched`, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ verificationId: pass3.id, policy: REVIEW_POLICY, provenanceConfirmed: true, batchWindowConfirmed: true }) });
+    assert.equal(attest3.status, 201, await attest3.clone().text());
+    assert.equal((await attest3.json()).review.storageCheckScope, 'bounded-batches');
+    const preview3 = await request(`/api/admin/drafts/${draft3.id}/publication-preview`);
+    assert.equal(preview3.status, 409); assert.equal((await preview3.json()).code, 'PUBLICATION_PREFLIGHT_BATCH_REVIEW');
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 2);
+    await assert.rejects(db.prepare('DELETE FROM admin_draft_review_verification_batches WHERE verification_id = ?').bind(pass3.id).run(), /retained/);
     assert.equal(outbound.length, 1);
   } finally { await mf.dispose(); }
 });

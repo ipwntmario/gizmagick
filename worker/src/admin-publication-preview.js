@@ -24,6 +24,9 @@ export async function inspectReviewedDraft(env, principal, row) {
   const db = env.GIZMAGICK_DB;
   const review = await db.prepare('SELECT * FROM admin_draft_reviews WHERE draft_id = ?').bind(row.id).first();
   if (!review) fail('PUBLICATION_PREFLIGHT_UNREVIEWED', 'An administrator attestation is required before publication preflight.');
+  if (review.storage_check_scope === 'bounded-batches') {
+    fail('PUBLICATION_PREFLIGHT_BATCH_REVIEW', 'Batched storage reviews are not supported by this publisher yet. Publishing remains a separate rollout.');
+  }
   if (review.policy !== REVIEW_POLICY || review.scope !== 'administrator-attested' || review.approved_by !== principal.id) {
     fail('PUBLICATION_PREFLIGHT_REVIEW', 'The stored review does not match this administrator and policy.');
   }

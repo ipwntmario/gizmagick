@@ -8,19 +8,23 @@ export function adminClient() {
   let publication, publicationReady = false, publicationRequest = null;
   let legacyBoundedIntent = false;
   const preparingIntents = Boolean(byId('intent-panel'));
+  const copyingIntents = Boolean(byId('intent-copy'));
   let intentStatus, intentRequest = null;
   const intentEligible = () => Boolean(current?.status === 'draft' && current.review && !current.missingAssets.length
     && Object.keys(current.manifest.assets).length <= 256 && !metadataDirty());
-  function clearIntentConfirmation() { if (preparingIntents) byId('intent-confirm').checked = false; }
+  function clearIntentConfirmation() {
+    if (preparingIntents) byId('intent-confirm').checked = false;
+    if (copyingIntents) byId('intent-copy-confirm').checked = false;
+  }
   function renderIntent() {
     if (!preparingIntents) return;
     const prep = intentStatus?.preparation, intent = intentStatus?.intent;
     byId('intent-progress').max = prep?.totalObjects || intent?.totalObjects || 1;
-    byId('intent-progress').value = prep?.checkedObjects || 0;
+    byId('intent-progress').value = prep?.checkedObjects || intent?.copiedObjects || 0;
     byId('intent-identity').textContent = current ? `Track: ${current.title}\nTrack ID: ${current.manifest.track.id}\nVersion: ${current.manifest.versionId}\nReview SHA-256: ${current.review?.reportSha256 || 'No attestation'}` : '';
-    byId('intent-state').textContent = intentStatus === undefined ? 'Intent status unknown. Refresh before any reservation; no public copying is enabled here.'
+    byId('intent-state').textContent = intentStatus === undefined ? 'Intent/copy status unknown. Refresh before any action. Earlier files may already be public; nothing resumes automatically.'
       : intentStatus.legacyPublication ? `An existing legacy publication ${intentStatus.legacyPublication.id} reserves this draft (${intentStatus.legacyPublication.state}). Use the legacy publisher when enabled. Files may already be public; this panel does not replace or undo it.`
-      : intent ? `Immutable bounded intent ${intent.id} reserved. Public copying and final catalog verification are not implemented for this intent; continuation is locked. This workflow made no public copies. Archiving does not remove its identity reservation.`
+      : intent ? `Immutable bounded intent ${intent.id}\n${intent.copiedObjects}/${intent.totalObjects} public copies recorded. Files may be public even when a failed request has no receipt. ${intent.nextAction === 'copy-one-object' ? 'Paused until you explicitly confirm copying one object publicly.' : intent.copiedObjects === intent.totalObjects ? 'All copies recorded; fresh final verification and catalog publication are not implemented. Catalog continuation is locked.' : 'Public copying is disabled or this draft is archived; continuation is locked.'} Archiving does not remove public files or its identity reservation.`
       : prep ? `${prep.checkedObjects}/${prep.totalObjects} proposed objects checked in separate batches. Preparation ${prep.id}\n${prep.recent ? 'Recent at this status read only; reservation is a separate confirmation.' : 'Expired or stale checks. Explicitly prepare/restart a fresh pass.'} No public copies or catalog changes were made.`
       : 'No bounded preparation or intent. Explicitly prepare this reviewed draft; no public copying is enabled here.';
   }
@@ -28,7 +32,8 @@ export function adminClient() {
     const prep = result.preparation, intent = result.intent, legacy = result.legacyPublication;
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i, sha = /^[a-f0-9]{64}$/;
     const total = Object.keys(current.manifest.assets).length + 1;
-    if (result.workflowVersion !== 2 || result.publishing !== false || result.publicCopyEnabled !== false
+    const canCopy = Boolean(result.publicCopyEnabled && current.status === 'draft' && intent && intent.copiedObjects < total);
+    if (result.workflowVersion !== 2 || result.publishing !== false || typeof result.publicCopyEnabled !== 'boolean' || (result.publicCopyEnabled && !copyingIntents)
         || result.catalogCommitEnabled !== false || result.publicationAuthorized !== false || result.serverDecoded !== false
         || result.pointInTimeBatches !== true || [prep, intent, legacy].filter(value => value !== null).length > 1
         || (legacy !== null && (!legacy || !uuid.test(legacy.id) || !['pending', 'published'].includes(legacy.state)))
@@ -42,8 +47,9 @@ export function adminClient() {
           || prep.storageCheckScope !== (current.review?.storageCheckScope || 'single-request')))
         || (intent !== null && (!intent || !uuid.test(intent.id) || intent.draftId !== current.id || intent.trackId !== current.manifest.track.id
           || intent.versionId !== current.manifest.versionId || intent.totalObjects !== total || !sha.test(intent.planSha256)
-          || intent.state !== 'pending' || intent.copiedObjects !== 0 || intent.nextAction !== null || intent.continuationBlocked !== true
-          || intent.storageCheckScope !== (current.review?.storageCheckScope || 'single-request')))) throw new Error('Intent status does not match this exact draft and reservation-only scope. Refresh before continuing.');
+          || intent.state !== 'pending' || !Number.isInteger(intent.copiedObjects) || intent.copiedObjects < 0 || intent.copiedObjects > total
+          || intent.nextAction !== (canCopy ? 'copy-one-object' : null) || intent.continuationBlocked !== !canCopy
+          || intent.storageCheckScope !== (current.review?.storageCheckScope || 'single-request')))) throw new Error('Intent status does not match this exact draft and copy-only scope. Refresh before continuing.');
     intentStatus = result;
     if (prep) intentRequest = { action: 'prepare', requestId: prep.requestId, expectedSnapshotSha256: prep.snapshotSha256, expectedReportSha256: prep.reportSha256 };
     renderIntent();
@@ -152,7 +158,7 @@ export function adminClient() {
       : publicationReady ? 'Readiness checks passed at this moment only. Creating an intent copies nothing; later actions recheck the exact review and files.'
       : 'No publication intent. Check readiness before creating one. No public files have been copied by this workflow.';
     if (current) {
-      byId('draft-state').textContent = `${current.status} · ${current.missingAssets.length} missing audio file(s) · NOT server-decoded · ${published ? 'Published' : legacyBoundedIntent ? 'Bounded intent reserved; continuation blocked' : publication === undefined ? 'Publication status unknown' : publication ? 'Publication pending; files may be public' : 'NOT published'}`;
+      byId('draft-state').textContent = `${current.status} · ${current.missingAssets.length} missing audio file(s) · NOT server-decoded · ${published ? 'Published' : legacyBoundedIntent ? 'Bounded intent reserved; catalog locked; files may be public' : publication === undefined ? 'Publication status unknown' : publication ? 'Publication pending; files may be public' : 'NOT published'}`;
       if (byId('review-state') && current.review) byId('review-state').textContent = reviewLabel(current.review);
     }
   }
@@ -179,6 +185,11 @@ export function adminClient() {
       const ready = available && prep?.recent && prep.checkedObjects === prep.totalObjects && prep.expiresAt > Date.now() / 1000;
       byId('intent-confirm').disabled = value || !ready;
       byId('intent-reserve').disabled = value || !ready || !byId('intent-confirm').checked;
+      if (copyingIntents) {
+        const canCopy = intentEligible() && intentStatus?.publicCopyEnabled && intentStatus.intent?.nextAction === 'copy-one-object';
+        byId('intent-copy-confirm').disabled = value || !canCopy;
+        byId('intent-copy').disabled = value || !canCopy || !byId('intent-copy-confirm').checked;
+      }
       renderIntent();
     }
     if (batchReview) {
@@ -341,7 +352,10 @@ export function adminClient() {
   }
   async function intentWork(operation) {
     try { await operation(); }
-    catch (error) { intentStatus = undefined; clearIntentConfirmation(); renderIntent(); throw error; }
+    catch (error) {
+      intentStatus = undefined; clearIntentConfirmation(); renderIntent();
+      throw new Error(`${error.message}\nRefresh intent/copy status before continuing. An interrupted copy may already have made bytes public. No automatic retry was made.`);
+    }
   }
   byId('intent-refresh')?.addEventListener('click', () => work(() => intentWork(async () => {
     if (!current || metadataDirty()) throw new Error('Open saved metadata before reading intent status.');
@@ -383,7 +397,20 @@ export function adminClient() {
     acceptIntent(result);
     if (intentStatus.intent?.id !== prep.id || intentStatus.intent.planSha256 !== prep.planSha256) throw new Error('The reserved intent does not match this preparation. Refresh its status.');
     legacyBoundedIntent = true; if (publishing) renderPublication();
-    status('Immutable bounded intent reserved. Public copying and final verification are not implemented; no public copy or catalog change occurred.');
+    status('Immutable bounded intent reserved. No public copy or catalog change occurred. Copying needs a separate confirmation when enabled; final catalog publication remains locked.');
+  })));
+  byId('intent-copy-confirm')?.addEventListener('change', () => setBusy(busy));
+  byId('intent-copy')?.addEventListener('click', () => work(() => intentWork(async () => {
+    const intent = intentStatus?.intent;
+    if (!intentEligible() || !intentStatus?.publicCopyEnabled || intent?.nextAction !== 'copy-one-object'
+        || !byId('intent-copy-confirm').checked) throw new Error('Refresh the exact intent and confirm public exposure before copying one object.');
+    clearIntentConfirmation(); intentStatus = undefined;
+    status('Conditionally copying one object publicly… Its bytes may become downloadable before this response arrives.');
+    acceptIntent(await api(`${pathFor(current.id)}/publication-intent`, 'POST', JSON.stringify({ action: 'copy-one', publicationId: intent.id,
+      expectedPlanSha256: intent.planSha256, ordinal: intent.copiedObjects, publicationConfirmed: true })));
+    if (intentStatus.intent?.id !== intent.id || intentStatus.intent.planSha256 !== intent.planSha256
+        || intentStatus.intent.copiedObjects !== intent.copiedObjects + 1) throw new Error('The returned copy progress changed unexpectedly.');
+    status('One public copy recorded. Confirm again for another object; nothing runs automatically. Catalog publication remains locked.');
   })));
   async function verificationWork(operation) {
     try { await operation(); }

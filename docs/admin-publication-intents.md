@@ -1,5 +1,10 @@
 # Phase 7I: bounded readiness and publication intents
 
+This document records the Phase 7I preparation checkpoint. Phase 7J now adds
+[separately confirmed one-object copying](admin-bounded-copy.md), locally only,
+behind an additional disabled flag and migration 0008. Final catalog publication
+remains blocked. Reservation itself still copies nothing.
+
 Implemented and tested locally. **This is not a complete large-track publisher.**
 No remote migration or Worker deployment occurred. The new
 `GIZMAGICK_PUBLICATION_INTENTS_ENABLED` flag remains `"false"` in project

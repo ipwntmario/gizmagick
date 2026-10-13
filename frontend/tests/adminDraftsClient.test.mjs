@@ -5,7 +5,7 @@ import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
-  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply } = {}) {
+  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false } = {}) {
   const elements = new Map(), calls = [], downloads = [];
   let preparation = null;
   let verification = null;
@@ -32,7 +32,7 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   if (intents) { draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-13',
     reportSha256: 'b'.repeat(64), snapshotSha256: 'a'.repeat(64), serverDecoded: false, publishing: false }; draft.metadataEditable = false; }
   runInNewContext(`(${adminClient.toString()})();`, {
-    document: { getElementById: id => (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
+    document: { getElementById: id => (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
     crypto, TextEncoder, File: class File {}, confirm: () => packageConfirm, Blob,
     URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:local-test'; }, revokeObjectURL() {} }, setTimeout: callback => callback(),
     fetch: async (path, options) => {
@@ -52,9 +52,16 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
         }
         if (body.action === 'reserve') reservedIntent = { id: intentPreparation.id, draftId: draft.id, trackId: draft.manifest.track.id,
           versionId: draft.manifest.versionId, planSha256: intentPreparation.planSha256, totalObjects: assetCount + 1, state: 'pending',
-          copiedObjects: 0, nextAction: null, continuationBlocked: true, storageCheckScope: draft.review.storageCheckScope || 'single-request' };
-        result = { workflowVersion: 2, publishing: false, publicCopyEnabled: false, catalogCommitEnabled: false, publicationAuthorized: false,
-          serverDecoded: false, pointInTimeBatches: true, preparation: reservedIntent ? null : structuredClone(intentPreparation), intent: reservedIntent,
+          copiedObjects: 0, nextAction: copies ? 'copy-one-object' : null, continuationBlocked: !copies, storageCheckScope: draft.review.storageCheckScope || 'single-request' };
+        if (body.action === 'copy-one') {
+          assert.equal(body.publicationId, reservedIntent.id); assert.equal(body.expectedPlanSha256, reservedIntent.planSha256);
+          assert.equal(body.ordinal, reservedIntent.copiedObjects); assert.equal(body.publicationConfirmed, true);
+          reservedIntent.copiedObjects++;
+          reservedIntent.nextAction = reservedIntent.copiedObjects < assetCount + 1 ? 'copy-one-object' : null;
+          reservedIntent.continuationBlocked = reservedIntent.nextAction === null;
+        }
+        result = { workflowVersion: 2, publishing: false, publicCopyEnabled: copies, catalogCommitEnabled: false, publicationAuthorized: false,
+          serverDecoded: false, pointInTimeBatches: true, preparation: reservedIntent ? null : structuredClone(intentPreparation), intent: structuredClone(reservedIntent),
           legacyPublication: null };
         if (intentReply) result = await intentReply(result, body.action || 'status');
       }
@@ -151,6 +158,71 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
 async function beginClientIntent(f) {
   await f.openDraft(); await f.element('intent-refresh').listeners.get('click')(); await f.element('intent-prepare').listeners.get('click')();
 }
+
+async function reserveClientIntent(f) {
+  await beginClientIntent(f);
+  await f.element('intent-next').listeners.get('click')();
+  f.element('intent-confirm').checked = true;
+  await f.element('intent-reserve').listeners.get('click')();
+}
+test('bounded copy UI requires separate fresh confirmation for every exact ordinal and never commits a catalog', async () => {
+  const f = fixture({ intents: true, copies: true }); await reserveClientIntent(f);
+  assert.equal(f.element('intent-copy').disabled, true);
+  const before = f.calls.length; await f.element('intent-copy').listeners.get('click')(); assert.equal(f.calls.length, before);
+  await f.element('intent-refresh').listeners.get('click')();
+  for (let ordinal = 0; ordinal < 2; ordinal++) {
+    f.element('intent-copy-confirm').checked = true; f.element('intent-copy-confirm').listeners.get('change')();
+    assert.equal(f.element('intent-copy').disabled, false);
+    await f.element('intent-copy').listeners.get('click')();
+    const input = JSON.parse(f.calls.at(-1).options.body);
+    assert.equal(input.action, 'copy-one'); assert.equal(input.ordinal, ordinal); assert.equal(input.expectedPlanSha256, 'f'.repeat(64));
+    assert.equal(f.element('intent-copy-confirm').checked, false); assert.equal(f.element('intent-copy').disabled, true);
+    assert.equal(f.element('intent-progress').value, ordinal + 1);
+  }
+  assert(f.element('intent-state').textContent.includes('Catalog continuation is locked'));
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'copy-one').length, 2);
+});
+
+test('lost copy response locks UI until read-only refresh; refresh recovers progress without replay', async () => {
+  let fail = true;
+  const f = fixture({ intents: true, copies: true, intentReply: (result, action) => {
+    if (action === 'copy-one' && fail) { fail = false; throw new Error('lost public copy response'); } return result;
+  } }); await reserveClientIntent(f);
+  f.element('intent-copy-confirm').checked = true; await f.element('intent-copy').listeners.get('click')();
+  assert.equal(f.element('intent-copy').disabled, true); assert.equal(f.element('intent-copy-confirm').checked, false);
+  assert(f.element('status').textContent.includes('already have made bytes public'));
+  await f.element('intent-refresh').listeners.get('click')(); assert.equal(f.calls.at(-1).options.method, 'GET');
+  assert.equal(f.element('intent-progress').value, 1); assert.equal(f.element('intent-copy').disabled, true);
+  await f.openDraft(); assert.equal(f.element('intent-copy').disabled, true);
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'copy-one').length, 1);
+});
+
+for (const mismatch of ['plan', 'progress', 'next-action', 'catalog']) test(`invalid ${mismatch} copy reply locks further public writes`, async () => {
+  const f = fixture({ intents: true, copies: true, intentReply: (result, action) => {
+    if (action === 'copy-one') {
+      if (mismatch === 'plan') result.intent.planSha256 = 'a'.repeat(64);
+      if (mismatch === 'progress') result.intent.copiedObjects = 2;
+      if (mismatch === 'next-action') result.intent.nextAction = 'verify-and-commit';
+      if (mismatch === 'catalog') result.catalogCommitEnabled = true;
+    }
+    return result;
+  } }); await reserveClientIntent(f);
+  f.element('intent-copy-confirm').checked = true; await f.element('intent-copy').listeners.get('click')();
+  assert.equal(f.element('intent-copy').disabled, true); assert.equal(f.element('intent-copy-confirm').checked, false);
+});
+
+test('busy guard prevents duplicate public-copy clicks and status refresh clears public confirmation', async () => {
+  let release;
+  const f = fixture({ intents: true, copies: true, intentReply: (result, action) => action === 'copy-one'
+    ? new Promise(resolve => { release = () => resolve(result); }) : result }); await reserveClientIntent(f);
+  f.element('intent-copy-confirm').checked = true;
+  await f.element('intent-refresh').listeners.get('click')(); assert.equal(f.element('intent-copy-confirm').checked, false);
+  f.element('intent-copy-confirm').checked = true;
+  const first = f.element('intent-copy').listeners.get('click')(); await new Promise(resolve => setImmediate(resolve));
+  await f.element('intent-copy').listeners.get('click')();
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'copy-one').length, 1);
+  release(); await first;
+});
 test('intent preparation is explicit and bounded, with a separate confirmation and no public-copy action', async () => {
   const f = fixture({ intents: true, assetCount: 129 }); await f.openDraft();
   const before = f.calls.length;

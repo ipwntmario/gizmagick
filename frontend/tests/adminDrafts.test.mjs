@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -30,10 +30,11 @@ function ogg(marker = 1) {
   bytes.set(new TextEncoder().encode('OpusHead'), 28); bytes[36] = marker;
   return bytes; // Identification fixture, not decodable audio.
 }
-function fixture(t, { verificationMigration = true, intentMigration = true } = {}) {
+function fixture(t, { verificationMigration = true, intentMigration = true, copyMigration = true } = {}) {
   const sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys = ON;');
-  for (const [index, migration] of migrations.entries()) if (index < 5 || (index === 5 && verificationMigration) || (index === 6 && verificationMigration && intentMigration)) sql.exec(migration);
+  for (const [index, migration] of migrations.entries()) if (index < 5 || (index === 5 && verificationMigration)
+    || (index === 6 && verificationMigration && intentMigration) || (index === 7 && verificationMigration && intentMigration && copyMigration)) sql.exec(migration);
   t.after(() => sql.close());
   function prepare(query, args = []) {
     return { bind: (...values) => prepare(query, values),
@@ -153,7 +154,7 @@ for (const count of [129, 256]) test(`bounded ${count}-asset intent rechecks sto
   for (const table of ['admin_publication_objects', 'admin_publication_commits', 'library_tracks']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
   assert.throws(() => f.sql.prepare('DELETE FROM admin_publication_intent_batches').run(), /retained/);
   assert.throws(() => f.sql.prepare('UPDATE admin_publication_intent_preparations SET expires_at = 0').run(), /retained/);
-  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_objects (publication_id, ordinal, etag) VALUES (?, 0, ?)').run(prep.id, 'fake'), /not implemented/);
+  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_objects (publication_id, ordinal, etag) VALUES (?, 0, ?)').run(prep.id, 'fake'), /Bounded copy changed/);
   assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(prep.id, 'fake'), /not implemented/);
   f.env.GIZMAGICK_PUBLICATION_ENABLED = 'true';
   assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication`)).status, 409);
@@ -166,6 +167,232 @@ async function preparedIntent(f) {
   assert.equal(response.status, 201, await response.clone().text());
   return { ...ready, input, preparation: (await response.json()).preparation };
 }
+
+async function copyReady(t, { count = 1, copyMigration = true, boundedReview = false } = {}) {
+  const f = fixture(t, { copyMigration });
+  let input = canonical();
+  if (count === 129) {
+    input = { requestId: crypto.randomUUID(), manifest: JSON.parse(await read('../public/tracks/Testing Time/manifest.json')) };
+    for (const asset of Object.values(input.manifest.assets)) { delete asset.byteLength; delete asset.sha256; }
+  } else for (let i = 1; i < count; i++) input.manifest.assets[crypto.randomUUID()] = { path: `audio/copy-${i}.ogg` };
+  const ready = await readyReview(f, input);
+  if (boundedReview) {
+    f.env.GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = 'true';
+    const pass = (await (await verifyRequest(f, ready.draft, undefined, verifyBegin(ready.report))).json()).verification;
+    for (let offset = 0; offset < count; offset += 16) assert.equal((await verifyRequest(f, ready.draft, 'review-verification-batch', { verificationId: pass.id, offset })).status, 200);
+    assert.equal((await verifyRequest(f, ready.draft, 'attest-review-batched', verifyFinish(pass.id))).status, 201);
+  } else assert.equal((await ready.attest()).status, 201);
+  enableIntents(f);
+  const prep = (await (await intentRequest(f, ready.draft, intentInput(ready))).json()).preparation;
+  for (let offset = 0; offset < count + 1; offset += 16) assert.equal((await intentRequest(f, ready.draft, { action: 'check-batch', preparationId: prep.id, offset })).status, 200);
+  const reserved = await intentRequest(f, ready.draft, reserveInput(prep));
+  assert.equal(reserved.status, 201, await reserved.clone().text());
+  const intent = (await reserved.json()).intent, storage = enablePublisher(f);
+  f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'true';
+  const body = ordinal => ({ action: 'copy-one', publicationId: intent.id, expectedPlanSha256: intent.planSha256, ordinal, publicationConfirmed: true });
+  const copy = (ordinal = 0, options = {}) => intentRequest(f, ready.draft, body(ordinal), options);
+  return { f, ready, intent, storage, body, copy };
+}
+
+for (const count of [129, 256]) test(`bounded copying handles ${count} files one at a time, manifest last, without catalog publication`, async t => {
+  const { f, ready, intent, storage, copy } = await copyReady(t, { count, boundedReview: true });
+  let privateHeads = 0, gets = 0, publicHeads = 0, puts = 0;
+  const head = f.env.GIZMAGICK_DRAFTS.head, get = f.env.GIZMAGICK_DRAFTS.get;
+  const publicHead = storage.bucket.head, put = storage.bucket.put;
+  f.env.GIZMAGICK_DRAFTS.head = key => { privateHeads++; return head(key); };
+  f.env.GIZMAGICK_DRAFTS.get = (key, opts) => { gets++; assert(opts.onlyIf.etagMatches); return get(key, opts); };
+  storage.bucket.head = key => { publicHeads++; return publicHead(key); };
+  storage.bucket.put = (key, bytes, opts) => { puts++; return put(key, bytes, opts); };
+  const plan = JSON.parse(f.sql.prepare('SELECT plan_json FROM admin_publications').get().plan_json);
+  for (let ordinal = 0; ordinal < count + 1; ordinal++) {
+    privateHeads = gets = publicHeads = puts = 0;
+    const result = await copy(ordinal);
+    assert.equal(result.status, 200, await result.clone().text());
+    assert.equal((await result.json()).intent.copiedObjects, ordinal + 1);
+    // The fake GET and PUT also call HEAD internally; actual binding methods
+    // are independently bounded, not proportional to track size.
+    assert(privateHeads <= 2 && gets <= 1 && publicHeads <= 3 && puts === 1);
+    assert.equal(storage.objects.size, ordinal + 1);
+    assert(storage.objects.has(plan.objects[ordinal].key));
+    if (ordinal < count) assert(!storage.objects.has(plan.objects.at(-1).key));
+  }
+  const status = await (await intentRequest(f, ready.draft)).json();
+  assert.equal(status.intent.nextAction, null); assert.equal(status.intent.continuationBlocked, true);
+  assert.equal(status.catalogCommitEnabled, false); assert.equal(status.publishing, false);
+  for (const object of plan.objects) assert.equal(hash(storage.objects.get(object.key).bytes), object.sha256);
+  for (const table of ['admin_publication_commits', 'library_tracks', 'library_track_versions']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(intent.id, 'forged'), /not implemented/);
+});
+
+test('bounded copying requires all rollout gates and migration 0008 before any public write', async t => {
+  const { f, ready, copy, storage } = await copyReady(t, { copyMigration: false });
+  assert.equal((await copy()).status, 503); assert.equal(storage.objects.size, 0);
+  f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
+  assert.equal((await intentRequest(f, ready.draft)).status, 200); assert.equal((await copy()).status, 503);
+  assert(!(await (await f.request('/admin')).text()).includes('id="intent-copy"'));
+  const enabled = await copyReady(t);
+  for (const flag of ['GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_INTENTS_ENABLED', 'GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED']) {
+    enabled.f.env[flag] = 'false'; assert.equal((await enabled.copy()).status, 503); enabled.f.env[flag] = 'true';
+  }
+  assert.equal(enabled.storage.objects.size, 0);
+  assert((await (await enabled.f.request('/admin')).text()).includes('id="intent-copy"'));
+});
+
+test('copy requests pin intent, checksum, ordinal, ownership and fresh confirmation; reads never copy', async t => {
+  const { f, ready, intent, body, copy, storage } = await copyReady(t);
+  assert.equal((await copy(0, { principal: other })).status, 404);
+  assert.equal((await copy(0, { principal: { ...owner, role: 'user' } })).status, 403);
+  for (const change of [{ ordinal: -1 }, { ordinal: 257 }, { ordinal: 0.1 }, { publicationConfirmed: false }, { expectedPlanSha256: ['a'.repeat(64)] }, { overwrite: true }]) {
+    assert.equal((await intentRequest(f, ready.draft, { ...body(0), ...change })).status, 400);
+  }
+  assert.equal((await intentRequest(f, ready.draft, { ...body(0), publicationId: crypto.randomUUID() })).status, 404);
+  assert.equal((await intentRequest(f, ready.draft, { ...body(0), expectedPlanSha256: 'a'.repeat(64) })).status, 409);
+  assert.equal((await copy(1)).status, 409);
+  for (const method of ['GET', 'HEAD']) assert.equal((await intentRequest(f, ready.draft, undefined, { method })).status, 200);
+  assert.equal(storage.objects.size, 0);
+  assert.equal((await copy()).status, 200);
+  assert.equal((await copy()).status, 200); // Same ordinal never copies manifest.
+  assert.equal(storage.objects.size, 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects WHERE publication_id = ?').get(intent.id).n, 1);
+});
+
+for (const change of ['etag', 'sha', 'missing', 'allocation', 'review', 'archived', 'media-base', 'identity']) test(`bounded copy rejects changed ${change} before public exposure`, async t => {
+  const { f, intent, copy, storage } = await copyReady(t);
+  const [key, object] = [...f.objects][0];
+  if (change === 'etag') object.etag = 'changed';
+  if (change === 'sha') object.sha256 = 'a'.repeat(64);
+  if (change === 'missing') f.objects.delete(key);
+  if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+  if (change === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET candidate_json = '{}'").run();
+  if (change === 'archived') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+  if (change === 'media-base') f.env.GIZMAGICK_MEDIA_BASE_URL = 'https://other.example.com';
+  if (change === 'identity') f.sql.prepare('INSERT INTO library_tracks (id, owner_id) VALUES (?, ?)').run(intent.trackId, owner.id);
+  assert.equal((await copy()).status, 409); assert.equal(storage.objects.size, 0);
+});
+
+test('conditional private GET closes the HEAD/read race and supplied checksum rejects changed streamed bytes', async t => {
+  for (const change of ['etag', 'stream']) {
+    const { f, copy, storage } = await copyReady(t), get = f.env.GIZMAGICK_DRAFTS.get;
+    f.env.GIZMAGICK_DRAFTS.get = async (key, options) => {
+      if (change === 'etag') f.objects.get(key).etag = 'replaced';
+      const result = await get(key, options);
+      if (change === 'stream') result.body = new Response(ogg(2)).body;
+      return result;
+    };
+    assert.equal((await copy()).status, change === 'etag' ? 409 : 503);
+    assert.equal(storage.objects.size, 0);
+  }
+});
+
+test('conditional public PUT cannot overwrite a destination created after its HEAD', async t => {
+  const { copy, storage } = await copyReady(t);
+  storage.hooks.beforePut = key => storage.objects.set(key, { bytes: ogg(), sha256: hash(ogg()), etag: 'unrelated', customMetadata: {}, httpMetadata: {} });
+  assert.equal((await copy()).status, 409);
+  assert.equal([...storage.objects.values()][0].etag, 'unrelated');
+});
+
+test('lost PUT or receipt responses recover only exact intent-marked bytes without another PUT', async t => {
+  const { f, ready, copy, storage } = await copyReady(t);
+  storage.hooks.afterPut = () => { throw new Error('lost response containing secret credentials'); };
+  const failed = await copy(); assert.equal(failed.status, 503); assert(!(await failed.text()).includes('credentials'));
+  assert.equal(storage.objects.size, 1);
+  assert.equal((await (await intentRequest(f, ready.draft)).json()).intent.copiedObjects, 0);
+  delete storage.hooks.afterPut; storage.hooks.beforePut = () => assert.fail('Must not overwrite recovery object');
+  const object = [...storage.objects.values()][0], markers = { ...object.customMetadata };
+  object.customMetadata.gizmagickPublication = crypto.randomUUID(); assert.equal((await copy()).status, 409);
+  object.customMetadata = markers;
+  assert.equal((await copy()).status, 200); assert.equal((await copy()).status, 200);
+  assert.equal(storage.objects.size, 1);
+});
+
+for (const stage of ['before-put', 'before-receipt']) for (const change of ['archive', 'allocation', 'review', 'lease']) test(`bounded copy fences ${change} ${stage}`, async t => {
+  const { f, copy, storage } = await copyReady(t);
+  const mutate = () => {
+    if (change === 'archive') f.sql.prepare("UPDATE admin_drafts SET status = 'archived'").run();
+    if (change === 'allocation') f.sql.prepare("UPDATE admin_draft_assets SET state = 'pending'").run();
+    if (change === 'review') f.sql.prepare("UPDATE admin_draft_reviews SET report_json = '{}'").run();
+    if (change === 'lease') f.sql.prepare('UPDATE admin_publications SET lease_expires_at = 0').run();
+  };
+  if (stage === 'before-put') {
+    const get = f.env.GIZMAGICK_DRAFTS.get;
+    f.env.GIZMAGICK_DRAFTS.get = async (...args) => { const object = await get(...args); mutate(); return object; };
+  } else {
+    const prepare = f.env.GIZMAGICK_DB.prepare;
+    f.env.GIZMAGICK_DB.prepare = query => {
+      const statement = prepare(query);
+      if (!query.startsWith('INSERT INTO admin_publication_objects')) return statement;
+      return { bind: (...values) => ({ run: async () => { mutate(); return statement.bind(...values).run(); } }) };
+    };
+  }
+  assert.equal((await copy()).status, 409);
+  assert.equal(storage.objects.size, stage === 'before-put' ? 0 : 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+});
+
+test('parallel copies do not overlap and a lost receipt reply is acknowledged without copying next object', async t => {
+  const { f, copy, storage } = await copyReady(t);
+  let release, entered;
+  const started = new Promise(resolve => { entered = resolve; });
+  const get = f.env.GIZMAGICK_DRAFTS.get;
+  f.env.GIZMAGICK_DRAFTS.get = async (...args) => { entered(); await new Promise(resolve => { release = resolve; }); return get(...args); };
+  const first = copy(); await started;
+  assert.equal((await copy()).status, 409); release(); assert.equal((await first).status, 200);
+  f.env.GIZMAGICK_DRAFTS.get = get;
+  const prepare = f.env.GIZMAGICK_DB.prepare;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const statement = prepare(query);
+    if (!query.startsWith('INSERT INTO admin_publication_objects')) return statement;
+    return { bind: (...values) => ({ run: async () => { await statement.bind(...values).run(); throw new Error('lost receipt reply'); } }) };
+  };
+  assert.equal((await copy(1)).status, 503);
+  assert.equal((await copy(1)).status, 200); assert.equal(storage.objects.size, 2);
+});
+
+test('copying can be disabled after exposure without hiding progress or pretending public files are private', async t => {
+  const { f, ready, copy, storage } = await copyReady(t);
+  assert.equal((await copy()).status, 200);
+  f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
+  const status = await (await intentRequest(f, ready.draft)).json();
+  assert.equal(status.intent.copiedObjects, 1); assert.equal(status.publicCopyEnabled, false);
+  assert.equal(status.intent.nextAction, null); assert.equal(status.intent.continuationBlocked, true);
+  assert.equal((await copy(1)).status, 503); assert.equal(storage.objects.size, 1);
+});
+
+for (const corruption of ['native-sha', 'custom-sha', 'size', 'plan-marker', 'content-type', 'cache']) test(`unrecorded public recovery rejects mismatched ${corruption}`, async t => {
+  const { copy, storage } = await copyReady(t);
+  storage.hooks.afterPut = () => { throw new Error('lost response'); };
+  assert.equal((await copy()).status, 503); delete storage.hooks.afterPut;
+  const object = [...storage.objects.values()][0];
+  if (corruption === 'native-sha') object.sha256 = 'a'.repeat(64);
+  if (corruption === 'custom-sha') object.customMetadata.sha256 = 'a'.repeat(64);
+  if (corruption === 'size') object.bytes = ogg().slice(0, 10);
+  if (corruption === 'plan-marker') object.customMetadata.gizmagickPlan = 'a'.repeat(64);
+  if (corruption === 'content-type') object.httpMetadata.contentType = 'text/plain';
+  if (corruption === 'cache') object.httpMetadata.cacheControl = 'no-cache';
+  storage.hooks.beforePut = () => assert.fail('Recovery cannot overwrite');
+  assert.equal((await copy()).status, 409); assert.equal(storage.objects.size, 1);
+});
+
+test('an expired lease after PUT prevents its receipt; exact recovery needs a new lease', async t => {
+  const { f, copy, storage } = await copyReady(t);
+  storage.hooks.afterPut = () => f.sql.prepare('UPDATE admin_publications SET lease_expires_at = 0').run();
+  assert.equal((await copy()).status, 409); assert.equal(storage.objects.size, 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 0);
+  delete storage.hooks.afterPut; assert.equal((await copy()).status, 200);
+});
+
+test('bounded copy cannot adopt a legacy intent and version-1 copies still work without migration 0008', async t => {
+  const f = fixture(t, { copyMigration: false }), ready = await readyReview(f); await ready.attest();
+  enablePublisher(f);
+  const started = await startPublication(f, ready), intent = (await started.json()).publication;
+  assert.equal((await publicationStep(f, ready, intent.id)).status, 200);
+  f.sql.exec(migrations[7]); f.env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'true';
+  const planHash = f.sql.prepare('SELECT plan_sha256 FROM admin_publications WHERE id = ?').get(intent.id).plan_sha256;
+  assert.equal((await intentRequest(f, ready.draft, { action: 'copy-one', publicationId: intent.id, expectedPlanSha256: planHash,
+    ordinal: 1, publicationConfirmed: true })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 1);
+});
 
 test('disabled intent workflow needs no migration 0007 and never queries its tables', async t => {
   const f = fixture(t, { intentMigration: false }), ready = await readyReview(f); await ready.attest(); enablePublicationPreview(f);

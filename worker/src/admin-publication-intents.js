@@ -5,8 +5,10 @@ import { REVIEW_POLICY, REVIEW_PACKAGE_BYTES, REVIEW_REPORT_BYTES, checkReviewRe
 import { DraftError, readBoundedBody } from './admin-drafts.js';
 import { allocationSnapshot, inspectAllocationAssets } from './admin-storage-inspection.js';
 import { publicationPreflightEnabled, requireNewLibraryIdentity } from './admin-publication-preview.js';
+import { copyOne, publishingEnabled, PUBLICATION_LIMITS } from './admin-publications.js';
 
 export const publicationIntentsEnabled = env => publicationPreflightEnabled(env) && env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED === 'true';
+export const boundedCopyEnabled = env => publicationIntentsEnabled(env) && publishingEnabled(env) && env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED === 'true';
 export const INTENT_LIMITS = Object.freeze({ assets: 256, batch: 16, planBytes: 1048576, inputBytes: 2048, lifetime: 900, freshness: 300 });
 const fail = (status, code, message) => { throw new DraftError(status, code, message); };
 const changed = result => Number(result.meta?.changes ?? result.changes ?? 0);
@@ -102,22 +104,34 @@ async function checkedStored(prep) {
   if (new TextEncoder().encode(prep.plan_json).length > INTENT_LIMITS.planBytes) fail(409, 'INTENT_PLAN', 'Stored plan exceeds its limit.');
   const plan = JSON.parse(prep.plan_json);
   if (await jsonSha256(plan) !== prep.plan_sha256 || plan.planVersion !== 2 || plan.draftId !== prep.draft_id || plan.ownerId !== prep.owner_id
-      || !Array.isArray(plan.objects) || plan.objects.length < 2 || plan.objects.length > 257) fail(409, 'INTENT_PLAN', 'Stored intent plan does not match its checksum or identity.');
+      || plan.workflow !== 'bounded-new-track' || !Array.isArray(plan.objects) || plan.objects.length < 2 || plan.objects.length > 257
+      || (prep.track_id && (plan.candidate.track.id !== prep.track_id || plan.candidate.versionId !== prep.version_id))) fail(409, 'INTENT_PLAN', 'Stored intent plan does not match its checksum or identity.');
   return plan;
+}
+async function copySchema(env) {
+  const installed = await env.GIZMAGICK_DB.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'admin_bounded_copy_guard'").first();
+  if (!installed) fail(503, 'INTENT_COPY_SCHEMA', 'Bounded copying needs migration 0008 before it can be enabled. No public copy was attempted.');
+}
+async function copyProgress(env, intent, plan) {
+  const { results } = await env.GIZMAGICK_DB.prepare('SELECT ordinal, etag FROM admin_publication_objects WHERE publication_id = ? ORDER BY ordinal LIMIT 258').bind(intent.id).all();
+  if (results.length > plan.objects.length || results.some((receipt, index) => receipt.ordinal !== index || !receipt.etag)) fail(409, 'INTENT_PROGRESS', 'Stored public-copy progress is inconsistent. No continuation is permitted.');
+  return results;
 }
 async function statusFor(env, row) {
   const intent = await existingIntent(env, row);
-  const flags = { workflowVersion: 2, publishing: false, publicCopyEnabled: false, catalogCommitEnabled: false,
+  const enabled = boundedCopyEnabled(env);
+  if (enabled) await copySchema(env);
+  const flags = { workflowVersion: 2, publishing: false, publicCopyEnabled: enabled, catalogCommitEnabled: false,
     publicationAuthorized: false, serverDecoded: false, pointInTimeBatches: true };
   if (intent) {
     const raw = JSON.parse(intent.plan_json);
     if (raw.planVersion !== 2) return { ...flags, preparation: null, intent: null, legacyPublication: { id: intent.id, state: intent.state } };
     const plan = await checkedStored(intent);
-    const copied = await env.GIZMAGICK_DB.prepare('SELECT COUNT(*) n FROM admin_publication_objects WHERE publication_id = ?').bind(intent.id).first();
+    const copied = await copyProgress(env, intent, plan), canCopy = enabled && row.status === 'draft' && intent.state === 'pending' && copied.length < plan.objects.length;
     return { ...flags, preparation: null, legacyPublication: null, intent: { id: intent.id, draftId: row.id,
       trackId: plan.candidate.track.id, versionId: plan.candidate.versionId, planSha256: intent.plan_sha256,
-      state: intent.state, copiedObjects: copied.n, totalObjects: plan.objects.length, nextAction: null,
-      continuationBlocked: true, storageCheckScope: plan.review.storageCheckScope } };
+      state: intent.state, copiedObjects: copied.length, totalObjects: plan.objects.length, nextAction: canCopy ? 'copy-one-object' : null,
+      continuationBlocked: !canCopy, storageCheckScope: plan.review.storageCheckScope } };
   }
   const prep = await preparationFor(env, row);
   if (!prep) return { ...flags, preparation: null, intent: null, legacyPublication: null };
@@ -133,12 +147,15 @@ async function inputFor(request) {
   const bytes = await readBoundedBody(request, INTENT_LIMITS.inputBytes); let input;
   try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { fail(400, 'INTENT_INPUT', 'Invalid UTF-8 JSON.'); }
   const keys = { prepare: ['action', 'requestId', 'expectedSnapshotSha256', 'expectedReportSha256', 'restartPreparationId'],
-    'check-batch': ['action', 'preparationId', 'offset'], reserve: ['action', 'preparationId', 'publicationConfirmed', 'batchWindowConfirmed'] };
+    'check-batch': ['action', 'preparationId', 'offset'], reserve: ['action', 'preparationId', 'publicationConfirmed', 'batchWindowConfirmed'],
+    'copy-one': ['action', 'publicationId', 'ordinal', 'expectedPlanSha256', 'publicationConfirmed'] };
   if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(keys, input.action)
       || Object.keys(input).some(key => !keys[input.action].includes(key))
       || (input.action === 'prepare' && (!uuid(input.requestId) || !sha(input.expectedSnapshotSha256) || !sha(input.expectedReportSha256)
         || (input.restartPreparationId !== undefined && !uuid(input.restartPreparationId))))
-      || (input.action !== 'prepare' && !uuid(input.preparationId))
+      || (['check-batch', 'reserve'].includes(input.action) && !uuid(input.preparationId))
+      || (input.action === 'copy-one' && (!uuid(input.publicationId) || !sha(input.expectedPlanSha256) || !Number.isInteger(input.ordinal)
+        || input.ordinal < 0 || input.ordinal > 256 || input.publicationConfirmed !== true))
       || (input.action === 'check-batch' && (!Number.isInteger(input.offset) || input.offset < 0 || input.offset > 256 || input.offset % 16))
       || (input.action === 'reserve' && (input.publicationConfirmed !== true || input.batchWindowConfirmed !== true))) fail(400, 'INTENT_INPUT', 'Supply only the exact preparation identity/action and required separate intent confirmations.');
   return input;
@@ -152,6 +169,53 @@ async function stillCurrent(env, principal, row, prep, expectedHash) {
   return checked;
 }
 
+async function copyIntent(env, principal, row, intent, input, reply) {
+  if (!boundedCopyEnabled(env)) fail(503, 'INTENT_COPY_DISABLED', 'Bounded public copying is disabled. Existing public bytes are not removed.');
+  await copySchema(env); // Fail before storage writes if the receipt fence is not installed.
+  if (!intent || intent.id !== input.publicationId) fail(404, 'INTENT_NOT_FOUND', 'The exact publication intent was not found.');
+  const plan = await checkedStored(intent);
+  if (intent.plan_sha256 !== input.expectedPlanSha256 || input.ordinal >= plan.objects.length || intent.state !== 'pending') fail(409, 'INTENT_COPY_PLAN', 'Use the exact pending intent, plan checksum and object number.');
+  const current = await env.GIZMAGICK_DB.prepare('SELECT * FROM admin_drafts WHERE id = ? AND owner_id = ?').bind(row.id, principal.id).first();
+  if (!current) fail(404, 'INTENT_NOT_FOUND', 'Draft not found.');
+  const checked = await reviewedIntentPlan(env, principal, current);
+  if (checked.planHash !== intent.plan_sha256) fail(409, 'INTENT_CHANGED', 'The current review, allocations or media base no longer match this fixed plan.');
+  await requireNewLibraryIdentity(env, plan.candidate);
+  const progress = await copyProgress(env, intent, plan);
+  // Exact ordinal retries only acknowledge a recorded action. They do not
+  // advance to the next object or claim fresh storage verification.
+  if (input.ordinal < progress.length) return reply(await statusFor(env, current));
+  if (input.ordinal !== progress.length) fail(409, 'INTENT_COPY_ORDER', 'Only the next unrecorded object may be copied. Refresh status.');
+  const token = crypto.randomUUID(), db = env.GIZMAGICK_DB;
+  const locked = await db.prepare(`UPDATE admin_publications SET lease_token = ?, lease_expires_at = unixepoch('now') + ?
+    WHERE id = ? AND owner_id = ? AND state = 'pending' AND lease_expires_at <= unixepoch('now')`).bind(token, PUBLICATION_LIMITS.leaseSeconds, intent.id, principal.id).run();
+  if (!changed(locked)) fail(409, 'INTENT_COPY_BUSY', 'Another copy is running. Refresh status; interrupted leases expire after two minutes.');
+  try {
+    const checkLease = async () => {
+      const valid = await db.prepare(`SELECT id FROM admin_publications WHERE id = ? AND state = 'pending'
+        AND lease_token = ? AND lease_expires_at > unixepoch('now') AND ${guard}`)
+        .bind(intent.id, token, ...guardArgs(current, checked)).first();
+      if (!valid) fail(409, 'INTENT_COPY_CHANGED', 'The lease, draft, review, allocations or new-track identity changed. Bytes may already be public; refresh status.');
+    };
+    await checkLease();
+    const afterLock = await copyProgress(env, intent, plan);
+    if (input.ordinal < afterLock.length) return reply(await statusFor(env, current));
+    if (input.ordinal !== afterLock.length) fail(409, 'INTENT_COPY_ORDER', 'Copy progress changed. Refresh status.');
+    const object = plan.objects[input.ordinal];
+    if (object.kind === 'audio') {
+      const source = plan.sources.find(asset => asset.assetId === object.assetId);
+      const [actual] = await inspectAllocationAssets(env, [checked.allocation.assets.find(asset => asset.assetId === object.assetId)]);
+      if (actual.etag !== source.etag) fail(409, 'INTENT_COPY_SOURCE', 'This private file changed since its administrator review.');
+    }
+    await copyOne(env, current, intent, plan, token, input.ordinal, checkLease);
+    return reply(await statusFor(env, current));
+  } catch (error) {
+    if (String(error.message).includes('Bounded copy changed before receipt')) fail(409, 'INTENT_COPY_CHANGED', 'Copy receipt was rejected because the draft, review, lease or allocations changed. Bytes may already be public. Refresh status.');
+    throw error;
+  } finally {
+    await db.prepare("UPDATE admin_publications SET lease_token = NULL, lease_expires_at = 0 WHERE id = ? AND state = 'pending' AND lease_token = ?").bind(intent.id, token).run();
+  }
+}
+
 export async function handleIntentRequest(request, env, principal, row, reply, headers) {
   if (!publicationIntentsEnabled(env)) return reply({ error: 'Bounded intent preparation is not enabled.', code: 'INTENT_DISABLED' }, 503);
   if (principal.role !== 'admin') fail(403, 'INTENT_ADMIN', 'Only a verified administrator can prepare their own publication intent.');
@@ -159,12 +223,13 @@ export async function handleIntentRequest(request, env, principal, row, reply, h
   if (['GET', 'HEAD'].includes(request.method)) return reply(await statusFor(env, row));
   if (request.method !== 'POST') { headers.set('Allow', 'GET, HEAD, POST'); return reply({ error: 'Method not allowed', code: 'INTENT_METHOD' }, 405); }
   const input = await inputFor(request), intent = await existingIntent(env, row);
+  if (input.action === 'copy-one') return copyIntent(env, principal, row, intent, input, reply);
   if (intent) {
     const plan = JSON.parse(intent.plan_json);
     if (plan.planVersion === 2 && ((input.action === 'reserve' && input.preparationId === intent.id)
       || (input.action === 'prepare' && input.requestId === intent.request_id && input.expectedSnapshotSha256 === plan.review.snapshotSha256
         && input.expectedReportSha256 === plan.review.reportSha256 && !input.restartPreparationId))) return reply(await statusFor(env, row));
-    fail(409, 'INTENT_RESERVED', 'An immutable publication already reserves this draft. No further checks, replacement or public copying are supported here.');
+    fail(409, 'INTENT_RESERVED', 'An immutable publication already reserves this draft. Its preparation cannot be checked or replaced; use only its exact bounded copy action when enabled.');
   }
   let prep = await preparationFor(env, row);
   if (input.action === 'prepare') {

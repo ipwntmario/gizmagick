@@ -50,7 +50,7 @@ async function checkedPlan(publication) {
   if (new TextEncoder().encode(publication.plan_json).length > PUBLICATION_LIMITS.planBytes) fail(409, 'PUBLICATION_PLAN', 'Stored publication plan exceeds its limit.');
   const plan = JSON.parse(publication.plan_json);
   if (plan.planVersion === 2 && await jsonSha256(plan) === publication.plan_sha256) {
-    fail(409, 'PUBLICATION_BOUNDED_WORKFLOW', 'This is a bounded v2 intent. Public copying and final verification are not implemented for it yet; the legacy publisher cannot continue it.');
+    fail(409, 'PUBLICATION_BOUNDED_WORKFLOW', 'This is a bounded v2 intent. Use its bounded-intent panel for copying when enabled; final catalog verification remains locked and the legacy publisher cannot continue it.');
   }
   if (await jsonSha256(plan) !== publication.plan_sha256 || plan.planVersion !== 1
       || plan.ownerId !== publication.owner_id || plan.draftId !== publication.draft_id
@@ -140,7 +140,7 @@ async function requireLease(env, row, publication, token) {
   if (!lease) fail(409, 'PUBLICATION_CHANGED', 'Publication lease expired or the draft changed. Reopen its status before retrying.');
 }
 
-async function copyOne(env, row, publication, plan, token, ordinal) {
+export async function copyOne(env, row, publication, plan, token, ordinal, checkLease = () => requireLease(env, row, publication, token)) {
   const expected = plan.objects[ordinal];
   let object = await env.GIZMAGICK_MEDIA.head(expected.key);
   if (!object) {
@@ -158,7 +158,7 @@ async function copyOne(env, row, publication, plan, token, ordinal) {
       bytes = audio.body;
     } else bytes = new TextEncoder().encode(JSON.stringify(plan.candidate));
     try {
-      await requireLease(env, row, publication, token);
+      await checkLease();
       await env.GIZMAGICK_MEDIA.put(expected.key, bytes, { onlyIf: { etagDoesNotMatch: '*' }, sha256: expected.sha256,
         httpMetadata: { contentType: expected.kind === 'audio' ? 'audio/ogg' : 'application/json; charset=utf-8', cacheControl: 'public, max-age=31536000, immutable' },
         customMetadata: { sha256: expected.sha256, gizmagickPublication: publication.id, gizmagickPlan: publication.plan_sha256 } });
@@ -171,11 +171,13 @@ async function copyOne(env, row, publication, plan, token, ordinal) {
   // A lost PUT response/receipt can be recovered only for our intent-marked,
   // native-checksummed object. Matching bytes from an unrelated upload are NOT enough.
   verifyPublic(object, expected, publication);
-  await requireLease(env, row, publication, token);
-  await env.GIZMAGICK_DB.prepare(`INSERT INTO admin_publication_objects (publication_id, ordinal, etag)
-    SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM admin_publications WHERE id = ? AND state = 'pending'
+  await checkLease();
+  const bounded = plan.planVersion === 2;
+  await env.GIZMAGICK_DB.prepare(`INSERT INTO admin_publication_objects (publication_id, ordinal, etag${bounded ? ', lease_token' : ''})
+    SELECT ?, ?, ?${bounded ? ', ?' : ''} WHERE EXISTS (SELECT 1 FROM admin_publications WHERE id = ? AND state = 'pending'
       AND lease_token = ? AND lease_expires_at > unixepoch('now'))
-    ON CONFLICT(publication_id, ordinal) DO NOTHING`).bind(publication.id, ordinal, object.etag, publication.id, token).run();
+    ON CONFLICT(publication_id, ordinal) DO NOTHING`).bind(publication.id, ordinal, object.etag,
+      ...(bounded ? [token] : []), publication.id, token).run();
   const receipt = await env.GIZMAGICK_DB.prepare('SELECT etag FROM admin_publication_objects WHERE publication_id = ? AND ordinal = ?').bind(publication.id, ordinal).first();
   if (!receipt || receipt.etag !== object.etag) fail(409, 'PUBLICATION_CHANGED', 'The copy was not recorded under the current lease. Its bytes may already be public.');
 }

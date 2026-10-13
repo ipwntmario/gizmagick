@@ -104,6 +104,8 @@ Phase 7H adds [bounded administrator approval rechecks](docs/admin-review-verifi
 
 Phase 7I adds [bounded readiness and immutable publication intents](docs/admin-publication-intents.md), tested locally with migration 0007 and a disabled rollout flag. It reconstructs the exact administrator-attested plan (including Phase 7H's distinct batch scope), checks up to 16 private sources and 16 public destinations per manual request, and reserves a version-2 intent only after separate confirmation and complete recent checks. All 448 tests pass. No public-copy or catalog-commit path exists for these intents yet; the legacy publisher and database fences reject continuation. No remote migration, Worker deployment, public upload or player change occurred. Conditional copying and independent bounded final verification are next.
 
+Phase 7J adds [one-object conditional public copying](docs/admin-bounded-copy.md), locally tested with migration 0008 and a separate disabled flag. In plain English: each confirmed click copies one unchanged, approved file without overwriting anything; retrying the same object cannot accidentally copy the next file. Testing Time's 129-file graph, 256-file copying, interrupted requests and actual bundled Worker/local storage checks pass. All 488 tests pass. Catalog publication remains locked pending fresh bounded final verification. No remote migration, Worker deployment, cloud copy or player-source change occurred.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

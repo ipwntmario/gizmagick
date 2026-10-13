@@ -6,7 +6,7 @@ import { publicationPreflightEnabled } from './admin-publication-preview.js';
 import { publishingEnabled } from './admin-publications.js';
 import { batchPackagesEnabled } from './admin-review-packages.js';
 import { batchReviewEnabled } from './admin-review-verification.js';
-import { publicationIntentsEnabled } from './admin-publication-intents.js';
+import { publicationIntentsEnabled, boundedCopyEnabled } from './admin-publication-intents.js';
 
 
 export function createAdminHandler(authorize = requireAdmin) {
@@ -44,7 +44,7 @@ export function createAdminHandler(authorize = requireAdmin) {
     if (path === '/api/admin/session') return reply({ authenticated: true, principal, capabilities: { uploads: draftsEnabled(env), reviews: draftsEnabled(env) && reviewsEnabled(env), metadata: metadataEnabled(env), publicationPreflight: publicationPreflightEnabled(env), publishing: publishingEnabled(env), batchPackages: batchPackagesEnabled(env), batchReview: batchReviewEnabled(env), publicationIntents: publicationIntentsEnabled(env) } });
     if (['/admin', '/admin/'].includes(path)) {
       headers.set('Content-Type', 'text/html; charset=utf-8');
-      return new Response(request.method === 'HEAD' ? null : adminPage({ principal, nonce, uploads: draftsEnabled(env), reviews: reviewsEnabled(env), metadata: metadataEnabled(env), publishing: publishingEnabled(env), packages: batchPackagesEnabled(env), batchReview: batchReviewEnabled(env), intents: publicationIntentsEnabled(env) }), { headers });
+      return new Response(request.method === 'HEAD' ? null : adminPage({ principal, nonce, uploads: draftsEnabled(env), reviews: reviewsEnabled(env), metadata: metadataEnabled(env), publishing: publishingEnabled(env), packages: batchPackagesEnabled(env), batchReview: batchReviewEnabled(env), intents: publicationIntentsEnabled(env), copies: boundedCopyEnabled(env) }), { headers });
     }
     return reply({ error: 'Not found' }, 404);
   };

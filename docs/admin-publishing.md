@@ -474,8 +474,17 @@ It explicitly retains/rechecks the Phase 7H audit scope but makes no public copi
 or catalog changes. Database fences and the legacy publisher prevent version-2
 continuation until conditional copying and fresh final verification exist.
 
-Next: implement one-object conditional copying and bounded final verification
-for those intents, then review original
+Phase 7J implements [one-object conditional copying](admin-bounded-copy.md)
+locally, with migration 0008 and a separate disabled flag. Confirmed actions copy
+only their exact object position, stream unchanged reviewed audio without
+overwriting destinations, and recover exact intent-marked copies after interrupted
+responses. In plain English, files can be moved safely one at a time, but they
+cannot yet be listed in the catalog through this workflow. The final database
+commit fence remains in place. All 488 tests pass; no cloud migration, Worker
+deployment, public copy or live player change occurred at this checkpoint.
+
+Next: implement independent fresh bounded private/public final verification
+and a separate guarded catalog commit for those intents, then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

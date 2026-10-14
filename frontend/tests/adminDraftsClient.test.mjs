@@ -278,7 +278,10 @@ test('busy guard prevents duplicate final commits', async () => {
   release(); await first;
 });
 test('bounded copy UI requires separate fresh confirmation for every exact ordinal and never commits a catalog', async () => {
-  const f = fixture({ intents: true, copies: true }); await reserveClientIntent(f);
+  const f = fixture({ intents: true, copies: true });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.element('status').textContent, 'Admin intake is ready. Public copying requires separate confirmation for each file. Catalog publication is disabled.');
+  await reserveClientIntent(f);
   assert.equal(f.element('intent-copy').disabled, true);
   const before = f.calls.length; await f.element('intent-copy').listeners.get('click')(); assert.equal(f.calls.length, before);
   await f.element('intent-refresh').listeners.get('click')();

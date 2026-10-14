@@ -841,5 +841,5 @@ export function adminClient() {
   }));
   byId('refresh').addEventListener('click', () => work(refreshList));
   setBusy(false);
-  work(async () => { await refreshList(); status(publishing ? 'Admin intake is ready. Publishing requires an eligible draft and explicit confirmation for every step.' : 'Private draft intake is ready. Publishing is disabled.'); });
+  work(async () => { await refreshList(); status(publishing || finalizing ? 'Admin intake is ready. Publishing requires an eligible draft and explicit confirmation for every step.' : copyingIntents ? 'Admin intake is ready. Public copying requires separate confirmation for each file. Catalog publication is disabled.' : 'Private draft intake is ready. Publishing is disabled.'); });
 }

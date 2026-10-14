@@ -5,6 +5,9 @@ import { inspectReviewedDraft, requireNewLibraryIdentity, publicationPreflightEn
 
 export const PUBLICATION_LIMITS = Object.freeze({ assets: 16, inputBytes: 2048, planBytes: 1048576, leaseSeconds: 120 });
 export const publishingEnabled = env => env.GIZMAGICK_PUBLICATION_ENABLED === 'true' && publicationPreflightEnabled(env);
+// The shared write gate also serves bounded copying/finalization. Legacy v1
+// publishing must be opted into separately, so copy-only rollout cannot commit.
+export const legacyPublishingEnabled = env => publishingEnabled(env) && env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED === 'true';
 const fail = (status, code, message) => { throw new DraftError(status, code, message); };
 const changed = result => Number(result.meta?.changes ?? result.changes ?? 0);
 const uuid = value => typeof value === 'string' && UUID_PATTERN.test(value);
@@ -229,7 +232,7 @@ async function step(request, env, principal, row, reply) {
 
 export async function handlePublicationRequest(request, env, principal, row, operation, reply, headers) {
   if (principal.role !== 'admin') fail(403, 'PUBLICATION_ADMIN', 'Only a verified administrator can publish their own attested new-track draft.');
-  if (!publishingEnabled(env)) return reply({ error: 'Publication writes are not enabled.', code: 'PUBLICATION_DISABLED' }, 503);
+  if (!legacyPublishingEnabled(env)) return reply({ error: 'Legacy publication writes are not enabled.', code: 'PUBLICATION_DISABLED' }, 503);
   if (operation === 'publication' && ['GET', 'HEAD'].includes(request.method)) return reply(await summary(env, await publicationFor(env, row)));
   if (request.method !== 'POST') {
     headers.set('Allow', operation === 'publication' ? 'GET, HEAD, POST' : 'POST');

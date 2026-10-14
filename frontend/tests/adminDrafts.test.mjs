@@ -163,6 +163,7 @@ for (const count of [129, 256]) test(`bounded ${count}-asset intent rechecks sto
   assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_objects (publication_id, ordinal, etag) VALUES (?, 0, ?)').run(prep.id, 'fake'), /Bounded copy changed/);
   assert.throws(() => f.sql.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').run(prep.id, 'fake'), /Bounded final verification/);
   f.env.GIZMAGICK_PUBLICATION_ENABLED = 'true';
+  f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED = 'true';
   assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication`)).status, 409);
   assert.equal((await f.request(`/api/admin/drafts/${draft.id}/publication-step`, { method: 'POST', body: { publicationId: prep.id, publicationConfirmed: true } })).status, 409);
 });
@@ -179,7 +180,7 @@ test('intent-only Cloudflare rollout reserves a bounded review without enabling 
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)]
     .map(([, name, value]) => [name, value])));
   assert.equal(f.env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED, 'true');
-  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) {
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) {
     assert.equal(f.env[flag], 'false');
   }
   const ready = await readyReview(f);
@@ -247,6 +248,51 @@ async function finalReady(t, options = {}) {
   assert.equal(started.status, 201, await started.clone().text());
   return { ...r, input, pass: (await started.json()).verification };
 }
+
+test('proposed copy-only rollout copies a bounded review but disables both catalog publication paths', async t => {
+  const { f, ready, intent, storage, copy } = await copyReady(t, { boundedReview: true });
+  const config = await read('../../worker/wrangler.toml');
+  const deployedFlags = Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+_ENABLED)\s*=\s*"([^"]*)"/gm)]
+    .map(([, name, value]) => [name, value]));
+  // A proposal only: real configuration stays private until separately authorized.
+  Object.assign(f.env, deployedFlags, { GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true' });
+  assert.equal(f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED, 'false');
+  assert.equal(f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED, 'false');
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publishing, false);
+  const html = await (await f.request('/admin')).text();
+  assert(html.includes('id="intent-copy"')); assert(html.includes('id="intent-copy-confirm"'));
+  assert(html.includes('Catalog publication is disabled; copying does not list the track'));
+  assert(!html.includes('Nothing here publishes or changes the live player.'));
+  for (const id of ['publication-panel', 'final-panel']) assert(!html.includes(`id="${id}"`));
+  for (let ordinal = 0; ordinal < intent.totalObjects; ordinal++) {
+    assert.equal((await copy(ordinal)).status, 200);
+    // Replaying an exact completed ordinal must not copy the following object.
+    assert.equal((await copy(ordinal)).status, 200);
+    assert.equal(storage.objects.size, ordinal + 1);
+  }
+  const status = await (await intentRequest(f, ready.draft)).json();
+  assert.equal(status.intent.copiedObjects, 2); assert.equal(status.publicCopyEnabled, true);
+  assert.equal(status.catalogCommitEnabled, false); assert.equal(status.intent.nextAction, null);
+  assert.equal((await startPublication(f, ready)).status, 503);
+  assert.equal((await publicationStep(f, ready, intent.id)).status, 503);
+  for (const body of [finalStart(intent), finalCommit(intent, { id: crypto.randomUUID() })]) {
+    assert.equal((await finalRequest(f, ready.draft, body)).status, 503);
+  }
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 2);
+  for (const table of ['admin_publication_commits', 'admin_publication_final_passes', 'library_tracks', 'library_track_versions']) {
+    assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  }
+});
+
+test('bounded final publication remains independently enabled when legacy publishing is disabled', async t => {
+  const { f, ready, intent, pass } = await finalReady(t, { boundedReview: true });
+  f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED = 'false';
+  assert.equal((await publicationStep(f, ready, intent.id)).status, 503);
+  assert.equal((await finalRequest(f, ready.draft, finalBatch(intent, pass))).status, 200);
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+});
+
 for (const count of [129, 256]) test(`final ${count}-asset verification is bounded, independent and atomically publishes only after confirmation`, async t => {
   const { f, ready, intent, pass, storage } = await finalReady(t, { count, boundedReview: true });
   let privateHeads = 0, publicHeads = 0;
@@ -1287,6 +1333,7 @@ function enablePublisher(f) {
   };
   f.env.GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = 'true';
   f.env.GIZMAGICK_PUBLICATION_ENABLED = 'true';
+  f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED = 'true';
   f.env.GIZMAGICK_MEDIA = bucket;
   return { objects, hooks, bucket };
 }
@@ -1303,6 +1350,27 @@ async function startedPublisher(t) {
   assert.equal(response.status, 201, await response.clone().text());
   const { publication } = await response.json();
   return { f, ready, storage, input, publication };
+}
+
+for (const [name, flag] of [['missing', undefined], ['false', 'false'], ['uppercase', 'TRUE'], ['empty', ''], ['boolean', true], ['numeric', 1]]) {
+  test(`legacy publisher fails closed with ${name} opt-in, including an existing pending intent`, async t => {
+    const { f, ready, publication, storage } = await startedPublisher(t);
+    if (flag === undefined) delete f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED;
+    else f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED = flag;
+    f.env.GIZMAGICK_DRAFTS.head = f.env.GIZMAGICK_DRAFTS.get = storage.bucket.head = storage.bucket.put = () => assert.fail('Disabled legacy path must not access R2');
+    assert.equal((await startPublication(f, ready)).status, 503);
+    assert.equal((await publicationStep(f, ready, publication.id)).status, 503);
+    for (const method of ['GET', 'HEAD']) {
+      assert.equal((await f.request(`/api/admin/drafts/${ready.draft.id}/publication`, { method })).status, 503);
+    }
+    assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publishing, false);
+    assert(!(await (await f.request('/admin')).text()).includes('id="publication-panel"'));
+    assert.equal(storage.objects.size, 0);
+    assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 1);
+    for (const table of ['admin_publication_objects', 'admin_publication_commits', 'library_tracks']) {
+      assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+    }
+  });
 }
 
 test('publisher copies one object per step, verifies before one atomic catalog commit, and retries idempotently', async t => {

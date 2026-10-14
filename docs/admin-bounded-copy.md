@@ -1,5 +1,11 @@
 # Phase 7J: one-object conditional public copying
 
+Current rollout: [Phase 7N preparation](admin-cloud-copy-rollout.md) adds a
+separate legacy-publication opt-in so a future authorized bounded-copy deployment
+can keep both catalog-publication paths disabled. No public writes are enabled
+by that preparation. The claims below describe the historical local Phase 7J
+checkpoint; the [Phase 7M plan](admin-cloud-intents-rollout.md) is now reserved.
+
 This records the Phase 7J copying checkpoint. Phase 7K now adds
 [independent final checks and catalog publication](admin-publication-final.md),
 locally only, behind migration 0009 and another disabled flag. Copying still

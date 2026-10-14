@@ -516,6 +516,13 @@ version-2 plan persists across reload with `0/2` public copies recorded and lock
 continuation. No new public file/catalog entry was created. Anonymous HEAD checks
 for its planned audio and manifest return 404; the original public test is unchanged.
 
+Phase 7N [prepares a copy-only rollout](admin-cloud-copy-rollout.md) by adding a
+fail-closed `GIZMAGICK_LEGACY_PUBLICATION_ENABLED` gate. The shared public-write
+switch can no longer enable legacy catalog publishing without this separate
+opt-in. Bounded copy/final workflows remain independently gated, and copy-only
+UI notices accurately warn about public files without implying catalog access.
+This local preparation changes no cloud state and enables no public writes.
+
 Next: review the controlled public-copy rollout and separately authorize any
 actual public-copy/catalog-publication test before enabling those write flags.
 Reservation itself grants no public-copy permission. Then review original

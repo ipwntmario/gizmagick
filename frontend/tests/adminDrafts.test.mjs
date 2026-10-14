@@ -174,6 +174,44 @@ async function preparedIntent(f) {
   return { ...ready, input, preparation: (await response.json()).preparation };
 }
 
+test('intent-only Cloudflare rollout reserves a bounded review without enabling any public write', async t => {
+  const f = fixture(t), config = await read('../../worker/wrangler.toml');
+  Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)]
+    .map(([, name, value]) => [name, value])));
+  assert.equal(f.env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED, 'true');
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) {
+    assert.equal(f.env[flag], 'false');
+  }
+  const ready = await readyReview(f);
+  const pass = (await (await verifyRequest(f, ready.draft, undefined, verifyBegin(ready.report))).json()).verification;
+  assert.equal((await verifyRequest(f, ready.draft, 'review-verification-batch', { verificationId: pass.id, offset: 0 })).status, 200);
+  assert.equal((await verifyRequest(f, ready.draft, 'attest-review-batched', verifyFinish(pass.id))).status, 201);
+  enablePublicationPreview(f);
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = () => assert.fail('Readiness never reads audio bytes or writes private files');
+  const html = await (await f.request('/admin')).text();
+  assert(html.includes('id="intent-panel"'));
+  for (const id of ['publication-panel', 'intent-copy', 'intent-copy-confirm', 'final-panel']) assert(!html.includes(`id="${id}"`));
+  const prepared = await intentRequest(f, ready.draft, intentInput(ready));
+  assert.equal(prepared.status, 201, await prepared.clone().text());
+  const prep = (await prepared.json()).preparation;
+  assert.equal((await intentRequest(f, ready.draft, { action: 'check-batch', preparationId: prep.id, offset: 0 })).status, 200);
+  const reserved = await intentRequest(f, ready.draft, reserveInput(prep));
+  assert.equal(reserved.status, 201, await reserved.clone().text());
+  const result = await reserved.json();
+  assert.equal(result.intent.copiedObjects, 0); assert.equal(result.intent.storageCheckScope, 'bounded-batches');
+  assert.equal(result.publicCopyEnabled, false); assert.equal(result.catalogCommitEnabled, false);
+  assert.equal(result.intent.nextAction, null); assert.equal(result.intent.continuationBlocked, true);
+  assert.equal((await intentRequest(f, ready.draft, { action: 'copy-one', publicationId: prep.id,
+    expectedPlanSha256: result.intent.planSha256, ordinal: 0, publicationConfirmed: true })).status, 503);
+  assert.equal((await f.request(`/api/admin/drafts/${ready.draft.id}/publication-step`, {
+    method: 'POST', body: { publicationId: prep.id, publicationConfirmed: true },
+  })).status, 503);
+  assert.equal((await finalRequest(f, ready.draft, finalStart(result.intent))).status, 503);
+  for (const table of ['admin_publication_objects', 'admin_publication_commits', 'admin_publication_final_passes', 'library_tracks', 'library_track_versions']) {
+    assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  }
+});
+
 async function copyReady(t, { count = 1, copyMigration = true, boundedReview = false, finalMigration = true } = {}) {
   const f = fixture(t, { copyMigration, finalMigration });
   let input = canonical();

@@ -508,8 +508,13 @@ now verifies the administrator's manual package download/personal validator run,
 one fresh private recheck batch, explicit human attestation and reload recovery.
 The original legacy review/public test is unchanged, and public writing stays off.
 
-Next: review controlled bounded-intent preparation/reservation rollout for the
-new reviewed draft; those actions copy nothing. Separately authorize any actual
+Phase 7M now [deploys intent-only plan preparation](admin-cloud-intents-rollout.md)
+with public copying/final publication still disabled. The fresh reviewed draft's
+two-object readiness batch and reload recovery pass. No immutable intent or new
+public file/catalog entry was created; reservation awaits separate confirmation.
+
+Next: confirm and verify immutable reservation for this exact plan, which copies
+nothing. Separately authorize any actual
 public-copy/catalog-publication test before enabling those write flags. Then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification

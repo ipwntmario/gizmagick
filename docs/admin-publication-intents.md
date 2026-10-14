@@ -1,5 +1,11 @@
 # Phase 7I: bounded readiness and publication intents
 
+Current rollout: [Phase 7M](admin-cloud-intents-rollout.md) enables plan
+preparation/reservation on Cloudflare with all public-write flags still false.
+One real one-file readiness pass and reload recovery are verified; immutable
+reservation awaits separate administrator confirmation. The implementation
+claims below describe the historical local Phase 7I checkpoint.
+
 This document records the Phase 7I preparation checkpoint. Phase 7J now adds
 [separately confirmed one-object copying](admin-bounded-copy.md), locally only,
 behind an additional disabled flag and migration 0008. Final catalog publication

@@ -254,7 +254,7 @@ test('proposed copy-only rollout copies a bounded review but disables both catal
   const config = await read('../../worker/wrangler.toml');
   const deployedFlags = Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+_ENABLED)\s*=\s*"([^"]*)"/gm)]
     .map(([, name, value]) => [name, value]));
-  // A proposal only: real configuration stays private until separately authorized.
+  // An isolated copy-only configuration; production writes are disabled again after the cloud test.
   Object.assign(f.env, deployedFlags, { GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true' });
   assert.equal(f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED, 'false');
   assert.equal(f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED, 'false');

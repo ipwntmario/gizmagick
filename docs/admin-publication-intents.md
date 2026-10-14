@@ -4,7 +4,9 @@ Current rollout: [Phase 7M](admin-cloud-intents-rollout.md) enables plan
 preparation/reservation on Cloudflare with all public-write flags still false.
 One real one-file readiness pass, separately confirmed immutable reservation and
 reload recovery are verified, with zero new public copies or catalog changes.
-Public-copy rollout still requires separate authorization. The implementation
+The subsequently authorized [Phase 7N copy-only test](admin-cloud-copy-rollout.md)
+now has `2/2` retained public copies, still no new catalog entry; new writes are
+disabled again. Final catalog publication requires separate authorization. The implementation
 claims below describe the historical local Phase 7I checkpoint.
 
 This document records the Phase 7I preparation checkpoint. Phase 7J now adds

@@ -1,9 +1,11 @@
 # Phase 7K: bounded final verification and atomic catalog publication
 
 Current rollout: [Phase 7M](admin-cloud-intents-rollout.md) verified cloud intent
-reservation; [Phase 7N preparation](admin-cloud-copy-rollout.md) separates the
-legacy publisher from bounded copying. Both catalog-publication paths and public
-copying remain disabled in the deployed Worker. The implementation/deployment
+reservation; [Phase 7N](admin-cloud-copy-rollout.md) verifies its two authorized
+cloud copies without catalog publication. Both catalog-publication paths and
+new public copying are disabled in the deployed Worker; copied files remain
+public but unlisted. Final cloud verification/commit still needs separate
+authorization. The implementation/deployment
 claims below describe the historical local Phase 7K checkpoint.
 
 This records the local Phase 7K checkpoint. The [Phase 7L rollout](admin-cloud-batched-rollout.md)

@@ -516,16 +516,23 @@ version-2 plan persists across reload with `0/2` public copies recorded and lock
 continuation. No new public file/catalog entry was created. Anonymous HEAD checks
 for its planned audio and manifest return 404; the original public test is unchanged.
 
-Phase 7N [prepares a copy-only rollout](admin-cloud-copy-rollout.md) by adding a
+Phase 7N [completes the authorized copy-only rollout](admin-cloud-copy-rollout.md) after adding a
 fail-closed `GIZMAGICK_LEGACY_PUBLICATION_ENABLED` gate. The shared public-write
 switch can no longer enable legacy catalog publishing without this separate
 opt-in. Bounded copy/final workflows remain independently gated, and copy-only
 UI notices accurately warn about public files without implying catalog access.
-This local preparation changes no cloud state and enables no public writes.
+The original local preparation changed no cloud state. The subsequently
+authorized deployment copied this exact plan's audio and manifest separately;
+both receipts and exact public bytes are verified, including recovery after
+re-sign-in and reload. The plan remains pending/unlisted, with no final pass or
+new catalog commit. All 546 tests pass against the temporary copy-only flags;
+the restored write-disabled configuration passes nine targeted rollout tests.
+Shared/copy writes were disabled again afterward, with both catalog publishers
+off throughout. Existing public test/review records and the live player are unchanged.
 
-Next: review the controlled public-copy rollout and separately authorize any
-actual public-copy/catalog-publication test before enabling those write flags.
-Reservation itself grants no public-copy permission. Then review original
+Next: review and separately authorize bounded final verification/catalog
+publication for this exact copied plan before enabling its write flags. Neither
+reservation nor public copying grants catalog-publication permission. Then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

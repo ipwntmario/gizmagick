@@ -510,12 +510,15 @@ The original legacy review/public test is unchanged, and public writing stays of
 
 Phase 7M now [deploys intent-only plan preparation](admin-cloud-intents-rollout.md)
 with public copying/final publication still disabled. The fresh reviewed draft's
-two-object readiness batch and reload recovery pass. No immutable intent or new
-public file/catalog entry was created; reservation awaits separate confirmation.
+two-object readiness batch and reload recovery pass. The administrator then
+separately confirmed immutable reservation after renewed recent checks; the exact
+version-2 plan persists across reload with `0/2` public copies recorded and locked
+continuation. No new public file/catalog entry was created. Anonymous HEAD checks
+for its planned audio and manifest return 404; the original public test is unchanged.
 
-Next: confirm and verify immutable reservation for this exact plan, which copies
-nothing. Separately authorize any actual
-public-copy/catalog-publication test before enabling those write flags. Then review original
+Next: review the controlled public-copy rollout and separately authorize any
+actual public-copy/catalog-publication test before enabling those write flags.
+Reservation itself grants no public-copy permission. Then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

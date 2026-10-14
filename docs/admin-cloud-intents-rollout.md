@@ -1,9 +1,9 @@
 # Phase 7M: Cloudflare publication-plan preparation
 
-Deployed October 13, 2026, Eastern. Readiness preparation/checks and reload
-recovery are verified for the privately attested Lena's Home test. Immutable
-reservation still requires the administrator's separate confirmation. No new
-public file or catalog entry was created.
+Deployed October 13, 2026, Eastern. Readiness preparation/checks, the
+administrator's separately confirmed immutable reservation and reload recovery
+are verified for the privately attested Lena's Home test. No new public file or
+catalog entry was created; public-copy and publication flags remain disabled.
 
 ## Plain-English rundown
 
@@ -78,19 +78,67 @@ copy receipts two, commits/tracks/versions one each and reviews two. Foreign-key
 checks pass. The public catalog still lists only the original published test
 track/version, not this new draft.
 
-The agent left reservation unchecked and did not reserve, copy or publish.
+At this preparation checkpoint, the agent left reservation unchecked and did not
+reserve, copy or publish.
 Screenshot proof is ignored `frontend/.track-manifests/phase7m-readiness-handoff.jpg`.
 No browser credentials or private package/report files are staged.
 
+## Completed immutable reservation (October 13, 2026, Eastern)
+
+The administrator's first reservation attempt was rejected because the readiness
+checks were more than five minutes old. Read-only status confirmed that no intent
+had been reserved. The agent explicitly resumed preparation and ran a fresh
+readiness batch; this renewed only the unreserved preparation, not the reviewed
+audio, metadata or attestation. The stable request and exact plan hash were
+unchanged. No raw database write was used to bypass the workflow.
+
+The administrator then personally checked the immutable-reservation statement
+and clicked **Reserve immutable intent (no public copies)** within the fresh
+check window:
+
+- Renewed preparation/reserved intent: `dd246b49-2cf1-45f5-8d35-a18938986807`.
+- Request: `e08f4c86-cf6d-49cf-b22f-79dd86b191e4`.
+- Track/version: `9bd4c047-74be-4012-b3ca-41e0cb9dea37` /
+  `5bc50912-36f2-4328-80f6-11602a2bddab`.
+- Plan SHA-256: `f27960d97b1c2607608ef10011c2e0acdd9cd29e60df1b39eba3755047191fea`.
+- Fresh readiness batch: offset 0 through 2, checked at `1791937765`
+  (`2026-10-14T00:29:25.000Z`).
+- Intent created: `2026-10-14T00:30:02.506Z` (October 13, 8:30 p.m. Eastern),
+  about 38 seconds after the readiness batch.
+- Plan version: 2; review scope: `bounded-batches`; state: `pending`.
+- Planned objects: 2 (audio, then manifest); copy receipts: 0; catalog commits: 0.
+
+Read-only D1 inspection confirms byte-for-byte plan JSON and hash equality
+between the retained preparation and immutable intent. Reloading the page,
+reopening this draft and using **Refresh intent status (read only)** recovers the
+same intent and `0/2` recorded copies. Preparation/restart/check/reserve controls
+are locked, and no public-copy or final-publication controls are enabled. The
+refresh does not resume work automatically. Screenshot proof is ignored
+`frontend/.track-manifests/phase7m-intent-reserved.jpg`.
+
+Overall, D1 now contains two intents: the unchanged original published legacy
+test and this new pending version-2 reservation. There is still only one public
+track/version, one catalog commit, two original copy receipts and two private
+reviews. The old intent's plan/hash/state are unchanged and foreign-key checks
+pass. The public catalog contains only the original published test; anonymous
+HEAD requests for this new plan's audio and manifest both return 404. No copy
+attempt was made and no new public object was written.
+
+This verification checkpoint changes documentation only: no migration,
+deployment, configuration, secret, Access policy, audio, metadata or live-player
+change. The 538-test/lint/build evidence above belongs to the preceding
+implementation checkpoint; no new automated test run is claimed here.
+
 ## Next gate
 
-The administrator must review the exact identity and immutable-reservation
-statement, then separately confirm **Reserve immutable intent (no public copies)**
-if they agree. Readiness checks must be at most five minutes old; stale/expired
-checks require an explicit fresh prepare/check pass before reservation. Do not
-automatically replace a reserved intent or infer public-copy permission from it.
-After reservation, verify the saved exact plan and locked continuation across a
-reload before reviewing any explicitly authorized public-copy rollout.
+Reservation and reload recovery are complete. Next, review the controlled
+public-copy rollout, including the rollout-specific configuration test, and
+obtain explicit authorization before enabling copying or exposing either exact
+planned object. A reserved intent cannot be replaced, and it is not permission
+to copy publicly. Each copy needs independent source/destination checks and its
+own confirmation. Final catalog publication remains a separate disabled gate
+requiring independent fresh verification and confirmation. Do not enable any
+public-write flag as part of this private reservation checkpoint.
 
 This real cloud walkthrough covers one audio file, not a real 129/256-file upload.
 Original-library import/ownership mapping, the BleepBloop UglyOnPurpose timing

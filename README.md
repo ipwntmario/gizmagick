@@ -114,6 +114,8 @@ The subsequent authorized private smoke test created **Lena's Home (batched revi
 
 The administrator then downloaded the exact package and personally ran the validator successfully. An admin-client bug cleared the newly selected report file before reading it; the authorized [report-picker correction](docs/admin-cloud-batched-rollout.md#report-picker-correction-and-personal-validator-run) now preserves that file while resetting earlier review authority and confirmations. All 537 tests pass, including browser-like file-selection regressions. The corrected Worker is deployed with public writes still disabled, and the actual admin page accepts the existing report. No new attestation or public-library record was created. Personal review/confirmation and private batched approval verification remain pending.
 
+The subsequent [completed private-review walkthrough](docs/admin-cloud-batched-rollout.md#completed-private-batched-review-october-13-2026-eastern) verifies the administrator's personal review, a fresh private storage recheck, separate human batch-window confirmation and persisted `bounded-batches` attestation. Reload/status recovery and exact audit fingerprints pass; the original legacy review and public catalog remain unchanged. In plain English: the new private upload-to-approval workflow works for this one-file test, but nothing new is public and the live player is unchanged. Controlled publication-intent rollout review is next; real public copies/publication require separate authorization.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

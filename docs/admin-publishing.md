@@ -502,12 +502,15 @@ pass. No new draft, private review, upload or publication occurred.
 The subsequently authorized fresh private draft now verifies upload, batched
 package preparation and reload recovery, but browser file delivery could not be
 confirmed. See the [private smoke-test record](admin-cloud-batched-rollout.md#authorized-private-package-smoke-test-october-13-2026).
-Personal validation and batched approval rechecks remain pending; no approval or
-public write was added.
+That preparation checkpoint added no approval or public write. The subsequent
+[completed private-review walkthrough](admin-cloud-batched-rollout.md#completed-private-batched-review-october-13-2026-eastern)
+now verifies the administrator's manual package download/personal validator run,
+one fresh private recheck batch, explicit human attestation and reload recovery.
+The original legacy review/public test is unchanged, and public writing stays off.
 
-Next: finish that draft's manual package download and personal validation, then
-verify private batched approval. Separately authorize any public test only after
-private verification. Then review original
+Next: review controlled bounded-intent preparation/reservation rollout for the
+new reviewed draft; those actions copy nothing. Separately authorize any actual
+public-copy/catalog-publication test before enabling those write flags. Then review original
 library ownership/legacy mapping and measured import. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this

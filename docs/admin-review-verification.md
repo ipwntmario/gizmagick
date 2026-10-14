@@ -2,7 +2,12 @@
 
 This records the local Phase 7H checkpoint. The [Phase 7L private-only rollout](admin-cloud-batched-rollout.md)
 now applies migrations 0005–0009 and enables private batched rechecks on Cloudflare.
-The existing legacy review is retained; no new cloud attestation was made.
+The existing legacy review is retained. A fresh one-file cloud walkthrough now
+verifies package delivery, the administrator's personal validator run, private
+batched rechecks, separate final attestation and reload recovery; see the
+[completed private-review record](admin-cloud-batched-rollout.md#completed-private-batched-review-october-13-2026-eastern).
+Public writing remains disabled. The following implementation/deployment claims
+describe the historical local Phase 7H checkpoint, not the current cloud flags.
 
 Implemented and tested locally. **No remote migration or Worker deployment was
 performed.** The new `GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED` flag remains

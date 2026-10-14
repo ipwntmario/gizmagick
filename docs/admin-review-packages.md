@@ -2,7 +2,11 @@
 
 This records the local Phase 7G checkpoint. The [Phase 7L private-only rollout](admin-cloud-batched-rollout.md)
 now applies migrations 0005–0009 and enables this feature on Cloudflare. Public
-writing remains disabled; a fresh cloud private-workflow test is still pending.
+writing remains disabled. A fresh one-file cloud walkthrough now verifies
+preparation, reload recovery, the administrator's manual package download and
+personal validator run, and private batched attestation; see the
+[completed private-review record](admin-cloud-batched-rollout.md#completed-private-batched-review-october-13-2026-eastern).
+The local rollout claims below describe the historical Phase 7G checkpoint.
 
 Implemented and tested locally; **not deployed or enabled on Cloudflare**.
 Migration `0005_gizmagick_review_package_batches.sql` and

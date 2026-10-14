@@ -7,6 +7,11 @@ rechecks are newly enabled. Intent preparation, public copying and final catalog
 publication remain disabled. No new draft, audio upload, attestation or public
 object/catalog entry was created for this rollout.
 
+Subsequent private integration is now verified end to end for one fresh Lena's
+Home test draft, including the administrator's personal validator run and
+batched attestation. See the [completed private-review record](#completed-private-batched-review-october-13-2026-eastern).
+All public-write switches remain off; the live player has not been migrated.
+
 ## Plain-English rundown
 
 The new database structure and admin code are now on Cloudflare. The admin page
@@ -229,3 +234,65 @@ In plain English: the app now reads the report instead of accidentally throwing
 away the selected file. The administrator's own measurements/warnings review and
 explicit confirmation, followed by private batched rechecks/attestation, remain
 the next gate. This correction neither approves nor publishes the new draft.
+
+## Completed private batched review (October 13, 2026, Eastern)
+
+The administrator personally reviewed the successful report/graph warnings and
+checked the personal-run statement. The agent then used the deployed page to
+start verification `04fa0229-4f0a-440f-aa4e-fb44eabcaa84` for the exact existing
+draft/package/report above. Starting did not check R2 or approve anything. A
+separate manual batch checked the one private audio file, recording offset 0
+through 1 at `2026-10-14T00:00:46.000Z`. Reloading/reopening, reselecting the
+exact report and using read-only status refresh recovered the same `1/1` result
+without replaying the batch. No agent action checked either human confirmation.
+
+The administrator then freshly checked both the personal-run statement and the
+distinct batch-window acceptance, and personally clicked **Record batched
+administrator attestation (keep private)**. The saved timestamp is
+`2026-10-14T00:02:33.830Z` (October 13, 8:02 p.m. Eastern), within five minutes
+of the stored check. The saved policy is `gizmagick-local-admin-v1`, scope
+`administrator-attested`, and storage-check scope `bounded-batches`.
+
+Read-only D1 inspection confirms the exact verified administrator identity,
+job/verification IDs and these immutable review fingerprints:
+
+- Report: `528b255258cb44134e61058f706a50e1ffd61b1dc51e74e0b577a542ebee8067`.
+- Snapshot: `c63e589b4de0c21d8cd50742635b0363764a6eba42c06197ab652602dd13fe5e`.
+- Manifest: `e4db68e0051ec0097223d2d4a6ad781d88372ecc5c9e6bdd731fab1b25381149`.
+- Check interval: both endpoints `1791936046` (`2026-10-14T00:00:46.000Z`).
+
+Reloading/reopening the draft fetched the same attestation. Read-only verification
+refresh recovered the historical attested pass and `1/1` progress. Upload,
+metadata save, package/report selection, restart/recheck and both approval paths
+are locked for this reviewed draft. The page correctly retains **NOT
+server-decoded** and the separate-batch limitation; the recorded historical check
+is not a claim about storage at some later time or permission to publish.
+Ignored screenshots are `phase7l-private-attestation-saved.jpg` and
+`phase7l-private-attestation-batches.jpg` under `frontend/.track-manifests/`.
+
+There are now two administrator attestations, one verification pass and one
+verification batch. Drafts/assets/jobs remain 3/2/2, with one package preparation
+and batch. The original legacy review is unchanged, still `single-request` with
+no verification ID or invented batch timestamps. Public publications/commits/
+tracks/versions remain one each and copy receipts two; foreign-key checks pass.
+The public catalog still exposes only track `32dec11c-96b5-47be-9ffb-76faec7dce8a`
+and version `8199557d-6ce1-4d51-8869-1812e1e93f6b`, not the new reviewed draft.
+No new public object, catalog entry, upload, deployment, migration, flag, secret,
+route or live-player change was made during this attestation verification.
+
+In plain English: the new private workflow is verified from upload through
+package preparation, your personal audio validation, fresh stored-file checks,
+your separate final approval and recovery after a reload. This cloud walkthrough
+uses one real audio file; it does not claim a real 129/256-file cloud test or
+automated decoder provenance. The last code checkpoint's 537 passing tests,
+lint and unchanged normal build remain the implementation evidence; this is a
+documentation-only verification checkpoint, not a new test-suite run.
+
+Next: review a controlled rollout of bounded publication-intent preparation for
+this exact reviewed draft. Preparation/reservation do not copy audio; enabling
+or testing public copies and final catalog publication requires separate explicit
+authorization. Do not reuse or alter the already-published legacy test, enable
+public writes automatically, or cut over the live player as part of this private
+checkpoint. Original-library import/mapping, the known BleepBloop UglyOnPurpose
+timing issue, deployed pinned-room checks and live frontend cutover remain later
+gates.

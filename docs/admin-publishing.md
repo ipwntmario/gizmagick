@@ -530,16 +530,22 @@ the restored write-disabled configuration passes nine targeted rollout tests.
 Shared/copy writes were disabled again afterward, with both catalog publishers
 off throughout. Existing public test/review records and the live player are unchanged.
 
-Phase 7O [prepares final cloud publication](admin-cloud-final-rollout.md) with
+Phase 7O [completes final cloud publication](admin-cloud-final-rollout.md) after
 a proposed-configuration recovery/publication regression and truthful bounded
-draft-status messages. Read-only cloud checks confirm the unchanged pending
-plan/two receipts, zero final passes and one old catalog entry. No flags,
-migrations, final checks or cloud records are changed by this preparation.
+draft-status corrections. The administrator separately authorized the exact
+test's final workflow and catalog commit. One fresh two-object batch, explicit
+confirmation about 15 seconds later, persisted bounded audit and read-only reload
+recovery pass. D1/public APIs now show two catalog tracks/versions/commits, four
+unchanged copy receipts and one final pass. Both tests' public bytes match their
+earlier checksums; the original review/plan and legacy single-request commit
+scope remain unchanged. All 549 tests pass against the actual temporary final
+configuration, and ten targeted rollout tests pass after closing writes again.
+Shared/copy/final writes are now disabled; legacy publishing stayed off. No new
+audio, migration, original-library import or live-player cutover occurred.
 
-Next: review and separately authorize bounded final verification/catalog
-publication for this exact copied plan before enabling its write flags. Neither
-reservation nor public copying grants catalog-publication permission. Then review original
-library ownership/legacy mapping and measured import. Keep the known BleepBloop
+Next: review original-library ownership/legacy mapping and measured import,
+existing-track editing/replacement-version needs, and the remaining release gates
+before general publishing enablement or live cutover. Keep the known BleepBloop
 UglyOnPurpose timing failure visible. Deployed two-client pinned-room verification
 and explicit live frontend cutover remain separate gates. Do not delete this
 public test, restore D1 or archive it as an assumed rollback; those actions were

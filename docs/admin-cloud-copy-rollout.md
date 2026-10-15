@@ -1,5 +1,10 @@
 # Phase 7N: authorized copy-only Cloudflare rollout
 
+Subsequent rollout: [Phase 7O](admin-cloud-final-rollout.md) now verifies the
+separately authorized final checks/catalog publication of this exact plan, with
+no recopy and new writes disabled again. The unlisted/pending claims below
+describe the historical copy-only Phase 7N checkpoint.
+
 Completed October 13, 2026, Eastern. The explicitly authorized audio and manifest
 are public by URL, with exact copy receipts and reload recovery verified.
 The track is **not listed in the catalog**. New public writes were disabled
@@ -191,9 +196,9 @@ private package/report or screenshot is staged.
 
 ## Next gate
 
-The [Phase 7O readiness checkpoint](admin-cloud-final-rollout.md) now tests the
-proposed final workflow locally and rechecks unchanged cloud state read-only.
-It does not enable finalization or grant permission to publish.
+The subsequent [Phase 7O record](admin-cloud-final-rollout.md) includes readiness
+preparation and the separately authorized, completed final publication test.
+The copy-only authorization itself was not treated as publication permission.
 
 Final catalog publication requires a later separately authorized rollout,
 independent recent final verification and its own confirmation. Editing existing

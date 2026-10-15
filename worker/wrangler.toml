@@ -31,18 +31,18 @@ GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 # Preparing packages or rechecking private audio never publishes a track.
 GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "true"
 GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "true"
-# Phase 7N copy-only test completed; readiness/reservation stay enabled.
-# Public writes are disabled again; copied files remain public by URL.
+# Phase 7O final test completed; readiness/reservation stay enabled.
+# Public writes are disabled again; existing files/catalog entries remain public.
 GIZMAGICK_PUBLICATION_INTENTS_ENABLED = "true"
 # One-object v2 copies require explicit rollout authorization and migration 0008.
 GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "false"
-# Final checks/catalog commit remain disabled pending separate authorization.
+# Final catalog test completed; fresh rollout authorization is required for more writes.
 GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = "false"
 # Local browser walkthrough and cloud preflight passed. Requires reviews enabled.
 GIZMAGICK_DRAFT_METADATA_ENABLED = "true"
 # Phase 7A only inspects attested drafts; it does not enable publication.
 GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = "true"
-# Phase 7N: both authorized public copies completed; shared write gate closed.
+# Phase 7O: the exact approved test is published; shared write gate closed.
 # Existing public objects remain public when writes are disabled.
 GIZMAGICK_PUBLICATION_ENABLED = "false"
 # Phase 7N: shared writes must not enable the old v1 catalog path.

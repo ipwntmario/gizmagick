@@ -1,13 +1,12 @@
 # Phase 7I: bounded readiness and publication intents
 
-Current rollout: [Phase 7M](admin-cloud-intents-rollout.md) enables plan
-preparation/reservation on Cloudflare with all public-write flags still false.
-One real one-file readiness pass, separately confirmed immutable reservation and
-reload recovery are verified, with zero new public copies or catalog changes.
-The subsequently authorized [Phase 7N copy-only test](admin-cloud-copy-rollout.md)
-now has `2/2` retained public copies, still no new catalog entry; new writes are
-disabled again. Final catalog publication requires separate authorization. The implementation
-claims below describe the historical local Phase 7I checkpoint.
+Current rollout: [Phase 7O](admin-cloud-final-rollout.md) completes the authorized
+cloud publication of the exact plan reserved in [Phase 7M](admin-cloud-intents-rollout.md)
+and copied in [Phase 7N](admin-cloud-copy-rollout.md). The one-file test has `2/2`
+retained copies, a freshly checked final audit and a published catalog version.
+New public writes are disabled again, with read-only published-state recovery
+verified. Implementation claims below describe the historical local Phase 7I
+checkpoint; the original library/player migration remains incomplete.
 
 This document records the Phase 7I preparation checkpoint. Phase 7J now adds
 [separately confirmed one-object copying](admin-bounded-copy.md), locally only,

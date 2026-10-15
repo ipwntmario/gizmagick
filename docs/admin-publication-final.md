@@ -1,17 +1,12 @@
 # Phase 7K: bounded final verification and atomic catalog publication
 
-Next rollout: [Phase 7O preparation](admin-cloud-final-rollout.md) verifies the
-proposed final-enabled/legacy-disabled configuration locally, corrects draft
-status wording and records read-only cloud readiness. No final cloud pass or
-catalog publication has occurred; enabling it requires explicit authorization.
-
-Current rollout: [Phase 7M](admin-cloud-intents-rollout.md) verified cloud intent
-reservation; [Phase 7N](admin-cloud-copy-rollout.md) verifies its two authorized
-cloud copies without catalog publication. Both catalog-publication paths and
-new public copying are disabled in the deployed Worker; copied files remain
-public but unlisted. Final cloud verification/commit still needs separate
-authorization. The implementation/deployment
-claims below describe the historical local Phase 7K checkpoint.
+Current rollout: [Phase 7O](admin-cloud-final-rollout.md) completes the explicitly
+authorized cloud final checks and catalog commit for the one-file batched-review
+test. Its published version, retained audit, public bytes and reload recovery are
+verified. Shared/copy/final writes are disabled again; legacy publishing stayed
+off throughout. The catalog now has two test tracks, but the live player and
+original library are unchanged. Implementation/deployment claims below describe
+the historical local Phase 7K checkpoint, not current cloud status.
 
 This records the local Phase 7K checkpoint. The [Phase 7L rollout](admin-cloud-batched-rollout.md)
 now installs migrations through 0009 and deploys the code, but public intent,

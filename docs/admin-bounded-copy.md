@@ -1,11 +1,10 @@
 # Phase 7J: one-object conditional public copying
 
-Current rollout: [Phase 7N](admin-cloud-copy-rollout.md) verifies the separately
-authorized cloud audio/manifest copies, exact receipts/public bytes and reload
-recovery for the [Phase 7M reserved plan](admin-cloud-intents-rollout.md). Both
-catalog-publication paths stayed disabled; new public writes are off again.
-The copied files remain public, but the track is unlisted. Claims below describe
-the historical local Phase 7J checkpoint.
+Current rollout: [Phase 7O](admin-cloud-final-rollout.md) completes the separately
+authorized final checks/catalog commit after the [Phase 7N copies](admin-cloud-copy-rollout.md).
+The exact receipts and public bytes are unchanged; the one-file test is now listed
+in the catalog. New public writes are disabled again and legacy publishing stayed
+off. Claims below describe the historical local Phase 7J checkpoint.
 
 This records the Phase 7J copying checkpoint. Phase 7K now adds
 [independent final checks and catalog publication](admin-publication-final.md),

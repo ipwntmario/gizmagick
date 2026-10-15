@@ -1,8 +1,9 @@
 # Phase 7M: Cloudflare publication-plan preparation
 
-Subsequent rollout: [Phase 7N](admin-cloud-copy-rollout.md) now verifies the
-separately authorized two public copies for this reserved plan, with no catalog
-publication. New public writes are disabled again. The private-only claims and
+Subsequent rollouts: [Phase 7N](admin-cloud-copy-rollout.md) verified the two public
+copies, then [Phase 7O](admin-cloud-final-rollout.md) completed the separately
+authorized final checks/catalog publication of this exact plan. New public writes
+are disabled again. The private-only claims and
 authorization gate below describe the historical Phase 7M checkpoint.
 
 Deployed October 13, 2026, Eastern. Readiness preparation/checks, the

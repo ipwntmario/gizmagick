@@ -308,8 +308,8 @@ test('proposed final rollout recovers saved bounded copies and publishes only af
   storage.bucket.head = key => { publicHeads++; return publicHead(key); };
   f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = storage.bucket.get = storage.bucket.put = () => assert.fail('Final rollout must not read audio bytes or write R2');
 
-  // Real configuration stays write-disabled. Simulate recovery of copies from
-  // the preceding authorized test before proposing any final rollout switches.
+  // Production writes are disabled again after the authorized final test.
+  // Exercise recovery and the explicit final-enabled configuration in isolated storage.
   Object.assign(f.env, deployedFlags);
   for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) {
     assert.equal(f.env[flag], 'false');
@@ -318,7 +318,6 @@ test('proposed final rollout recovers saved bounded copies and publishes only af
   assert.equal((await finalRequest(f, ready.draft, finalStart(intent))).status, 503);
   assert.equal(privateHeads + publicHeads, 0);
 
-  // Explicit proposal in isolated storage, not a production flag change.
   Object.assign(f.env, { GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED: 'true' });
   assert.equal(f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED, 'false');
   const html = await (await f.request('/admin')).text();

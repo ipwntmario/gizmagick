@@ -191,6 +191,10 @@ private package/report or screenshot is staged.
 
 ## Next gate
 
+The [Phase 7O readiness checkpoint](admin-cloud-final-rollout.md) now tests the
+proposed final workflow locally and rechecks unchanged cloud state read-only.
+It does not enable finalization or grant permission to publish.
+
 Final catalog publication requires a later separately authorized rollout,
 independent recent final verification and its own confirmation. Editing existing
 published tracks, replacement versions and convenient clip replacement remain

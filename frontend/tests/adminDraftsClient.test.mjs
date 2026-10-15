@@ -5,8 +5,8 @@ import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
-  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply } = {}) {
-  const elements = new Map(), calls = [], downloads = [];
+  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false } = {}) {
+  const elements = new Map(), calls = [], downloads = [], createdNodes = [];
   let preparation = null;
   let verification = null;
   let intentPreparation = null, reservedIntent = null;
@@ -41,12 +41,14 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   if (intents) { draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-13',
     reportSha256: 'b'.repeat(64), snapshotSha256: 'a'.repeat(64), serverDecoded: false, publishing: false }; draft.metadataEditable = false; }
   runInNewContext(`(${adminClient.toString()})();`, {
-    document: { getElementById: id => (id.startsWith('final-') && !finalizing) || (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()), body: { append() {} } },
+    document: { getElementById: id => (id.startsWith('final-') && !finalizing) || (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: tag => {
+      const node = element(crypto.randomUUID()); node.tagName = tag.toUpperCase(); createdNodes.push(node); return node;
+    }, body: { append() {} } },
     crypto, TextEncoder, File: class File {}, confirm: () => packageConfirm, Blob,
     URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:local-test'; }, revokeObjectURL() {} }, setTimeout: callback => callback(),
     fetch: async (path, options) => {
       calls.push({ path, options });
-      let result = path === '/api/admin/drafts' && options.method === 'GET' ? { drafts: [] } : structuredClone(draft);
+      let result = path === '/api/admin/drafts' && options.method === 'GET' ? { drafts: recentDraft ? [{ id: draft.id, title: draft.title, status: draft.status }] : [] } : structuredClone(draft);
       if (path.endsWith('/publication-intent')) {
         const body = options.body ? JSON.parse(options.body) : {};
         if (body.action === 'prepare' && (!intentPreparation || body.restartPreparationId)) {
@@ -180,7 +182,13 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
     await element('create-draft').listeners.get('submit')({ preventDefault() {} });
     await new Promise(resolve => setImmediate(resolve));
   };
-  return { element, calls, draft, report, openDraft, selectReport, downloads, failMetadata: () => { metadataFailure = true; } };
+  const openRecentDraft = async () => {
+    await new Promise(resolve => setImmediate(resolve));
+    const button = createdNodes.find(node => node.tagName === 'BUTTON' && node.textContent === `${draft.title} · ${draft.status}`);
+    assert(button, 'Recent draft button must be rendered by the real list handler');
+    await button.listeners.get('click')();
+  };
+  return { element, calls, draft, report, openDraft, openRecentDraft, selectReport, downloads, failMetadata: () => { metadataFailure = true; } };
 }
 
 async function beginClientIntent(f) {
@@ -203,6 +211,25 @@ async function beginClientFinal(f) {
   }
   await f.element('final-refresh').listeners.get('click')(); await f.element('final-start').listeners.get('click')();
 }
+
+for (const finalizing of [false, true]) test(`opening a bounded ${finalizing ? 'final-publication' : 'copy-only'} draft does not claim all publishing writes are disabled`, async () => {
+  const f = fixture({ intents: true, copies: true, finalizing, recentDraft: true });
+  await f.openRecentDraft();
+  assert(f.element('draft-state').textContent.includes('Publication status not checked'));
+  assert(!f.element('draft-state').textContent.includes('writes disabled'));
+  assert(!f.element('status').textContent.includes('New publishing writes are disabled'));
+  assert(f.element('status').textContent.includes(finalizing ? 'Refresh final status before checking or publishing' : 'Refresh intent status before copying'));
+  assert(f.calls.every(call => call.options.method === 'GET'));
+  assert.equal(f.calls.filter(call => /\/publication(?:-intent|-final|-step)?$/.test(call.path)).length, 0);
+  if (finalizing) {
+    assert.equal(f.element('final-commit').disabled, true);
+    assert(!f.element('final-confirm').checked);
+  } else {
+    assert.equal(f.element('intent-copy').disabled, true);
+    assert(!f.element('intent-copy-confirm').checked);
+  }
+});
+
 test('manual final checks have separate confirmation and publish only the exact completed pass', async () => {
   const f = fixture({ intents: true, copies: true, finalizing: true, assetCount: 17 }); await beginClientFinal(f);
   assert.equal(f.element('final-commit').disabled, true);

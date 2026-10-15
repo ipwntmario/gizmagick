@@ -530,6 +530,12 @@ the restored write-disabled configuration passes nine targeted rollout tests.
 Shared/copy writes were disabled again afterward, with both catalog publishers
 off throughout. Existing public test/review records and the live player are unchanged.
 
+Phase 7O [prepares final cloud publication](admin-cloud-final-rollout.md) with
+a proposed-configuration recovery/publication regression and truthful bounded
+draft-status messages. Read-only cloud checks confirm the unchanged pending
+plan/two receipts, zero final passes and one old catalog entry. No flags,
+migrations, final checks or cloud records are changed by this preparation.
+
 Next: review and separately authorize bounded final verification/catalog
 publication for this exact copied plan before enabling its write flags. Neither
 reservation nor public copying grants catalog-publication permission. Then review original

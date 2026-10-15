@@ -1,5 +1,10 @@
 # Phase 7K: bounded final verification and atomic catalog publication
 
+Next rollout: [Phase 7O preparation](admin-cloud-final-rollout.md) verifies the
+proposed final-enabled/legacy-disabled configuration locally, corrects draft
+status wording and records read-only cloud readiness. No final cloud pass or
+catalog publication has occurred; enabling it requires explicit authorization.
+
 Current rollout: [Phase 7M](admin-cloud-intents-rollout.md) verified cloud intent
 reservation; [Phase 7N](admin-cloud-copy-rollout.md) verifies its two authorized
 cloud copies without catalog publication. Both catalog-publication paths and

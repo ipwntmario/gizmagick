@@ -293,6 +293,90 @@ test('bounded final publication remains independently enabled when legacy publis
   assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
 });
 
+test('proposed final rollout recovers saved bounded copies and publishes only after fresh checks without legacy or R2 writes', async t => {
+  const { f, ready, intent, storage, copy } = await copyReady(t, { boundedReview: true });
+  for (let ordinal = 0; ordinal < intent.totalObjects; ordinal++) assert.equal((await copy(ordinal)).status, 200);
+  const config = await read('../../worker/wrangler.toml');
+  const deployedFlags = Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+_ENABLED)\s*=\s*"([^"]*)"/gm)]
+    .map(([, name, value]) => [name, value]));
+  const originalReview = f.sql.prepare('SELECT * FROM admin_draft_reviews WHERE draft_id = ?').get(ready.draft.id);
+  const originalPlan = f.sql.prepare('SELECT plan_json, plan_sha256 FROM admin_publications WHERE id = ?').get(intent.id);
+  const originalReceipts = f.sql.prepare('SELECT * FROM admin_publication_objects WHERE publication_id = ? ORDER BY ordinal').all(intent.id);
+  let privateHeads = 0, publicHeads = 0;
+  const privateHead = f.env.GIZMAGICK_DRAFTS.head, publicHead = storage.bucket.head;
+  f.env.GIZMAGICK_DRAFTS.head = key => { privateHeads++; return privateHead(key); };
+  storage.bucket.head = key => { publicHeads++; return publicHead(key); };
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = storage.bucket.get = storage.bucket.put = () => assert.fail('Final rollout must not read audio bytes or write R2');
+
+  // Real configuration stays write-disabled. Simulate recovery of copies from
+  // the preceding authorized test before proposing any final rollout switches.
+  Object.assign(f.env, deployedFlags);
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) {
+    assert.equal(f.env[flag], 'false');
+  }
+  assert.equal((await (await intentRequest(f, ready.draft)).json()).intent.copiedObjects, 2);
+  assert.equal((await finalRequest(f, ready.draft, finalStart(intent))).status, 503);
+  assert.equal(privateHeads + publicHeads, 0);
+
+  // Explicit proposal in isolated storage, not a production flag change.
+  Object.assign(f.env, { GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED: 'true' });
+  assert.equal(f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED, 'false');
+  const html = await (await f.request('/admin')).text();
+  assert(html.includes('id="final-panel"')); assert(!html.includes('id="publication-panel"'));
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.publishing, false);
+  assert.equal((await startPublication(f, ready)).status, 503);
+  assert.equal((await publicationStep(f, ready, intent.id)).status, 503);
+  const before = await (await finalRequest(f, ready.draft)).json();
+  assert.equal(before.publication.copiedObjects, 2); assert.equal(before.verification, null);
+  const started = await finalRequest(f, ready.draft, finalStart(intent));
+  assert.equal(started.status, 201, await started.clone().text());
+  const pass = (await started.json()).verification;
+  assert.equal(pass.checkedObjects, 0); assert.equal(pass.planSha256, intent.planSha256);
+  assert.equal(privateHeads + publicHeads, 0);
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+
+  const checked = await finalRequest(f, ready.draft, finalBatch(intent, pass));
+  assert.equal(checked.status, 200, await checked.clone().text());
+  assert.equal((await checked.json()).verification.checkedObjects, 2);
+  assert.equal(privateHeads, 1); assert.equal(publicHeads, 2);
+  const originalBatch = f.sql.prepare('SELECT * FROM admin_publication_final_batches WHERE pass_id = ?').get(pass.id);
+  privateHeads = publicHeads = 0;
+  assert.equal((await finalRequest(f, ready.draft, finalBatch(intent, pass))).status, 200);
+  assert.equal((await finalRequest(f, ready.draft, undefined, { method: 'HEAD' })).status, 200);
+  const refreshed = await (await finalRequest(f, ready.draft)).json();
+  assert.equal(refreshed.verification.id, pass.id); assert.equal(refreshed.publication.state, 'pending');
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_publication_final_batches WHERE pass_id = ?').get(pass.id), originalBatch);
+  assert.equal(privateHeads + publicHeads, 0);
+  for (const confirmation of ['publicationConfirmed', 'batchWindowConfirmed']) {
+    assert.equal((await finalRequest(f, ready.draft, { ...finalCommit(intent, pass), [confirmation]: false })).status, 400);
+  }
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 0);
+  const committed = await finalRequest(f, ready.draft, finalCommit(intent, pass));
+  assert.equal(committed.status, 200, await committed.clone().text());
+  const published = await committed.json();
+  assert.equal(published.publication.state, 'published');
+  assert.equal(published.publication.finalAudit.passId, pass.id);
+  assert.equal(published.publication.finalAudit.storageCheckScope, 'bounded-batches');
+  assert.equal(privateHeads + publicHeads, 0);
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 1);
+  assert.equal(f.sql.prepare('SELECT current_version_id FROM library_tracks WHERE id = ?').get(intent.trackId).current_version_id, intent.versionId);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_draft_reviews WHERE draft_id = ?').get(ready.draft.id), originalReview);
+  assert.deepEqual(f.sql.prepare('SELECT plan_json, plan_sha256 FROM admin_publications WHERE id = ?').get(intent.id), originalPlan);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_publication_objects WHERE publication_id = ? ORDER BY ordinal').all(intent.id), originalReceipts);
+  assert.equal(storage.objects.size, 2);
+
+  Object.assign(f.env, deployedFlags);
+  const recovered = await (await intentRequest(f, ready.draft)).json();
+  assert.equal(recovered.intent.state, 'published'); assert.equal(recovered.intent.copiedObjects, 2);
+  assert.equal(recovered.publicCopyEnabled, false); assert.equal(recovered.intent.nextAction, null);
+  const catalog = await handleLibraryRequest(new Request('https://app.example.com/api/library/catalog'), f.env);
+  assert.equal((await catalog.json()).tracks[intent.trackId].versionId, intent.versionId);
+  assert.equal(privateHeads + publicHeads, 0);
+});
+
 for (const count of [129, 256]) test(`final ${count}-asset verification is bounded, independent and atomically publishes only after confirmation`, async t => {
   const { f, ready, intent, pass, storage } = await finalReady(t, { count, boundedReview: true });
   let privateHeads = 0, publicHeads = 0;

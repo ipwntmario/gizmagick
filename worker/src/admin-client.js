@@ -353,7 +353,7 @@ export function adminClient() {
     packagePreparation = undefined;
     resetInspection();
     byId('draft-title').textContent = draft.title;
-    byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing ? '' : ' (writes disabled; existing public copies remain public)'}`;
+    byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing || copyingIntents || finalizing ? '' : ' (writes disabled; existing public copies remain public)'}`;
     if (byId('review-state')) byId('review-state').textContent = draft.review
       ? reviewLabel(draft.review)
       : 'No administrator attestation recorded.';
@@ -392,7 +392,10 @@ export function adminClient() {
         showDraft(await api(pathFor(draft.id)));
         if (byId('metadata-editor')) byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
         await loadPublication();
-        status(publishing ? 'Draft loaded. Publication status was read only; no files were copied.' : 'Draft loaded. Publication status was not checked. New publishing writes are disabled; existing public copies remain public.');
+        status(publishing ? 'Draft loaded. Publication status was read only; no files were copied.'
+          : finalizing ? 'Draft loaded. Publication status was not checked. Refresh final status before checking or publishing; nothing resumes automatically.'
+          : copyingIntents ? 'Draft loaded. Publication status was not checked. Refresh intent status before copying; existing public copies remain public.'
+          : 'Draft loaded. Publication status was not checked. New publishing writes are disabled; existing public copies remain public.');
       }));
       item.append(button); list.append(item);
     }
@@ -566,7 +569,7 @@ export function adminClient() {
     acceptVerification(result);
     if (verification?.id !== expected.id || verification.reportSha256 !== expected.reportSha256 || verification.state !== 'attested') throw new Error('The recorded attestation does not match this pass. Refresh status.');
     clearReview(); await applyVerification(result);
-    status('Administrator attestation recorded with recent, separate-batch storage scope. NOT server-decoded; this review type cannot be published yet.');
+    status('Administrator attestation recorded with recent, separate-batch storage scope. NOT server-decoded. No files were copied or catalog entry published; publication requires its separate enabled workflow and confirmations.');
   })));
   async function packageWork(operation) {
     try { await operation(); }

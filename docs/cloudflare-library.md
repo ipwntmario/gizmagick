@@ -1,5 +1,12 @@
 # Gizmagick library: Phase 4 foundation
 
+Current status: [Phase 7O](admin-cloud-final-rollout.md) verified the bounded
+publisher on Cloudflare; two independent smoke-test tracks are published and new
+public writes are disabled again. [Phase 7P](original-library-import.md) audits
+the original library locally: 12/13 tracks pass, all merged documents match, and
+the known malformed test remains unchanged. Original-library import and the live
+player cutover are still pending. The empty-catalog account below is historical.
+
 The code supports a D1-backed catalog, versioned R2 manifests/audio, and version-pinned online rooms. Library playback was tested with local simulated resources; production music import/publication and frontend cutover remain pending. The Worker and project-configured D1/R2 bindings were initially deployed on October 6, 2026 as part of the [Phase 5 admin-authentication foundation](admin-authentication.md). Admin-only Cloudflare Access and the private Worker allowlist are configured, and the administrator confirmed the initial real sign-in. The subsequent [Phase 6B private-intake rollout](admin-drafts.md) applied both remote migrations and added the separate private draft bucket. The remote public catalog is empty and returns 200, not the earlier missing-schema 503. Private drafts never enter that catalog.
 
 ## Resources and schema

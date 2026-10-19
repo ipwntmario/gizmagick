@@ -39,20 +39,27 @@ async function verifyBrowserInitialization(html) {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
-      textContent: '', disabled: false, listeners: new Map(),
+      textContent: '', value: '', checked: false, files: [], disabled: false, listeners: new Map(),
       addEventListener(event, callback) { this.listeners.set(event, callback); },
-      replaceChildren() {},
+      replaceChildren() {}, append() {},
     });
     return elements.get(id);
   };
   const calls = [];
+  const draft = { id: crypto.randomUUID(), title: 'Runtime clip ends', status: 'draft', metadataEditable: true, review: null,
+    manifestSha256: 'a'.repeat(64), missingAssets: ['a'], uploads: [], warnings: [],
+    originalImport: { legacyKey: 'Runtime fixture', publishingSupported: false },
+    manifest: { track: { id: crypto.randomUUID() }, versionId: crypto.randomUUID(), assets: { a: { path: 'audio/a.ogg' } },
+      clips: { clip: { assetsByMode: { base: 'a' }, loopStart: 0, loopPoint: 9, clipEnd: 20 } } } };
   // Execute the emitted page script, not its unbundled source. Browser globals
   // are explicit; no Worker/esbuild helpers are available in this fresh realm.
   runInNewContext(scripts[0][1], {
-    document: { getElementById: element, querySelectorAll: () => [] },
+    document: { getElementById: element, querySelectorAll: () => [], createElement: () => element(crypto.randomUUID()) },
+    crypto, TextEncoder, File: class File {},
     fetch: async (path, options) => {
       calls.push({ path, options });
-      return { ok: true, redirected: false, headers: { get: () => 'application/json' }, json: async () => ({ drafts: [] }) };
+      return { ok: true, redirected: false, headers: { get: () => 'application/json' },
+        json: async () => options.method === 'POST' && path === '/api/admin/drafts' ? structuredClone(draft) : { drafts: [] } };
     },
   }, { timeout: 1000 });
   await new Promise(resolve => setImmediate(resolve));
@@ -101,7 +108,29 @@ async function verifyBrowserInitialization(html) {
   assert(element('review-report').listeners.has('change'));
   assert(element('attest-review').listeners.has('click'));
   assert(element('save-metadata').listeners.has('click'));
+  for (const id of ['clip-ends-export', 'clip-ends-file', 'clip-ends-apply']) assert.equal(element(id).disabled, true);
   assert.deepEqual(calls.map(call => [call.path, call.options.method]), [['/api/admin/drafts', 'GET']]);
+  // Exercise the serialized policy dependency in the actual bundled page, not
+  // just in source-level tests. No bundler/module helpers exist in this realm.
+  element('source').value = 'manifest';
+  element('manifest-file').files = [{ size: 1000, text: async () => JSON.stringify(draft.manifest) }];
+  element('create-draft').listeners.get('submit')({ preventDefault() {} });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(element('clip-ends-file').disabled, false, element('status').textContent);
+  const proposal = { reportVersion: 1, scope: 'local-metadata-preparation', policy: 'gizmagick-clip-ends-v1', publishing: false,
+    approval: false, valid: true, errors: [], trackId: draft.manifest.track.id, versionId: draft.manifest.versionId,
+    sourceManifestSha256: createHash('sha256').update(JSON.stringify(draft.manifest)).digest('hex'),
+    measurements: { a: { durationSeconds: 10, byteLength: 100, sha256: 'b'.repeat(64) } },
+    changes: [{ clipId: 'clip', from: 20, to: 10, reason: 'too-long' }] };
+  const count = calls.length;
+  element('clip-ends-file').files = [{ size: 2000, text: async () => JSON.stringify(proposal) }];
+  await element('clip-ends-file').listeners.get('change')();
+  assert.equal(element('clip-ends-apply').disabled, false, element('status').textContent);
+  assert.equal(JSON.parse(element('metadata-editor').value).clips.clip.clipEnd, 20);
+  await element('clip-ends-apply').listeners.get('click')();
+  assert.equal(JSON.parse(element('metadata-editor').value).clips.clip.clipEnd, 10, element('status').textContent);
+  assert.equal(calls.length, count); assert.equal(element('attest-review').disabled, true);
+  assert.match(element('status').textContent, /UNSAVED/);
 }
 
 for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worker verifies tokens, boots its browser script, and stores private audio`, async () => {

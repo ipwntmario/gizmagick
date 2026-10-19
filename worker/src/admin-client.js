@@ -1,8 +1,15 @@
 // Serialized into the nonce-protected admin page. No JWTs or emails in browser
 // storage, and no client-side role/ownership decisions.
-export function adminClient() {
+export function adminClient(calculateClipEndChanges) {
   const byId = id => document.getElementById(id);
   let current = null, selectedFiles = [], creationBody = null, busy = false, reviewReport = null;
+  let clipEndProposal = null;
+  const canPrepareClipEnds = () => Boolean(current?.metadataEditable && current.status === 'draft' && !current.review);
+  function clearClipEndPreparation() {
+    clipEndProposal = null;
+    if (byId('clip-ends-file')) byId('clip-ends-file').value = '';
+    if (byId('clip-ends-summary')) byId('clip-ends-summary').textContent = 'No clip-end proposal selected.';
+  }
   const publishing = Boolean(byId('publication-panel'));
   // undefined means unknown: no write is allowed until a successful status GET.
   let publication, publicationReady = false, publicationRequest = null;
@@ -291,6 +298,11 @@ export function adminClient() {
       byId('save-metadata').disabled = value || !current?.metadataEditable || !metadataDirty();
       byId('reset-metadata').disabled = value || !current || !metadataDirty();
     }
+    if (byId('clip-ends-export')) {
+      byId('clip-ends-export').disabled = value || !canPrepareClipEnds();
+      byId('clip-ends-file').disabled = value || !canPrepareClipEnds();
+      byId('clip-ends-apply').disabled = value || !canPrepareClipEnds() || !clipEndProposal?.changes.length;
+    }
     if (publishing) {
       byId('publication-refresh').disabled = value || !current || metadataDirty();
       byId('publication-check').disabled = value || !publicationEligible() || publication !== null;
@@ -334,6 +346,7 @@ export function adminClient() {
     catch (error) { if (error.code !== 'PUBLICATION_BOUNDED_WORKFLOW') throw error; legacyBoundedIntent = true; renderPublication(); }
   }
   function showDraft(draft) {
+    clearClipEndPreparation();
     finalStatus = undefined; finalRequest = null; clearFinalConfirmation();
     const metadataChanged = current?.id !== draft.id || current?.manifestSha256 !== draft.manifestSha256;
     legacyBoundedIntent = false; intentStatus = undefined; clearIntentConfirmation();
@@ -606,10 +619,10 @@ export function adminClient() {
     acceptPreparation(await api(`${pathFor(current.id)}/review-package-batches`, 'POST', JSON.stringify({ restartJobId: jobId })));
     status('Package checks restarted. Rerun the local validator with the replacement package before attesting.');
   })));
-  function downloadPackage(job) {
+  function downloadPackage(job, filename = 'draft-review-package.json') {
     const url = URL.createObjectURL(new Blob([JSON.stringify(job, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a');
-    link.href = url; link.download = 'draft-review-package.json';
+    link.href = url; link.download = filename;
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -677,10 +690,10 @@ export function adminClient() {
       throw error;
     }
   }));
-  async function readJSON(input) {
+  async function readJSON(input, maximum = 262144) {
     const file = input.files[0];
     if (!file) throw new Error('Choose the required JSON file(s).');
-    if (!file.size || file.size > 262144) throw new Error('Each metadata file must be nonempty and at most 256 KiB.');
+    if (!file.size || file.size > maximum) throw new Error(maximum === 262144 ? 'Each metadata file must be nonempty and at most 256 KiB.' : 'A preparation proposal must be nonempty and at most 1 MiB.');
     try { return JSON.parse(await file.text()); } catch { throw new Error('A selected metadata file is not valid JSON.'); }
   }
   byId('source').addEventListener('change', () => {
@@ -771,11 +784,15 @@ export function adminClient() {
       await refreshList(); status('Draft archived. No files were deleted or unpublished.');
     });
   });
-  byId('metadata-editor')?.addEventListener('input', () => { finalStatus = undefined; clearFinalConfirmation(); intentStatus = undefined; clearIntentConfirmation(); verification = undefined; packagePreparation = undefined; resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy); });
+  function metadataChangedLocally() {
+    clearClipEndPreparation(); finalStatus = undefined; clearFinalConfirmation(); intentStatus = undefined; clearIntentConfirmation();
+    verification = undefined; packagePreparation = undefined; resetInspection(); clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy);
+  }
+  byId('metadata-editor')?.addEventListener('input', metadataChangedLocally);
   byId('reset-metadata')?.addEventListener('click', () => {
     if (!current || !confirm('Discard unsaved metadata edits? The saved draft will not change.')) return;
     byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
-    clearReview(); clearPublicationConfirmation(); publicationReady = false; setBusy(busy);
+    metadataChangedLocally();
     status('Unsaved edits discarded. The saved private draft is unchanged.');
   });
   byId('save-metadata')?.addEventListener('click', () => work(async () => {
@@ -791,6 +808,58 @@ export function adminClient() {
     await loadPublication();
     await refreshList();
     status('Private metadata saved. Download a fresh review package and rerun local validation before attesting. Nothing was published.');
+  }));
+  function workingClipEndMetadata() {
+    if (!canPrepareClipEnds()) throw new Error('Only an active, unreviewed editable private draft can prepare clip endings.');
+    let manifest;
+    try { manifest = JSON.parse(byId('metadata-editor').value); } catch { throw new Error('Working metadata is invalid JSON. Your text was kept.'); }
+    if (new TextEncoder().encode(JSON.stringify(manifest)).length > 262144) throw new Error('Working metadata exceeds 256 KiB.');
+    const assets = manifest?.assets, original = current.manifest.assets;
+    const sameAssets = assets && Object.keys(assets).length === Object.keys(original).length
+      && Object.entries(original).every(([id, asset]) => Object.hasOwn(assets, id) && assets[id]
+        && Object.keys(asset).length === Object.keys(assets[id]).length && Object.entries(asset).every(([key, value]) => assets[id][key] === value));
+    if (manifest?.track?.id !== current.manifest.track.id || manifest?.versionId !== current.manifest.versionId || !sameAssets) {
+      throw new Error('Keep the saved track/version IDs and complete assets unchanged before preparing clip endings.');
+    }
+    return manifest;
+  }
+  async function checkedClipEndProposal(report) {
+    const manifest = workingClipEndMetadata();
+    if (!report || report.reportVersion !== 1 || report.scope !== 'local-metadata-preparation' || report.policy !== 'gizmagick-clip-ends-v1'
+        || report.valid !== true || report.publishing !== false || report.approval !== false || !Array.isArray(report.errors) || report.errors.length
+        || report.trackId !== manifest.track.id || report.versionId !== manifest.versionId || report.sourceManifestSha256 !== await digestJSON(manifest)) {
+      throw new Error('Clip-end proposal does not match the current working metadata. Export and prepare it again; no edits were applied.');
+    }
+    const calculated = calculateClipEndChanges(manifest, report.measurements);
+    if (calculated.errors.length || JSON.stringify(calculated.changes) !== JSON.stringify(report.changes)) {
+      throw new Error('Clip-end proposal has incomplete measurements, ambiguous modes or changed endpoints. No edits were applied.');
+    }
+    if (JSON.stringify(workingClipEndMetadata()) !== JSON.stringify(manifest)) throw new Error('Working metadata changed while checking the proposal. No edits were applied.');
+    return { manifest, changes: calculated.changes };
+  }
+  byId('clip-ends-export')?.addEventListener('click', () => work(async () => {
+    downloadPackage(workingClipEndMetadata(), 'working-metadata.json');
+    status('Working metadata download requested. Prepare it locally; this exported no approval and changed no saved data.');
+  }));
+  byId('clip-ends-file')?.addEventListener('change', () => work(async () => {
+    // Keep the newly selected FileList intact until readJSON captures it.
+    clipEndProposal = null;
+    byId('clip-ends-summary').textContent = 'No valid clip-end proposal selected.';
+    const report = await readJSON(byId('clip-ends-file'), 1048576);
+    const checked = await checkedClipEndProposal(report);
+    clipEndProposal = report;
+    byId('clip-ends-summary').textContent = checked.changes.length
+      ? checked.changes.map(change => `${change.clipId}: ${change.from === null ? '(missing)' : change.from} → ${change.to} seconds (${change.reason})`).join('\n')
+      : 'No clip endings need changing.';
+    status('Local proposal inspected. No edits, save, review approval or publication occurred.');
+  }));
+  byId('clip-ends-apply')?.addEventListener('click', () => work(async () => {
+    if (!clipEndProposal) throw new Error('Choose a current local clip-end proposal first.');
+    const { manifest, changes } = await checkedClipEndProposal(clipEndProposal);
+    for (const change of changes) manifest.clips[change.clipId].clipEnd = change.to;
+    byId('metadata-editor').value = JSON.stringify(manifest, null, 2);
+    metadataChangedLocally();
+    status(`Applied ${changes.length} clip ending(s) to UNSAVED working metadata only. Save separately, then get a fresh review package and run the normal validator. Nothing was approved or published.`);
   }));
   byId('review-package')?.addEventListener('click', () => work(async () => {
     if (metadataDirty()) throw new Error('Save or discard unsaved metadata edits before requesting a review package.');

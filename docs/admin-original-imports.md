@@ -1,5 +1,9 @@
 # Phase 7Q: identity-preserving private intake for original tracks
 
+The agreed endpoint editing helper is now implemented locally in
+[Phase 7S](clip-end-preparation.md). It changes only unreviewed working metadata
+after explicit preview/apply/save, not the pinned original intake documents.
+
 Current local implementation: [Phase 7R](admin-original-publication.md) adds a
 separately gated bounded first-publication path for preserved original identities.
 It remains disabled and undeployed. The private-only publishing limitations below

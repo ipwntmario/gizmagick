@@ -1,5 +1,10 @@
 # Phase 7R: bounded first publication of imported originals
 
+Current local follow-up: [Phase 7S](clip-end-preparation.md) adds explicit
+preview/apply preparation of missing or overlong clip endings in unreviewed
+working metadata. The endpoint-preparation statements below describe the
+historical Phase 7R checkpoint; source documents and cloud state remain unchanged.
+
 Implemented and tested locally. **No Cloudflare migration, deployment, upload,
 reservation or publication occurred here.** Original intake and publication have
 separate flags, both false in `worker/wrangler.toml`. Shared public-copy, final

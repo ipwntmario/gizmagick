@@ -15,6 +15,7 @@
     "tracks:migrate": "node scripts/track-manifests.mjs migrate",
     "tracks:validate": "node scripts/track-manifests.mjs validate",
     "tracks:probe": "node scripts/gizmagick-audio-probe.mjs",
+    "tracks:prepare-ends": "node scripts/gizmagick-clip-ends.mjs",
     "library:audit": "node scripts/gizmagick-library-audit.mjs",
     "dev:worker": "wrangler dev --config ../worker/wrangler.toml --local",
     "dev:worker:library": "wrangler dev --config ../worker/wrangler.toml --local --port 8787 --var GIZMAGICK_MEDIA_BASE_URL:http://127.0.0.1:8787/api/library/media",

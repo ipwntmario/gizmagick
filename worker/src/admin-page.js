@@ -1,5 +1,6 @@
 import { adminClient } from './admin-client.js';
 import { ORIGINAL_LIBRARY } from '../../shared/original-library.js';
+import { calculateClipEndChanges } from '../../shared/clip-end-preparation.js';
 export const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 
 export function adminPage({ principal, error, nonce, uploads = false, originalImports = false, reviews = false, metadata = false, publishing = false, packages = false, batchReview = false, intents = false, copies = false, finalizing = false }) {
@@ -9,7 +10,7 @@ export function adminPage({ principal, error, nonce, uploads = false, originalIm
     </style></head><body><main><header><div class="eyebrow">Gizmagick</div><h1>Library admin</h1><p>Secure access for managing the music library.</p></header>
     ${principal ? `<section class="card"><span class="badge">Administrator verified</span><h2>You’re signed in</h2><p>${escapeHTML(principal.email)}</p><small>Owner ID: <code>${escapeHTML(principal.id)}</code></small></section>${uploads ? uploadPanel(reviews, metadata, publishing, packages, batchReview, intents, copies, finalizing, originalImports ? principal.id : null) : '<section class="card"><h2>Private uploads not enabled</h2><p>Authentication is ready. Private draft storage must be provisioned and explicitly enabled before uploading. Publishing remains disabled; the public library is unchanged.</p></section>'}`
     : `<section class="card"><span class="badge">Admin access locked</span><h2>${error.code === 'ADMIN_NOT_CONFIGURED' ? 'Setup required' : 'Sign-in required'}</h2><p>${escapeHTML(error.message)}</p><p>Use the hostname protected by your Gizmagick Admin Cloudflare Access application. Gizmagick does not accept passwords or room roles as admin credentials.</p></section>`}
-    <nav><a href="https://gizmagick.com">Open the player</a>${principal ? '<a href="/api/admin/session">View session status</a><a href="/cdn-cgi/access/logout">Sign out of Cloudflare Access</a>' : ''}</nav></main>${principal && uploads ? `<script nonce="${nonce}">(${adminClient.toString()})();</script>` : ''}</body></html>`;
+    <nav><a href="https://gizmagick.com">Open the player</a>${principal ? '<a href="/api/admin/session">View session status</a><a href="/cdn-cgi/access/logout">Sign out of Cloudflare Access</a>' : ''}</nav></main>${principal && uploads ? `<script nonce="${nonce}">(${adminClient.toString()})(${calculateClipEndChanges.toString()});</script>` : ''}</body></html>`;
 }
 
 function uploadPanel(reviews, metadata, publishing, packages, batchReview, intents, copies, finalizing, originalOwner) {
@@ -44,7 +45,16 @@ function uploadPanel(reviews, metadata, publishing, packages, batchReview, inten
   <p>Edit titles, sections, modes, transitions and clip timings. Keep track/version IDs and the entire assets object unchanged. Save before downloading a fresh review package. Attested and archived drafts are locked; this does not edit published tracks.</p>
   <label for="metadata-editor">Draft manifest JSON</label><textarea id="metadata-editor" spellcheck="false" disabled></textarea>
   <button id="save-metadata" type="button" disabled>Save private metadata</button>
-  <button id="reset-metadata" class="secondary" type="button" disabled>Discard unsaved edits</button></details>` : ''}
+  <button id="reset-metadata" class="secondary" type="button" disabled>Discard unsaved edits</button>
+  <section class="notice"><h3>Prepare clip endings from local audio</h3>
+  <p>For unreviewed drafts only: download the working metadata, including unsaved edits. Run the local command below against your audio folder, then select its proposal. Missing or overlong clipEnd values default to the shortest measured mode file, rounded upward to a microsecond; shorter trims stay unchanged. Mode lengths differing by more than 50 ms require an explicit endpoint. loopPoint is never changed.</p>
+  <button id="clip-ends-export" class="secondary" type="button" disabled>Download working metadata for preparation</button>
+  <pre>node scripts/gizmagick-clip-ends.mjs --manifest "C:/path/working-metadata.json" --track-root "C:/path/track" | Set-Content -Encoding utf8 "C:/path/clip-end-proposal.json"</pre>
+  <p>Run from the frontend directory. The tool fully decodes local audio but writes no source files. This proposal is NOT a review report or an approval.</p>
+  <label for="clip-ends-file">Local clip-end proposal</label><input id="clip-ends-file" type="file" accept=".json,application/json" disabled>
+  <pre id="clip-ends-summary">No clip-end proposal selected.</pre>
+  <button id="clip-ends-apply" class="secondary" type="button" disabled>Apply proposed endings to unsaved editor</button>
+  <p>Selection changes nothing. Applying edits only the local text above, not the saved draft. Save separately, download a fresh review package and rerun the normal validator before attesting. Approved/published versions are never silently corrected.</p></section></details>` : ''}
   ${reviews ? `<section aria-labelledby="review-heading"><h2 id="review-heading">Local administrator review</h2>
   <p id="review-state">No administrator attestation recorded.</p>
   <p>After all files are uploaded, download a review package. Save the private audio files under an <code>audio/</code> folder with their original names. Run the repository’s local validator against that package, then choose its report below.</p>

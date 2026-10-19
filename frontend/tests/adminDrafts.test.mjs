@@ -12,6 +12,7 @@ import { probeManifest, createProbeReport } from '../scripts/lib/audio-probe.mjs
 import { REVIEW_POLICY, createReviewReport } from '../../shared/draft-review.js';
 import { fileURLToPath } from 'node:url';
 import { ORIGINAL_LIBRARY } from '../../shared/original-library.js';
+import { prepareClipEnds } from '../scripts/lib/clip-end-preparation.mjs';
 
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
@@ -1719,6 +1720,46 @@ async function readyReview(f, input = canonical()) {
 
 const metadataInput = draft => ({ expectedManifestSha256: draft.manifestSha256, manifest: structuredClone(draft.manifest) });
 const edit = (f, draft, input = metadataInput(draft), principal = owner) => f.request(`/api/admin/drafts/${draft.id}/metadata`, { method: 'POST', body: input, principal });
+
+test('real UglyOnPurpose preparation saves through ordinary private editing and needs a fresh measured review', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  const source = await originalInput('BleepBloop UglyOnPurpose');
+  const created = await importOriginal(f, source); assert.equal(created.status, 201);
+  const draft = await created.json(), root = new URL(`../public${catalog[source.legacyKey].basePath}/`, import.meta.url);
+  for (const [id, asset] of Object.entries(draft.manifest.assets)) {
+    assert.equal((await f.upload(draft, new Uint8Array(await readFile(new URL(asset.path, root))), id)).status, 200);
+  }
+  const oldJob = await (await f.request(`/api/admin/drafts/${draft.id}/review-package`, { method: 'POST', body: {} })).json();
+  const before = [...f.objects.entries()];
+  const proposal = await prepareClipEnds(draft.manifest, fileURLToPath(root));
+  assert.equal(proposal.valid, true, JSON.stringify(proposal.errors));
+  assert.equal(proposal.changes.length, 1);
+  // A preparation proposal is deliberately not a review report.
+  const attest = report => f.request(`/api/admin/drafts/${draft.id}/attest-review`, {
+    method: 'POST', body: { report, policy: REVIEW_POLICY, provenanceConfirmed: true } });
+  assert.equal((await attest(proposal)).status, 400);
+  const input = metadataInput(draft);
+  for (const change of proposal.changes) input.manifest.clips[change.clipId].clipEnd = change.to;
+  const response = await edit(f, draft, input); assert.equal(response.status, 200, await response.clone().text());
+  const saved = await response.json();
+  assert.notEqual(saved.manifestSha256, draft.manifestSha256); assert.equal(saved.review, null);
+  assert.equal(saved.manifest.versionId, draft.manifest.versionId);
+  assert.deepEqual(saved.manifest.assets, draft.manifest.assets); assert.deepEqual([...f.objects.entries()], before);
+  const decoded = await probeManifest(saved.manifest, fileURLToPath(root)); assert.equal(decoded.valid, true);
+  const oldReport = await createReviewReport(oldJob, createProbeReport(draft.manifest, decoded));
+  assert.equal((await attest(oldReport)).status, 409);
+  const job = await (await f.request(`/api/admin/drafts/${draft.id}/review-package`, { method: 'POST', body: {} })).json();
+  const report = await createReviewReport(job, createProbeReport(saved.manifest, decoded));
+  assert.equal((await attest(report)).status, 201);
+  assert.equal((await edit(f, saved)).status, 409); // Attested metadata is still locked.
+  const provenance = f.sql.prepare('SELECT * FROM admin_original_imports WHERE draft_id = ?').get(draft.id);
+  assert.equal(provenance.source_manifest_sha256, hash(JSON.stringify(source.sourceManifest)));
+  assert.equal(JSON.parse(provenance.source_manifest_json).clips.Main_a.clipEnd, 16.153855);
+  assert.equal((await originalSource(source.legacyKey)).clips.Main_a.clipEnd, 16.153855);
+  assert.equal(f.sql.prepare('SELECT visibility FROM library_tracks WHERE id = ?').get(draft.manifest.track.id).visibility, 'private');
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
 
 function enablePublicationPreview(f, head = async () => null) {
   f.env.GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = 'true';

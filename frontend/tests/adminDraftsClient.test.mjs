@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
+import { calculateClipEndChanges } from '../../shared/clip-end-preparation.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
   batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false, originalImports = false, originalReply, originalPublication = false } = {}) {
@@ -22,7 +23,7 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
         click() {}, remove() {},
       };
       // Real file inputs discard their FileList when value is cleared.
-      if (id === 'review-report') Object.defineProperty(control, 'value', {
+      if (['review-report', 'clip-ends-file'].includes(id)) Object.defineProperty(control, 'value', {
         get() { return this.files.length ? 'C:\\fakepath\\review-report.json' : ''; },
         set(value) { assert.equal(value, ''); this.files = []; },
       });
@@ -42,7 +43,7 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
     reportSha256: 'b'.repeat(64), snapshotSha256: 'a'.repeat(64), serverDecoded: false, publishing: false }; draft.metadataEditable = false; }
   if (originalPublication) draft.originalImport = { legacyKey: "Lena's Home", sourceVersionId: '77777777-7777-4777-8777-777777777777',
     sourceManifestSha256: 'c'.repeat(64), publishingSupported: true };
-  runInNewContext(`(${adminClient.toString()})();`, {
+  runInNewContext(`(${adminClient.toString()})(${calculateClipEndChanges.toString()});`, {
     document: { getElementById: id => (id.startsWith('original-') && !originalImports) || (id.startsWith('final-') && !finalizing) || (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: selector => originalImports && selector === '#create-draft input'
       ? ['manifest-file', 'original-owner', 'original-confirm'].map(element) : [], createElement: tag => {
       const node = element(crypto.randomUUID()); node.tagName = tag.toUpperCase(); createdNodes.push(node); return node;
@@ -927,4 +928,133 @@ test('unsaved metadata cannot be silently discarded by creating a draft or uploa
   await f.element('upload').listeners.get('click')();
   assert.equal(f.calls.length, callCount);
   assert.equal(f.element('metadata-editor').value, text);
+});
+
+async function clipEndFixture() {
+  const f = fixture({ batchReview: true });
+  f.draft.manifest.clips = { clip: { assetsByMode: { base: 'a' }, loopStart: 0, loopPoint: 9, clipEnd: 20 } };
+  await f.openDraft();
+  const manifest = JSON.parse(f.element('metadata-editor').value);
+  const measurements = { a: { durationSeconds: 10, byteLength: 100, sha256: 'b'.repeat(64) } };
+  const proposal = { reportVersion: 1, scope: 'local-metadata-preparation', policy: 'gizmagick-clip-ends-v1', publishing: false,
+    approval: false, valid: true, errors: [], trackId: manifest.track.id, versionId: manifest.versionId,
+    sourceManifestSha256: await jsonSha256(manifest), measurements, changes: calculateClipEndChanges(manifest, measurements).changes };
+  const select = async (value = proposal) => {
+    f.element('clip-ends-file').files = [{ size: 2000, text: async () => JSON.stringify(value) }];
+    await f.element('clip-ends-file').listeners.get('change')();
+  };
+  return { ...f, proposal, select };
+}
+
+test('clip-end preview preserves the file and editor; apply edits only unsaved text, with a separate guarded save', async () => {
+  const f = await clipEndFixture(), before = f.element('metadata-editor').value, callCount = f.calls.length;
+  await f.select();
+  assert.equal(f.element('clip-ends-file').files.length, 1);
+  assert.match(f.element('clip-ends-summary').textContent, /clip: 20 → 10 seconds/);
+  assert.equal(f.element('metadata-editor').value, before);
+  assert.equal(f.element('clip-ends-apply').disabled, false);
+  await f.selectReport(f.report);
+  f.element('review-confirm').checked = true; f.element('verification-confirm').checked = true;
+  await f.element('clip-ends-apply').listeners.get('click')();
+  const expected = JSON.parse(before); expected.clips.clip.clipEnd = 10;
+  assert.deepEqual(JSON.parse(f.element('metadata-editor').value), expected);
+  assert.equal(f.calls.length, callCount);
+  assert.equal(f.draft.manifest.clips.clip.clipEnd, 20);
+  assert.match(f.element('status').textContent, /UNSAVED/);
+  assert.equal(f.element('clip-ends-file').files.length, 0);
+  assert.equal(f.element('clip-ends-apply').disabled, true);
+  assert.equal(f.element('review-report').files.length, 0);
+  assert.equal(f.element('review-confirm').checked, false);
+  assert.equal(f.element('verification-confirm').checked, false);
+  assert.equal(f.element('attest-review').disabled, true);
+  assert.equal(f.element('review-package').disabled, true);
+  assert.equal(f.element('save-metadata').disabled, false);
+  await f.element('save-metadata').listeners.get('click')();
+  const writes = f.calls.slice(callCount).filter(call => call.options.method === 'POST');
+  assert.equal(writes.length, 1); assert(writes[0].path.endsWith('/metadata'));
+  assert.equal(JSON.parse(writes[0].options.body).expectedManifestSha256, 'd'.repeat(64));
+  assert.equal(f.draft.manifest.clips.clip.clipEnd, 10);
+  assert.equal(f.element('save-metadata').disabled, true);
+  await f.selectReport(f.report);
+  assert.equal(f.element('attest-review').disabled, true); // Old metadata report cannot approve the correction.
+});
+
+test('working metadata export includes unsaved missing endpoints without changing or saving them', async () => {
+  const f = await clipEndFixture(), working = JSON.parse(f.element('metadata-editor').value);
+  delete working.clips.clip.clipEnd; working.track.title = 'Working edit';
+  f.element('metadata-editor').value = JSON.stringify(working);
+  f.element('metadata-editor').listeners.get('input')();
+  const before = f.calls.length;
+  await f.element('clip-ends-export').listeners.get('click')();
+  assert.deepEqual(JSON.parse(await f.downloads.at(-1).text()), working);
+  assert.equal(f.calls.length, before);
+  assert.equal(f.draft.manifest.clips.clip.clipEnd, 20);
+  f.proposal.sourceManifestSha256 = await jsonSha256(working);
+  f.proposal.changes = calculateClipEndChanges(working, f.proposal.measurements).changes;
+  await f.select();
+  assert.match(f.element('clip-ends-summary').textContent, /\(missing\) → 10/);
+  await f.element('clip-ends-apply').listeners.get('click')();
+  assert.equal(JSON.parse(f.element('metadata-editor').value).clips.clip.clipEnd, 10);
+  assert.equal(f.calls.length, before);
+});
+
+for (const mismatch of ['hash', 'track', 'version', 'endpoint', 'measurements', 'approval', 'review-report']) {
+  test(`clip-end preview rejects a ${mismatch} proposal without changing the editor or saving`, async () => {
+    const f = await clipEndFixture(), before = f.element('metadata-editor').value, count = f.calls.length;
+    await f.select(); // A rejected replacement must also clear this earlier proposal.
+    const bad = structuredClone(f.proposal);
+    if (mismatch === 'hash') bad.sourceManifestSha256 = '0'.repeat(64);
+    if (mismatch === 'track') bad.trackId = 'other';
+    if (mismatch === 'version') bad.versionId = 'other';
+    if (mismatch === 'endpoint') bad.changes[0].to = 9.5;
+    if (mismatch === 'measurements') bad.measurements = {};
+    if (mismatch === 'approval') bad.approval = true;
+    await f.select(mismatch === 'review-report' ? f.report : bad);
+    assert.equal(f.element('clip-ends-apply').disabled, true);
+    assert.match(f.element('clip-ends-summary').textContent, /No valid/);
+    await f.element('clip-ends-apply').listeners.get('click')();
+    assert.equal(f.element('metadata-editor').value, before); assert.equal(f.calls.length, count);
+  });
+}
+
+test('edits after clip-end selection invalidate the proposal, including a last-moment silent text change', async () => {
+  const f = await clipEndFixture(), count = f.calls.length;
+  await f.select();
+  f.element('metadata-editor').value += ' ';
+  f.element('metadata-editor').listeners.get('input')();
+  assert.equal(f.element('clip-ends-apply').disabled, true);
+  await f.select(); // Whitespace does not change the compact-JSON fingerprint.
+  const working = JSON.parse(f.element('metadata-editor').value); working.track.title = 'Preserve this';
+  const text = JSON.stringify(working); f.element('metadata-editor').value = text;
+  await f.element('clip-ends-apply').listeners.get('click')();
+  assert.equal(f.element('metadata-editor').value, text); assert.equal(f.calls.length, count);
+  assert.match(f.element('status').textContent, /does not match/);
+});
+
+for (const failure of ['cancelled', 'oversized', 'malformed']) test(`clip-end ${failure} selection clears the previous proposal`, async () => {
+  const f = await clipEndFixture(), before = f.element('metadata-editor').value, count = f.calls.length;
+  await f.select();
+  f.element('clip-ends-file').files = failure === 'cancelled' ? [] : [{ size: failure === 'oversized' ? 1048577 : 2000, text: async () => '{' }];
+  await f.element('clip-ends-file').listeners.get('change')();
+  assert.equal(f.element('clip-ends-apply').disabled, true);
+  await f.element('clip-ends-apply').listeners.get('click')();
+  assert.equal(f.element('metadata-editor').value, before); assert.equal(f.calls.length, count);
+});
+
+for (const locked of ['reviewed', 'archived', 'disabled', 'changed-assets', 'changed-identity']) test(`clip-end preparation refuses ${locked} working metadata`, async () => {
+  const f = await clipEndFixture();
+  if (locked === 'reviewed') { f.draft.review = { scope: 'administrator-attested' }; f.draft.metadataEditable = false; }
+  if (locked === 'archived') f.draft.status = 'archived';
+  if (locked === 'disabled') f.draft.metadataEditable = false;
+  await f.openDraft();
+  const working = JSON.parse(f.element('metadata-editor').value);
+  if (locked === 'changed-assets') working.assets.a.path = 'audio/other.ogg';
+  if (locked === 'changed-identity') working.versionId = 'other';
+  const text = JSON.stringify(working); f.element('metadata-editor').value = text;
+  const count = f.calls.length;
+  await f.element('clip-ends-export').listeners.get('click')(); await f.select();
+  await f.element('clip-ends-apply').listeners.get('click')();
+  assert.equal(f.downloads.length, 0); assert.equal(f.calls.length, count);
+  assert.equal(f.element('metadata-editor').value, text);
+  assert.equal(f.element('clip-ends-apply').disabled, true);
 });

@@ -123,7 +123,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
-    bindings: { GIZMAGICK_ORIGINAL_IMPORTS_ENABLED: 'true', GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED: 'true', GIZMAGICK_ORIGINAL_IMPORTS_ENABLED: 'true', GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_LEGACY_PUBLICATION_ENABLED: 'true', GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -134,7 +134,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql', '0010_gizmagick_original_imports.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql', '0010_gizmagick_original_imports.sql', '0011_gizmagick_original_publication.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -439,7 +439,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
       assert.equal(publicObject.size, object.byteLength);
       assert.equal(createHash('sha256').update(new Uint8Array(await publicObject.arrayBuffer())).digest('hex'), object.sha256);
     }
-    await assert.rejects(db.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').bind(prep3.id, 'forged').run(), /Bounded final verification/);
+    await assert.rejects(db.prepare('INSERT INTO admin_publication_commits (publication_id, lease_token) VALUES (?, ?)').bind(prep3.id, 'forged').run(), /Bounded final verification|Publication changed before commit/);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 2);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM admin_publication_objects WHERE publication_id = ?').bind(prep3.id).first()).n, 2);
     const finalUrl3 = `/api/admin/drafts/${draft3.id}/publication-final`, finalBase3 = { publicationId: intent3.id, expectedPlanSha256: intent3.planSha256 };
@@ -484,10 +484,47 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal((await request('/api/admin/original-imports', token, { method: 'POST', headers: writeHeaders, body: originalBody })).status, 200);
     assert.equal((await request(`/api/admin/drafts/${original.id}/assets/${Object.keys(original.manifest.assets)[0]}`, token,
       { method: 'PUT', headers: { ...writeHeaders, 'Content-Type': 'application/octet-stream' }, body: bytes })).status, 200);
-    assert.equal((await request(`/api/admin/drafts/${original.id}/publication-intent`, token, { method: 'POST', headers: writeHeaders, body: '{}' })).status, 409);
+    const unreviewedOriginal = await request(`/api/admin/drafts/${original.id}/publication-intent`, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ action: 'prepare', requestId: crypto.randomUUID(), expectedSnapshotSha256: '0'.repeat(64), expectedReportSha256: '0'.repeat(64) }) });
+    assert.equal(unreviewedOriginal.status, 409);
+    assert.equal((await unreviewedOriginal.json()).code, 'INTENT_REVIEW');
     assert.equal((await publicBucket.list()).objects.length, publicCount);
     const reserved = await db.prepare('SELECT * FROM library_tracks WHERE id = ?').bind(sourceManifest.track.id).first();
     assert.equal(reserved.legacy_key, "Lena's Home"); assert.equal(reserved.visibility, 'private'); assert.equal(reserved.current_version_id, null);
+    // Reuse the exact file measurements actually decoded above, binding them to
+    // this isolated original package. This is automated testing, not a cloud attestation.
+    const originalJob = await (await request(`/api/admin/drafts/${original.id}/review-package`, token, { method: 'POST', headers: writeHeaders })).json();
+    const originalReport = await createReviewReport(originalJob, { trackId: original.manifest.track.id, versionId: original.manifest.versionId,
+      decoderVersions: report.decoderVersions, valid: true, errors: [], measurements: { [Object.keys(original.manifest.assets)[0]]: report.measurements[assetId] } });
+    const originalReview = await request(`/api/admin/drafts/${original.id}/attest-review`, token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ report: originalReport, policy: REVIEW_POLICY, provenanceConfirmed: true }) });
+    assert.equal(originalReview.status, 201, await originalReview.clone().text());
+    const originalRoute = `/api/admin/drafts/${original.id}/publication-intent`;
+    const originalAction = body => request(originalRoute, token, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
+    const originalPrepResponse = await originalAction({ action: 'prepare', requestId: crypto.randomUUID(),
+      expectedSnapshotSha256: originalJob.snapshotSha256, expectedReportSha256: createHash('sha256').update(JSON.stringify(originalReport)).digest('hex') });
+    assert.equal(originalPrepResponse.status, 201, await originalPrepResponse.clone().text());
+    const originalPrep = (await originalPrepResponse.json()).preparation;
+    assert.equal(originalPrep.originalImport.legacyKey, "Lena's Home");
+    assert.equal((await originalAction({ action: 'check-batch', preparationId: originalPrep.id, offset: 0 })).status, 200);
+    const originalIntentResponse = await originalAction({ action: 'reserve', preparationId: originalPrep.id, publicationConfirmed: true, batchWindowConfirmed: true });
+    assert.equal(originalIntentResponse.status, 201, await originalIntentResponse.clone().text());
+    const originalIntent = (await originalIntentResponse.json()).intent;
+    for (let ordinal = 0; ordinal < 2; ordinal++) assert.equal((await originalAction({ action: 'copy-one', publicationId: originalIntent.id,
+      expectedPlanSha256: originalIntent.planSha256, ordinal, publicationConfirmed: true })).status, 200);
+    const originalFinalAction = body => request(`/api/admin/drafts/${original.id}/publication-final`, token, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
+    const finalIdentity = { publicationId: originalIntent.id, expectedPlanSha256: originalIntent.planSha256 };
+    const finalOriginalStart = await originalFinalAction({ ...finalIdentity, action: 'start', requestId: crypto.randomUUID() });
+    assert.equal(finalOriginalStart.status, 201, await finalOriginalStart.clone().text());
+    const originalPass = (await finalOriginalStart.json()).verification;
+    assert.equal((await originalFinalAction({ ...finalIdentity, action: 'check-batch', passId: originalPass.id, offset: 0 })).status, 200);
+    const originalCommit = await originalFinalAction({ ...finalIdentity, action: 'commit', passId: originalPass.id, publicationConfirmed: true, batchWindowConfirmed: true });
+    assert.equal(originalCommit.status, 200, await originalCommit.clone().text());
+    const originalCatalog = await (await request('/api/library/catalog', null)).json();
+    assert.equal(originalCatalog.tracks["Lena's Home"].id, sourceManifest.track.id);
+    assert.equal(originalCatalog.tracks["Lena's Home"].versionId, original.manifest.versionId);
+    assert.equal((await publicBucket.list()).objects.length, publicCount + 2);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks WHERE id = ?').bind(sourceManifest.track.id).first()).n, 1);
     // Actual Miniflare D1 batch rollback, after the first two inserts succeed.
     await db.exec("CREATE TRIGGER simulate_original_failure BEFORE INSERT ON admin_original_imports BEGIN SELECT RAISE(ABORT, 'original rollback'); END;");
     const otherSource = await read("../public/tracks/Lena's Sight/manifest.json");

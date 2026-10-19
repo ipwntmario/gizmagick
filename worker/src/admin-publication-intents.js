@@ -4,7 +4,8 @@ import { UUID_PATTERN, libraryVersionLocation, normalizeMediaBase } from '../../
 import { REVIEW_POLICY, REVIEW_PACKAGE_BYTES, REVIEW_REPORT_BYTES, checkReviewReport, jsonSha256 } from '../../shared/draft-review.js';
 import { DraftError, readBoundedBody } from './admin-drafts.js';
 import { allocationSnapshot, inspectAllocationAssets } from './admin-storage-inspection.js';
-import { publicationPreflightEnabled, requireNewLibraryIdentity } from './admin-publication-preview.js';
+import { publicationPreflightEnabled } from './admin-publication-preview.js';
+import { originalPublicationEnabled, publicationIdentity } from './admin-original-publication.js';
 import { copyOne, publishingEnabled, PUBLICATION_LIMITS } from './admin-publications.js';
 
 export const publicationIntentsEnabled = env => publicationPreflightEnabled(env) && env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED === 'true';
@@ -21,7 +22,7 @@ const preparationFor = (env, row) => env.GIZMAGICK_DB.prepare("SELECT *, expires
 // Exact attested record reconstruction, without reading all private objects.
 // Each selected source and proposed destination is independently HEAD-checked later.
 export async function reviewedIntentPlan(env, principal, row) {
-  if (row.status !== 'draft' || row.owner_id !== principal.id) fail(409, 'INTENT_DRAFT', 'Only your active, reviewed new-track draft can prepare an intent.');
+  if (row.status !== 'draft' || row.owner_id !== principal.id) fail(409, 'INTENT_DRAFT', 'Only your active, reviewed draft can prepare an intent.');
   const review = await env.GIZMAGICK_DB.prepare('SELECT * FROM admin_draft_reviews WHERE draft_id = ?').bind(row.id).first();
   if (!review || review.approved_by !== principal.id || review.policy !== REVIEW_POLICY || review.scope !== 'administrator-attested') fail(409, 'INTENT_REVIEW', 'This exact administrator attestation is required.');
   const job = await env.GIZMAGICK_DB.prepare('SELECT * FROM admin_draft_review_jobs WHERE draft_id = ? AND id = ?').bind(row.id, review.job_id).first();
@@ -61,7 +62,9 @@ export async function reviewedIntentPlan(env, principal, row) {
   const objects = [...Object.entries(candidate.assets).map(([assetId, asset]) => ({ kind: 'audio', assetId,
     key: `${location.prefix}/${asset.path}`, byteLength: asset.byteLength, sha256: asset.sha256 })),
   { kind: 'manifest', key: location.manifestKey, byteLength: new TextEncoder().encode(JSON.stringify(candidate)).length, sha256: await jsonSha256(candidate) }];
-  const plan = { planVersion: 2, workflow: 'bounded-new-track', draftId: row.id, ownerId: principal.id,
+  const originalImport = await publicationIdentity(env, principal, row, candidate);
+  const plan = { planVersion: 2, workflow: originalImport ? 'bounded-original-track' : 'bounded-new-track',
+    ...(originalImport ? { originalImport } : {}), draftId: row.id, ownerId: principal.id,
     mediaBase: normalizeMediaBase(env.GIZMAGICK_MEDIA_BASE_URL), manifestJson: row.manifest_json, candidate,
     candidateJson: review.candidate_json, snapshotJson: job.snapshot_json, reportJson: review.report_json, sources: snapshot.assets,
     review: { jobId: review.job_id, policy: review.policy, scope: review.scope, snapshotSha256: review.snapshot_sha256,
@@ -73,7 +76,7 @@ export async function reviewedIntentPlan(env, principal, row) {
 
 // Same database predicates fence preparation/batch/intent writes. No storage
 // read receipt can change ownership, identities, review policy or public pointers.
-export const guard = `EXISTS (SELECT 1 FROM admin_drafts d JOIN admin_draft_reviews r ON r.draft_id = d.id
+const reviewGuard = `EXISTS (SELECT 1 FROM admin_drafts d JOIN admin_draft_reviews r ON r.draft_id = d.id
   JOIN admin_draft_review_jobs j ON j.draft_id = d.id AND j.id = r.job_id WHERE d.id = ? AND d.owner_id = ? AND d.status = 'draft'
   AND d.manifest_json = ? AND r.approved_by = ? AND r.policy = 'gizmagick-local-admin-v1' AND r.scope = 'administrator-attested'
   AND r.job_id = ? AND r.snapshot_sha256 = ? AND r.report_sha256 = ? AND r.manifest_sha256 = ?
@@ -82,15 +85,20 @@ export const guard = `EXISTS (SELECT 1 FROM admin_drafts d JOIN admin_draft_revi
   AND (SELECT COUNT(*) FROM admin_draft_assets WHERE draft_id = ?) = ?
   AND NOT EXISTS (SELECT 1 FROM json_each(?) s WHERE NOT EXISTS (SELECT 1 FROM admin_draft_assets a WHERE a.draft_id = ?
     AND a.asset_id = json_extract(s.value, '$.assetId') AND a.object_key = json_extract(s.value, '$.objectKey')
-    AND a.byte_length = json_extract(s.value, '$.byteLength') AND a.sha256 = json_extract(s.value, '$.sha256') AND a.state = 'uploaded'))
-  AND NOT EXISTS (SELECT 1 FROM library_tracks WHERE id = ?)
+    AND a.byte_length = json_extract(s.value, '$.byteLength') AND a.sha256 = json_extract(s.value, '$.sha256') AND a.state = 'uploaded'))`;
+export const guard = checked => `${reviewGuard} AND ${checked.plan.originalImport
+  ? `EXISTS (SELECT 1 FROM admin_original_publication_identity WHERE draft_id = ? AND owner_id = ? AND track_id = ?
+      AND legacy_key = ? AND source_version_id = ? AND source_manifest_sha256 = ?)`
+  : 'NOT EXISTS (SELECT 1 FROM library_tracks WHERE id = ?)'}
   AND NOT EXISTS (SELECT 1 FROM library_track_versions WHERE track_id = ?)`;
 export const guardArgs = (row, checked) => {
   const { plan, allocation } = checked, review = plan.review, audit = review.storageAudit;
   return [row.id, row.owner_id, row.manifest_json, row.owner_id, review.jobId, review.snapshotSha256, review.reportSha256,
     review.manifestSha256, plan.reportJson, plan.candidateJson, plan.snapshotJson, review.storageCheckScope,
     audit?.verificationId ?? null, audit?.checkedFrom ?? null, audit?.checkedUntil ?? null, row.id, allocation.assets.length,
-    JSON.stringify(allocation.assets), row.id, plan.candidate.track.id, plan.candidate.track.id];
+    JSON.stringify(allocation.assets), row.id, ...(plan.originalImport
+      ? [row.id, row.owner_id, plan.candidate.track.id, plan.originalImport.legacyKey, plan.originalImport.sourceVersionId, plan.originalImport.sourceManifestSha256]
+      : [plan.candidate.track.id]), plan.candidate.track.id];
 };
 
 async function batchesFor(env, prep) {
@@ -104,7 +112,11 @@ export async function checkedStored(prep) {
   if (new TextEncoder().encode(prep.plan_json).length > INTENT_LIMITS.planBytes) fail(409, 'INTENT_PLAN', 'Stored plan exceeds its limit.');
   const plan = JSON.parse(prep.plan_json);
   if (await jsonSha256(plan) !== prep.plan_sha256 || plan.planVersion !== 2 || plan.draftId !== prep.draft_id || plan.ownerId !== prep.owner_id
-      || plan.workflow !== 'bounded-new-track' || !Array.isArray(plan.objects) || plan.objects.length < 2 || plan.objects.length > 257
+      || !['bounded-new-track', 'bounded-original-track'].includes(plan.workflow)
+      || (plan.workflow === 'bounded-new-track' ? Object.hasOwn(plan, 'originalImport')
+        : !plan.originalImport || Object.keys(plan.originalImport).sort().join(',') !== 'legacyKey,sourceManifestSha256,sourceVersionId'
+          || typeof plan.originalImport.legacyKey !== 'string' || !uuid(plan.originalImport.sourceVersionId) || !sha(plan.originalImport.sourceManifestSha256))
+      || !Array.isArray(plan.objects) || plan.objects.length < 2 || plan.objects.length > 257
       || (prep.track_id && (plan.candidate.track.id !== prep.track_id || plan.candidate.versionId !== prep.version_id))) fail(409, 'INTENT_PLAN', 'Stored intent plan does not match its checksum or identity.');
   return plan;
 }
@@ -119,7 +131,7 @@ export async function copyProgress(env, intent, plan) {
 }
 async function statusFor(env, row) {
   const intent = await existingIntent(env, row);
-  const enabled = boundedCopyEnabled(env);
+  const enabled = boundedCopyEnabled(env) && (!row.original_legacy_key || originalPublicationEnabled(env));
   if (enabled) await copySchema(env);
   const flags = { workflowVersion: 2, publishing: false, publicCopyEnabled: enabled, catalogCommitEnabled: false,
     publicationAuthorized: false, serverDecoded: false, pointInTimeBatches: true };
@@ -132,7 +144,8 @@ async function statusFor(env, row) {
     return { ...flags, preparation: null, legacyPublication: null, intent: { id: intent.id, draftId: row.id,
       trackId: plan.candidate.track.id, versionId: plan.candidate.versionId, planSha256: intent.plan_sha256,
       state: intent.state, publishedAt: commit?.published_at ?? null, copiedObjects: copied.length, totalObjects: plan.objects.length, nextAction: canCopy ? 'copy-one-object' : null,
-      continuationBlocked: !canCopy, storageCheckScope: plan.review.storageCheckScope } };
+      continuationBlocked: !canCopy, storageCheckScope: plan.review.storageCheckScope,
+      ...(plan.originalImport ? { originalImport: plan.originalImport } : {}) } };
   }
   const prep = await preparationFor(env, row);
   if (!prep) return { ...flags, preparation: null, intent: null, legacyPublication: null };
@@ -141,7 +154,8 @@ async function statusFor(env, row) {
     trackId: plan.candidate.track.id, versionId: plan.candidate.versionId, manifestSha256: plan.review.manifestSha256,
     reportSha256: plan.review.reportSha256, snapshotSha256: plan.review.snapshotSha256, planSha256: prep.plan_sha256,
     totalObjects: plan.objects.length, checkedObjects: progress.end, expiresAt: prep.expires_at,
-    recent: Boolean(prep.unexpired && progress.recent), storageCheckScope: plan.review.storageCheckScope } };
+    recent: Boolean(prep.unexpired && progress.recent), storageCheckScope: plan.review.storageCheckScope,
+    ...(plan.originalImport ? { originalImport: plan.originalImport } : {}) } };
 }
 async function inputFor(request) {
   if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/json') fail(415, 'INTENT_JSON', 'Send application/json.');
@@ -166,7 +180,6 @@ async function stillCurrent(env, principal, row, prep, expectedHash) {
   if (!current || !latest?.unexpired || latest.id !== prep.id || latest.plan_sha256 !== expectedHash) fail(409, 'INTENT_CHANGED', 'Draft or preparation changed/expired. Refresh before continuing.');
   const checked = await reviewedIntentPlan(env, principal, current);
   if (checked.planHash !== expectedHash || checked.allocation.sha256 !== latest.allocation_sha256) fail(409, 'INTENT_CHANGED', 'The reviewed plan or media base changed after preparation.');
-  await requireNewLibraryIdentity(env, checked.plan.candidate);
   return checked;
 }
 
@@ -180,7 +193,6 @@ async function copyIntent(env, principal, row, intent, input, reply) {
   if (!current) fail(404, 'INTENT_NOT_FOUND', 'Draft not found.');
   const checked = await reviewedIntentPlan(env, principal, current);
   if (checked.planHash !== intent.plan_sha256) fail(409, 'INTENT_CHANGED', 'The current review, allocations or media base no longer match this fixed plan.');
-  await requireNewLibraryIdentity(env, plan.candidate);
   const progress = await copyProgress(env, intent, plan);
   // Exact ordinal retries only acknowledge a recorded action. They do not
   // advance to the next object or claim fresh storage verification.
@@ -193,7 +205,7 @@ async function copyIntent(env, principal, row, intent, input, reply) {
   try {
     const checkLease = async () => {
       const valid = await db.prepare(`SELECT id FROM admin_publications WHERE id = ? AND state = 'pending'
-        AND lease_token = ? AND lease_expires_at > unixepoch('now') AND ${guard}`)
+        AND lease_token = ? AND lease_expires_at > unixepoch('now') AND ${guard(checked)}`)
         .bind(intent.id, token, ...guardArgs(current, checked)).first();
       if (!valid) fail(409, 'INTENT_COPY_CHANGED', 'The lease, draft, review, allocations or new-track identity changed. Bytes may already be public; refresh status.');
     };
@@ -236,12 +248,11 @@ export async function handleIntentRequest(request, env, principal, row, reply, h
   if (input.action === 'prepare') {
     const checked = await reviewedIntentPlan(env, principal, row);
     if (checked.plan.review.snapshotSha256 !== input.expectedSnapshotSha256 || checked.plan.review.reportSha256 !== input.expectedReportSha256) fail(409, 'INTENT_REVIEW', 'Use the exact current administrator review checksums.');
-    await requireNewLibraryIdentity(env, checked.plan.candidate);
     if (input.restartPreparationId && prep?.id !== input.restartPreparationId) fail(409, 'INTENT_CHANGED', 'Refresh the current preparation ID before restarting.');
     if (prep?.unexpired && prep.request_id !== input.requestId && !input.restartPreparationId) fail(409, 'INTENT_REQUEST', 'Another preparation exists. Refresh its status and reuse its request ID.');
     const saved = await env.GIZMAGICK_DB.prepare(`INSERT INTO admin_publication_intent_preparations
       (draft_id, id, owner_id, request_id, plan_json, plan_sha256, allocation_sha256, expires_at)
-      SELECT ?, ?, ?, ?, ?, ?, ?, unixepoch('now') + 900 WHERE ${guard}
+      SELECT ?, ?, ?, ?, ?, ?, ?, unixepoch('now') + 900 WHERE ${guard(checked)}
       AND NOT EXISTS (SELECT 1 FROM admin_publications WHERE draft_id = ?)
       ON CONFLICT(draft_id) DO UPDATE SET id = excluded.id, owner_id = excluded.owner_id, request_id = excluded.request_id,
         plan_json = excluded.plan_json, plan_sha256 = excluded.plan_sha256, allocation_sha256 = excluded.allocation_sha256,
@@ -269,7 +280,7 @@ export async function handleIntentRequest(request, env, principal, row, reply, h
     for (const object of selected) if (await env.GIZMAGICK_MEDIA.head(object.key)) fail(409, 'INTENT_DESTINATION', 'A proposed public object already exists. Nothing is overwritten or adopted.');
     await stillCurrent(env, principal, row, prep, prep.plan_sha256);
     await env.GIZMAGICK_DB.prepare(`INSERT INTO admin_publication_intent_batches (preparation_id, offset, end_offset)
-      SELECT ?, ?, ? WHERE ${guard}
+      SELECT ?, ?, ? WHERE ${guard(checked)}
       AND EXISTS (SELECT 1 FROM admin_publication_intent_preparations WHERE draft_id = ? AND id = ? AND plan_sha256 = ? AND expires_at > unixepoch('now'))
       AND NOT EXISTS (SELECT 1 FROM admin_publications WHERE draft_id = ?)
       AND COALESCE((SELECT MAX(end_offset) FROM admin_publication_intent_batches WHERE preparation_id = ?), 0) = ?
@@ -280,7 +291,7 @@ export async function handleIntentRequest(request, env, principal, row, reply, h
   }
   if (progress.end !== plan.objects.length) fail(409, 'INTENT_INCOMPLETE', 'Check every private source and public destination before reserving the intent.');
   const saved = await env.GIZMAGICK_DB.prepare(`INSERT INTO admin_publications (id, draft_id, owner_id, request_id, track_id, version_id, plan_json, plan_sha256)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${guard}
+    SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${guard(checked)}
     AND EXISTS (SELECT 1 FROM admin_publication_intent_preparations WHERE draft_id = ? AND id = ? AND plan_sha256 = ? AND expires_at > unixepoch('now'))
     AND (SELECT MIN(checked_at) FROM admin_publication_intent_batches WHERE preparation_id = ?) >= unixepoch('now') - 300
     AND (SELECT MAX(checked_at) FROM admin_publication_intent_batches WHERE preparation_id = ?) <= unixepoch('now')

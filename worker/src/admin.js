@@ -9,6 +9,7 @@ import { batchReviewEnabled } from './admin-review-verification.js';
 import { publicationIntentsEnabled, boundedCopyEnabled } from './admin-publication-intents.js';
 import { boundedFinalEnabled } from './admin-publication-final.js';
 import { handleOriginalImportRequest, originalImportsEnabled } from './admin-original-imports.js';
+import { originalPublicationEnabled } from './admin-original-publication.js';
 
 
 export function createAdminHandler(authorize = requireAdmin) {
@@ -45,7 +46,7 @@ export function createAdminHandler(authorize = requireAdmin) {
       headers.set('Allow', 'GET, HEAD');
       return reply({ error: 'Admin writes are not enabled', code: 'ADMIN_READ_ONLY' }, 405);
     }
-    if (path === '/api/admin/session') return reply({ authenticated: true, principal, capabilities: { uploads: draftsEnabled(env), originalImports: originalImportsEnabled(env), reviews: draftsEnabled(env) && reviewsEnabled(env), metadata: metadataEnabled(env), publicationPreflight: publicationPreflightEnabled(env), publishing: legacyPublishingEnabled(env), batchPackages: batchPackagesEnabled(env), batchReview: batchReviewEnabled(env), publicationIntents: publicationIntentsEnabled(env) } });
+    if (path === '/api/admin/session') return reply({ authenticated: true, principal, capabilities: { uploads: draftsEnabled(env), originalImports: originalImportsEnabled(env), originalPublishing: originalPublicationEnabled(env) && publicationIntentsEnabled(env), reviews: draftsEnabled(env) && reviewsEnabled(env), metadata: metadataEnabled(env), publicationPreflight: publicationPreflightEnabled(env), publishing: legacyPublishingEnabled(env), batchPackages: batchPackagesEnabled(env), batchReview: batchReviewEnabled(env), publicationIntents: publicationIntentsEnabled(env) } });
     if (['/admin', '/admin/'].includes(path)) {
       headers.set('Content-Type', 'text/html; charset=utf-8');
       return new Response(request.method === 'HEAD' ? null : adminPage({ principal, nonce, uploads: draftsEnabled(env), originalImports: originalImportsEnabled(env), reviews: reviewsEnabled(env), metadata: metadataEnabled(env), publishing: legacyPublishingEnabled(env), packages: batchPackagesEnabled(env), batchReview: batchReviewEnabled(env), intents: publicationIntentsEnabled(env), copies: boundedCopyEnabled(env), finalizing: boundedFinalEnabled(env) }), { headers });

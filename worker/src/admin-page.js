@@ -27,7 +27,7 @@ function uploadPanel(reviews, metadata, publishing, packages, batchReview, inten
   <input id="original-owner" type="hidden" value="${escapeHTML(originalOwner)}">
   <label for="original-key">Original catalog key</label><select id="original-key"><option value="">Choose an original track</option>${ORIGINAL_LIBRARY.map(item => `<option value="${escapeHTML(item.legacyKey)}">${escapeHTML(item.legacyKey)}</option>`).join('')}</select>
   <label><input id="original-confirm" type="checkbox">I intend to reserve this original track ID and catalog key privately for my signed-in administrator account. This creates a private draft, not a publication. Archiving keeps this reservation; there is no cleanup/reimport button yet.</label>
-  <p>Original imports cannot use the current publisher, even after review. No public destination/storage check or file copy occurs during intake. This does not change the live player.</p></div>` : ''}
+  <p>Original imports cannot use the legacy publisher. First publication requires the separately enabled bounded original workflow, exact review and confirmations. No public destination/storage check or file copy occurs during intake. This does not change the live player.</p></div>` : ''}
   <button type="submit">Create private draft</button></form></section>
   <section class="card"><h2>Your recent drafts</h2><button id="refresh" class="secondary" type="button">Refresh drafts</button><ul id="draft-list"></ul></section></div>
   <section id="draft-detail" class="card" hidden><h2 id="draft-title"></h2><p id="draft-state"></p><a id="manifest-download">Download draft manifest</a>

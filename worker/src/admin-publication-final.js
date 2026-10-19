@@ -4,7 +4,6 @@ import { DraftError, readBoundedBody } from './admin-drafts.js';
 import { boundedCopyEnabled, checkedStored, copyProgress, reviewedIntentPlan, guard, guardArgs } from './admin-publication-intents.js';
 import { inspectAllocationAssets } from './admin-storage-inspection.js';
 import { verifyPublic, PUBLICATION_LIMITS } from './admin-publications.js';
-import { requireNewLibraryIdentity } from './admin-publication-preview.js';
 
 export const boundedFinalEnabled = env => boundedCopyEnabled(env) && env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED === 'true';
 const fail = (status, code, message) => { throw new DraftError(status, code, message); };
@@ -36,6 +35,7 @@ async function statusFor(env, row, intent, plan) {
   return { workflowVersion: 1, catalogCommitEnabled: true, publicationAuthorized: false, serverDecoded: false, pointInTimeBatches: true,
     publication: { id: intent.id, draftId: row.id, trackId: intent.track_id, versionId: intent.version_id,
       planSha256: intent.plan_sha256, state: intent.state, copiedObjects: receipts.length, totalObjects: plan.objects.length,
+      ...(plan.originalImport ? { originalImport: plan.originalImport } : {}),
       publishedAt: commit?.published_at ?? null, finalAudit: commit ? { passId: commit.final_pass_id,
         storageCheckScope: commit.storage_check_scope, checkedFrom: commit.storage_checked_from, checkedUntil: commit.storage_checked_until } : null },
     verification: pass ? { id: pass.id, requestId: pass.request_id, publicationId: intent.id, planSha256: pass.plan_sha256,
@@ -63,7 +63,6 @@ async function currentFor(env, principal, row, intent) {
   if (!current) fail(404, 'FINAL_NOT_FOUND', 'Draft not found.');
   const checked = await reviewedIntentPlan(env, principal, current);
   if (checked.planHash !== intent.plan_sha256) fail(409, 'FINAL_CHANGED', 'The exact reviewed plan, media base or allocations changed.');
-  await requireNewLibraryIdentity(env, checked.plan.candidate);
   const receipts = await copyProgress(env, intent, checked.plan);
   if (receipts.length !== checked.plan.objects.length) fail(409, 'FINAL_COPIES', 'Every public copy must be recorded before starting final verification.');
   return { current, checked, receipts, receiptsJson: JSON.stringify(receipts), receiptsHash: await jsonSha256(receipts) };
@@ -105,7 +104,7 @@ export async function handleFinalRequest(request, env, principal, row, reply, he
       if (pass?.unexpired && pass.request_id !== input.requestId && !input.restartPassId) fail(409, 'FINAL_REQUEST', 'Reuse the refreshed request ID or explicitly restart this pass.');
       const saved = await db.prepare(`INSERT INTO admin_publication_final_passes
         (publication_id, id, request_id, owner_id, plan_sha256, receipts_json, receipts_sha256, expires_at)
-        SELECT ?, ?, ?, ?, ?, ?, ?, unixepoch('now') + 900 WHERE ${guard} AND ${leaseGuard}
+        SELECT ?, ?, ?, ?, ?, ?, ?, unixepoch('now') + 900 WHERE ${guard(snapshot.checked)} AND ${leaseGuard}
         ON CONFLICT(publication_id) DO UPDATE SET id = excluded.id, request_id = excluded.request_id,
           owner_id = excluded.owner_id, plan_sha256 = excluded.plan_sha256, receipts_json = excluded.receipts_json,
           receipts_sha256 = excluded.receipts_sha256, expires_at = excluded.expires_at, created_at = unixepoch('now')
@@ -116,7 +115,7 @@ export async function handleFinalRequest(request, env, principal, row, reply, he
           ...guardArgs(snapshot.current, snapshot.checked), ...leaseArgs, input.restartPassId || '').run();
       pass = await passFor(env, intent);
       if (!pass || pass.request_id !== input.requestId || pass.receipts_sha256 !== snapshot.receiptsHash || (input.restartPassId && !changed(saved))) fail(409, 'FINAL_CHANGED', 'The draft or verification pass changed before starting.');
-      const currentGuard = await db.prepare(`SELECT id FROM admin_publications WHERE id = ? AND ${guard} AND ${leaseGuard}`)
+      const currentGuard = await db.prepare(`SELECT id FROM admin_publications WHERE id = ? AND ${guard(snapshot.checked)} AND ${leaseGuard}`)
         .bind(intent.id, ...guardArgs(snapshot.current, snapshot.checked), ...leaseArgs).first();
       if (!currentGuard) fail(409, 'FINAL_CHANGED', 'The current review, allocations or lease changed while preparing final checks.');
       return reply(await statusFor(env, snapshot.current, intent, plan), changed(saved) ? 201 : 200);
@@ -138,7 +137,7 @@ export async function handleFinalRequest(request, env, principal, row, reply, he
       if (actual.some(asset => asset.etag !== plan.sources.find(source => source.assetId === asset.assetId).etag)) fail(409, 'FINAL_SOURCE', 'A private source changed since its administrator review.');
       for (let ordinal = input.offset; ordinal < end; ordinal++) verifyPublic(await env.GIZMAGICK_MEDIA.head(plan.objects[ordinal].key), plan.objects[ordinal], intent, snapshot.receipts[ordinal]);
       await db.prepare(`INSERT INTO admin_publication_final_batches (pass_id, offset, end_offset, checked_at)
-        SELECT ?, ?, ?, ? WHERE ${guard} AND ${passGuard} AND ? BETWEEN unixepoch('now') - 300 AND unixepoch('now')
+        SELECT ?, ?, ?, ? WHERE ${guard(snapshot.checked)} AND ${passGuard} AND ? BETWEEN unixepoch('now') - 300 AND unixepoch('now')
         AND COALESCE((SELECT MAX(end_offset) FROM admin_publication_final_batches WHERE pass_id = ?), 0) = ?
         ON CONFLICT(pass_id, offset) DO NOTHING`).bind(pass.id, input.offset, end, checkedAt, ...guardArgs(snapshot.current, snapshot.checked),
           ...passArgs(pass, intent, snapshot, token), checkedAt, pass.id, input.offset).run();

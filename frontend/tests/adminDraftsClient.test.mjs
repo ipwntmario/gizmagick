@@ -5,7 +5,7 @@ import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
-  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false, originalImports = false, originalReply } = {}) {
+  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false, originalImports = false, originalReply, originalPublication = false } = {}) {
   const elements = new Map(), calls = [], downloads = [], createdNodes = [];
   let preparation = null;
   let verification = null;
@@ -40,6 +40,8 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
     measurements: { a: { durationSeconds: 180, codec: 'opus', channels: 2, sampleRate: 48000, byteLength: 100, sha256: 'b'.repeat(64) } } };
   if (intents) { draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-13',
     reportSha256: 'b'.repeat(64), snapshotSha256: 'a'.repeat(64), serverDecoded: false, publishing: false }; draft.metadataEditable = false; }
+  if (originalPublication) draft.originalImport = { legacyKey: "Lena's Home", sourceVersionId: '77777777-7777-4777-8777-777777777777',
+    sourceManifestSha256: 'c'.repeat(64), publishingSupported: true };
   runInNewContext(`(${adminClient.toString()})();`, {
     document: { getElementById: id => (id.startsWith('original-') && !originalImports) || (id.startsWith('final-') && !finalizing) || (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: selector => originalImports && selector === '#create-draft input'
       ? ['manifest-file', 'original-owner', 'original-confirm'].map(element) : [], createElement: tag => {
@@ -77,6 +79,10 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
           reservedIntent.copiedObjects++;
           reservedIntent.nextAction = reservedIntent.copiedObjects < assetCount + 1 ? 'copy-one-object' : null;
           reservedIntent.continuationBlocked = reservedIntent.nextAction === null;
+        }
+        if (originalPublication) for (const saved of [intentPreparation, reservedIntent]) if (saved) {
+          const { publishingSupported: _publishingSupported, ...mapping } = draft.originalImport;
+          saved.originalImport = mapping;
         }
         result = { workflowVersion: 2, publishing: false, publicCopyEnabled: copies, catalogCommitEnabled: false, publicationAuthorized: false,
           serverDecoded: false, pointInTimeBatches: true, preparation: reservedIntent ? null : structuredClone(intentPreparation), intent: structuredClone(reservedIntent),
@@ -253,6 +259,45 @@ test('changing original source/key clears confirmation and starts a new request 
   const last = JSON.parse(f.calls.filter(call => call.path === '/api/admin/original-imports').at(-1).options.body);
   assert.notEqual(last.requestId, first.requestId);
   assert.equal(last.legacyKey, 'Testing Time');
+});
+
+test('original publication UI shows the preserved key/source and uses separate bounded copy/final confirmations', async () => {
+  const f = fixture({ intents: true, copies: true, finalizing: true, originalPublication: true });
+  await beginClientFinal(f);
+  assert.equal(f.element('intent-panel').hidden, false);
+  assert.equal(f.element('final-panel').hidden, false);
+  assert.match(f.element('intent-identity').textContent, /Original catalog key: Lena's Home/);
+  assert.match(f.element('final-identity').textContent, /Original source SHA-256: c{64}/);
+  await f.element('final-next').listeners.get('click')();
+  assert.equal(f.element('final-commit').disabled, true);
+  f.element('final-confirm').checked = true;
+  await f.element('final-commit').listeners.get('click')();
+  assert.match(f.element('final-state').textContent, /Published to the catalog/);
+  assert.equal(f.calls.filter(call => call.path.endsWith('/publication-final') && JSON.parse(call.options.body || '{}').action === 'commit').length, 1);
+  assert(!f.calls.some(call => call.path.endsWith('/publication') || call.path.endsWith('/publication-step')));
+});
+
+for (const stage of ['prepare', 'reserve', 'final']) test(`original UI rejects a changed mapping in the ${stage} response`, async () => {
+  const corrupt = result => {
+    const value = result.preparation || result.intent || result.publication;
+    if (value) value.originalImport.legacyKey = 'Another original';
+    return result;
+  };
+  const f = fixture({ intents: true, copies: true, finalizing: true, originalPublication: true,
+    intentReply: stage === 'final' ? undefined : (result, action) => action === stage ? corrupt(result) : result,
+    finalReply: stage === 'final' ? corrupt : undefined });
+  if (stage === 'prepare') await beginClientIntent(f);
+  else if (stage === 'reserve') await reserveClientIntent(f);
+  else {
+    await reserveClientIntent(f);
+    for (let ordinal = 0; ordinal < 2; ordinal++) {
+      f.element('intent-copy-confirm').checked = true;
+      await f.element('intent-copy').listeners.get('click')();
+    }
+    await f.element('final-refresh').listeners.get('click')();
+  }
+  assert.match(f.element('status').textContent, /does not match/);
+  assert.equal(f.element(stage === 'final' ? 'final-commit' : 'intent-reserve').disabled, true);
 });
 
 async function beginClientIntent(f) {

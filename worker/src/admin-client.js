@@ -10,6 +10,13 @@ export function adminClient() {
   const preparingIntents = Boolean(byId('intent-panel'));
   const copyingIntents = Boolean(byId('intent-copy'));
   const finalizing = Boolean(byId('final-panel'));
+  const originalEligible = () => !current?.originalImport || current.originalImport.publishingSupported === true;
+  function matchesOriginal(value) {
+    const expected = current?.originalImport;
+    return expected ? value && Object.keys(value).sort().join(',') === 'legacyKey,sourceManifestSha256,sourceVersionId'
+      && ['legacyKey', 'sourceManifestSha256', 'sourceVersionId'].every(key => value[key] === expected[key]) : value === undefined;
+  }
+  const originalLabel = () => current?.originalImport ? `\nOriginal catalog key: ${current.originalImport.legacyKey}\nOriginal source SHA-256: ${current.originalImport.sourceManifestSha256}` : '';
   let finalStatus, finalRequest = null;
   function clearFinalConfirmation() { if (finalizing) byId('final-confirm').checked = false; }
   const finalEligible = () => intentEligible() && finalStatus?.publication?.state === 'pending'
@@ -19,7 +26,7 @@ export function adminClient() {
     const pub = finalStatus?.publication, pass = finalStatus?.verification;
     byId('final-progress').max = pub?.totalObjects || 1;
     byId('final-progress').value = pass?.checkedObjects || 0;
-    byId('final-identity').textContent = current ? `Track: ${current.title}\nTrack ID: ${current.manifest.track.id}\nVersion: ${current.manifest.versionId}\nPlan SHA-256: ${pub?.planSha256 || 'Refresh status'}` : '';
+    byId('final-identity').textContent = current ? `Track: ${current.title}\nTrack ID: ${current.manifest.track.id}\nVersion: ${current.manifest.versionId}\nPlan SHA-256: ${pub?.planSha256 || 'Refresh status'}${originalLabel()}` : '';
     byId('final-state').textContent = finalStatus === undefined ? 'Final status unknown. Refresh before any action. A lost response may have published the catalog entry; nothing resumes automatically.'
       : pub.state === 'published' ? `Published to the catalog at ${pub.publishedAt}. Final checks were recorded in separate batches from ${new Date(pub.finalAudit.checkedFrom * 1000).toISOString()} to ${new Date(pub.finalAudit.checkedUntil * 1000).toISOString()}. All continuation is locked. Archiving does not unpublish this track.`
       : pub.copiedObjects !== pub.totalObjects ? `${pub.copiedObjects}/${pub.totalObjects} copies recorded. Complete public copying before starting final verification.`
@@ -33,7 +40,7 @@ export function adminClient() {
     if (result.workflowVersion !== 1 || result.catalogCommitEnabled !== true || result.publicationAuthorized !== false
         || result.serverDecoded !== false || result.pointInTimeBatches !== true || !pub || !uuid.test(pub.id)
         || pub.draftId !== current.id || pub.trackId !== current.manifest.track.id || pub.versionId !== current.manifest.versionId
-        || !sha.test(pub.planSha256) || pub.totalObjects !== total || total < 2 || total > 257
+        || !matchesOriginal(pub.originalImport) || !sha.test(pub.planSha256) || pub.totalObjects !== total || total < 2 || total > 257
         || !Number.isInteger(pub.copiedObjects) || pub.copiedObjects < 0 || pub.copiedObjects > total || !['pending', 'published'].includes(pub.state)
         || (pub.state === 'pending' && (pub.publishedAt !== null || pub.finalAudit !== null))
         || (pub.state === 'published' && (pub.copiedObjects !== total || !Number.isFinite(Date.parse(pub.publishedAt))
@@ -51,7 +58,7 @@ export function adminClient() {
     renderFinal();
   }
   let intentStatus, intentRequest = null;
-  const intentEligible = () => Boolean(current?.status === 'draft' && !current.originalImport && current.review && !current.missingAssets.length
+  const intentEligible = () => Boolean(current?.status === 'draft' && originalEligible() && current.review && !current.missingAssets.length
     && Object.keys(current.manifest.assets).length <= 256 && !metadataDirty());
   function clearIntentConfirmation() {
     if (preparingIntents) byId('intent-confirm').checked = false;
@@ -62,7 +69,7 @@ export function adminClient() {
     const prep = intentStatus?.preparation, intent = intentStatus?.intent;
     byId('intent-progress').max = prep?.totalObjects || intent?.totalObjects || 1;
     byId('intent-progress').value = prep?.checkedObjects || intent?.copiedObjects || 0;
-    byId('intent-identity').textContent = current ? `Track: ${current.title}\nTrack ID: ${current.manifest.track.id}\nVersion: ${current.manifest.versionId}\nReview SHA-256: ${current.review?.reportSha256 || 'No attestation'}` : '';
+    byId('intent-identity').textContent = current ? `Track: ${current.title}\nTrack ID: ${current.manifest.track.id}\nVersion: ${current.manifest.versionId}\nReview SHA-256: ${current.review?.reportSha256 || 'No attestation'}${originalLabel()}` : '';
     byId('intent-state').textContent = intentStatus === undefined ? 'Intent/copy status unknown. Refresh before any action. Earlier files may already be public; nothing resumes automatically.'
       : intentStatus.legacyPublication ? `An existing legacy publication ${intentStatus.legacyPublication.id} reserves this draft (${intentStatus.legacyPublication.state}). Use the legacy publisher when enabled. Files may already be public; this panel does not replace or undo it.`
       : intent ? `Immutable bounded intent ${intent.id}\n${intent.copiedObjects}/${intent.totalObjects} public copies recorded. Files may be public even when a failed request has no receipt. ${intent.state === 'published' ? `Published to the catalog at ${intent.publishedAt}. Continuation is locked.` : intent.nextAction === 'copy-one-object' ? 'Paused until you explicitly confirm copying one object publicly.' : intent.copiedObjects === intent.totalObjects ? finalizing ? 'All copies recorded. Use the separate final-verification panel before catalog publication.' : 'All copies recorded; final catalog publication is disabled. Catalog continuation is locked.' : 'Public copying is disabled or this draft is archived; continuation is locked.'} Archiving does not remove public files or its identity reservation.`
@@ -78,7 +85,7 @@ export function adminClient() {
         || result.catalogCommitEnabled !== false || result.publicationAuthorized !== false || result.serverDecoded !== false
         || result.pointInTimeBatches !== true || [prep, intent, legacy].filter(value => value !== null).length > 1
         || (legacy !== null && (!legacy || !uuid.test(legacy.id) || !['pending', 'published'].includes(legacy.state)))
-        || (prep !== null && (!prep || !uuid.test(prep.id) || !uuid.test(prep.requestId) || prep.draftId !== current.id
+        || (prep !== null && (!prep || !matchesOriginal(prep.originalImport) || !uuid.test(prep.id) || !uuid.test(prep.requestId) || prep.draftId !== current.id
           || prep.trackId !== current.manifest.track.id || prep.versionId !== current.manifest.versionId
           || prep.manifestSha256 !== current.manifestSha256 || prep.reportSha256 !== current.review?.reportSha256
           || prep.snapshotSha256 !== current.review?.snapshotSha256 || !sha.test(prep.planSha256)
@@ -86,7 +93,7 @@ export function adminClient() {
           || prep.checkedObjects < 0 || prep.checkedObjects > total || (prep.checkedObjects !== total && prep.checkedObjects % 16)
           || !Number.isSafeInteger(prep.expiresAt) || prep.expiresAt < 0 || prep.expiresAt > 8640000000000 || typeof prep.recent !== 'boolean'
           || prep.storageCheckScope !== (current.review?.storageCheckScope || 'single-request')))
-        || (intent !== null && (!intent || !uuid.test(intent.id) || intent.draftId !== current.id || intent.trackId !== current.manifest.track.id
+        || (intent !== null && (!intent || !matchesOriginal(intent.originalImport) || !uuid.test(intent.id) || intent.draftId !== current.id || intent.trackId !== current.manifest.track.id
           || intent.versionId !== current.manifest.versionId || intent.totalObjects !== total || !sha.test(intent.planSha256)
           || !['pending', 'published'].includes(intent.state) || (intent.state === 'published' && (intent.copiedObjects !== total || !Number.isFinite(Date.parse(intent.publishedAt))))
           || !Number.isInteger(intent.copiedObjects) || intent.copiedObjects < 0 || intent.copiedObjects > total
@@ -350,14 +357,14 @@ export function adminClient() {
     }
     current = draft;
     for (const id of ['publication-panel', 'intent-panel', 'final-panel']) {
-      if (byId(id)) byId(id).hidden = Boolean(draft.originalImport);
+      if (byId(id)) byId(id).hidden = Boolean(draft.originalImport && (id === 'publication-panel' || !draft.originalImport.publishingSupported));
     }
     verification = undefined; clearVerificationConfirmation();
     packagePreparation = undefined;
     resetInspection();
     byId('draft-title').textContent = draft.title;
     byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing || copyingIntents || finalizing ? '' : ' (writes disabled; existing public copies remain public)'}`;
-    if (draft.originalImport) byId('draft-state').textContent = `${draft.status} · Original key: ${draft.originalImport.legacyKey} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Private identity reserved; publication unsupported for originals.`;
+    if (draft.originalImport) byId('draft-state').textContent = `${draft.status} · Original key: ${draft.originalImport.legacyKey} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · ${draft.originalImport.publishingSupported ? 'Original identity preserved; first publication uses the bounded workflow.' : 'Original publication is disabled; publication unsupported for originals in this configuration.'}`;
     if (byId('review-state')) byId('review-state').textContent = draft.review
       ? reviewLabel(draft.review)
       : 'No administrator attestation recorded.';
@@ -396,7 +403,7 @@ export function adminClient() {
         showDraft(await api(pathFor(draft.id)));
         if (byId('metadata-editor')) byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
         await loadPublication();
-        status(current.originalImport ? 'Original-library draft loaded. Its identity is reserved privately; publishing originals is not implemented.'
+        status(current.originalImport ? 'Original-library draft loaded. Identity and catalog key are preserved. Refresh bounded status before any separately confirmed publication action; nothing resumes automatically.'
           : publishing ? 'Draft loaded. Publication status was read only; no files were copied.'
           : finalizing ? 'Draft loaded. Publication status was not checked. Refresh final status before checking or publishing; nothing resumes automatically.'
           : copyingIntents ? 'Draft loaded. Publication status was not checked. Refresh intent status before copying; existing public copies remain public.'
@@ -722,7 +729,7 @@ export function adminClient() {
       if (byId('original-confirm')) byId('original-confirm').checked = false;
       await loadPublication();
       await refreshList();
-      status(importingOriginal ? 'Original-library draft saved with its original identity and a fresh private version. Upload audio separately. Publication of originals is not implemented.' : 'Private draft saved. Its data is not part of the public catalog.');
+      status(importingOriginal ? 'Original-library draft saved with its original identity and a fresh private version. Upload audio separately. Publishing requires the separately enabled bounded original workflow, review and confirmations.' : 'Private draft saved. Its data is not part of the public catalog.');
     });
   });
   function chooseFiles(files) {

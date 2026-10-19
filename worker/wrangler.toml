@@ -27,6 +27,8 @@ bucket_name = "gizmagick-drafts"
 GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
 # Local-only original intake foundation; apply 0010 and review rollout first.
 GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = "false"
+# Local-only first publication of originals; migration 0011 and rollout review required.
+GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = "false"
 # Migration 0003 is applied. Administrator attestations remain private only.
 GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 # Phase 7L private-only rollout: apply migrations 0005-0009 before deployment.

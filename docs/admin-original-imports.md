@@ -1,5 +1,10 @@
 # Phase 7Q: identity-preserving private intake for original tracks
 
+Current local implementation: [Phase 7R](admin-original-publication.md) adds a
+separately gated bounded first-publication path for preserved original identities.
+It remains disabled and undeployed. The private-only publishing limitations below
+describe the historical Phase 7Q checkpoint, not permission to use the new path.
+
 Implemented and tested **locally**. The repository keeps
 `GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = "false"`. Migration 0010 has not been
 applied remotely, the Worker has not been deployed, and no cloud track, upload,

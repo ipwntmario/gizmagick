@@ -1,5 +1,10 @@
 # Phase 7P: original-library audit and import preparation
 
+Next implementation checkpoint: [Phase 7Q private original intake](admin-original-imports.md)
+preserves identity/ownership in local tests and remains disabled on Cloudflare.
+It reserves a private identity and cannot publish originals yet. The remaining
+gates below describe the audit checkpoint, not permission to import or publish.
+
 This is a **local, read-only checkpoint**, not an importer or publication rollout.
 No Worker deployment, cloud queries/writes, uploads, source-music edits or player
 cutover occur. Phase 7O's two published cloud smoke tests remain separate from

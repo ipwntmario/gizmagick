@@ -51,7 +51,7 @@ export function adminClient() {
     renderFinal();
   }
   let intentStatus, intentRequest = null;
-  const intentEligible = () => Boolean(current?.status === 'draft' && current.review && !current.missingAssets.length
+  const intentEligible = () => Boolean(current?.status === 'draft' && !current.originalImport && current.review && !current.missingAssets.length
     && Object.keys(current.manifest.assets).length <= 256 && !metadataDirty());
   function clearIntentConfirmation() {
     if (preparingIntents) byId('intent-confirm').checked = false;
@@ -171,7 +171,7 @@ export function adminClient() {
   }
   const status = message => { byId('status').textContent = message; };
   const metadataDirty = () => Boolean(current && byId('metadata-editor') && byId('metadata-editor').value !== JSON.stringify(current.manifest, null, 2));
-  const publicationEligible = () => Boolean(current?.status === 'draft' && current.review
+  const publicationEligible = () => Boolean(current?.status === 'draft' && !current.originalImport && current.review
     && !legacyBoundedIntent
     && current.review.storageCheckScope !== 'bounded-batches'
     && !current.missingAssets.length && Object.keys(current.manifest.assets).length <= 16 && !metadataDirty());
@@ -319,7 +319,7 @@ export function adminClient() {
     renderPublication();
   }
   async function loadPublication() {
-    if (!publishing || !current) return;
+    if (!publishing || !current || current.originalImport) return;
     publication = undefined; publicationReady = false; clearPublicationConfirmation();
     byId('publication-preview').textContent = '';
     renderPublication();
@@ -349,11 +349,15 @@ export function adminClient() {
         : 'Editing locked: this draft is attested, archived, or metadata editing is disabled.';
     }
     current = draft;
+    for (const id of ['publication-panel', 'intent-panel', 'final-panel']) {
+      if (byId(id)) byId(id).hidden = Boolean(draft.originalImport);
+    }
     verification = undefined; clearVerificationConfirmation();
     packagePreparation = undefined;
     resetInspection();
     byId('draft-title').textContent = draft.title;
     byId('draft-state').textContent = `${draft.status} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Publication status not checked${publishing || copyingIntents || finalizing ? '' : ' (writes disabled; existing public copies remain public)'}`;
+    if (draft.originalImport) byId('draft-state').textContent = `${draft.status} · Original key: ${draft.originalImport.legacyKey} · ${draft.missingAssets.length} missing audio file(s) · NOT server-decoded · Private identity reserved; publication unsupported for originals.`;
     if (byId('review-state')) byId('review-state').textContent = draft.review
       ? reviewLabel(draft.review)
       : 'No administrator attestation recorded.';
@@ -392,7 +396,8 @@ export function adminClient() {
         showDraft(await api(pathFor(draft.id)));
         if (byId('metadata-editor')) byId('metadata-editor').value = JSON.stringify(current.manifest, null, 2);
         await loadPublication();
-        status(publishing ? 'Draft loaded. Publication status was read only; no files were copied.'
+        status(current.originalImport ? 'Original-library draft loaded. Its identity is reserved privately; publishing originals is not implemented.'
+          : publishing ? 'Draft loaded. Publication status was read only; no files were copied.'
           : finalizing ? 'Draft loaded. Publication status was not checked. Refresh final status before checking or publishing; nothing resumes automatically.'
           : copyingIntents ? 'Draft loaded. Publication status was not checked. Refresh intent status before copying; existing public copies remain public.'
           : 'Draft loaded. Publication status was not checked. New publishing writes are disabled; existing public copies remain public.');
@@ -675,8 +680,16 @@ export function adminClient() {
     creationBody = null;
     byId('legacy-fields').hidden = byId('source').value !== 'legacy';
     byId('manifest-fields').hidden = byId('source').value === 'legacy';
+    if (byId('original-fields')) byId('original-fields').hidden = byId('source').value !== 'original';
+    if (byId('original-confirm')) byId('original-confirm').checked = false;
   });
-  for (const input of document.querySelectorAll('#create-draft input')) input.addEventListener('change', () => { creationBody = null; });
+  for (const input of document.querySelectorAll('#create-draft input')) {
+    if (input.id !== 'original-confirm') input.addEventListener('change', () => {
+      creationBody = null;
+      if (byId('original-confirm')) byId('original-confirm').checked = false;
+    });
+  }
+  byId('original-key')?.addEventListener('change', () => { creationBody = null; byId('original-confirm').checked = false; });
   byId('sections-file').addEventListener('change', () => work(async () => {
     const document = await readJSON(byId('sections-file'));
     const names = Object.keys(document.sections || {});
@@ -690,20 +703,26 @@ export function adminClient() {
     event.preventDefault();
     work(async () => {
       if (metadataDirty() && !confirm('Creating another draft will discard unsaved metadata edits. Copy or save them first. Continue?')) return;
+      const importingOriginal = byId('source').value === 'original';
+      if (importingOriginal && !byId('original-confirm')?.checked) throw new Error('Confirm the private original-library identity reservation before importing.');
       if (!creationBody) {
         const input = { requestId: crypto.randomUUID() };
         if (byId('source').value === 'legacy') {
           Object.assign(input, { format: 'legacy', title: byId('title').value.trim(), firstSection: byId('first-section').value,
             simple: byId('simple').checked, test: byId('test-track').checked,
             clipData: await readJSON(byId('clips-file')), sectionData: await readJSON(byId('sections-file')) });
+        } else if (importingOriginal) {
+          Object.assign(input, { legacyKey: byId('original-key').value, expectedOwnerId: byId('original-owner').value,
+            sourceManifest: await readJSON(byId('manifest-file')), importConfirmed: true });
         } else input.manifest = await readJSON(byId('manifest-file'));
         creationBody = JSON.stringify(input);
         if (new TextEncoder().encode(creationBody).length > 262144) { creationBody = null; throw new Error('Combined metadata exceeds 256 KiB.'); }
       }
-      showDraft(await api('/api/admin/drafts', 'POST', creationBody));
+      showDraft(await api(importingOriginal ? '/api/admin/original-imports' : '/api/admin/drafts', 'POST', creationBody));
+      if (byId('original-confirm')) byId('original-confirm').checked = false;
       await loadPublication();
       await refreshList();
-      status('Private draft saved. Its data is not part of the public catalog.');
+      status(importingOriginal ? 'Original-library draft saved with its original identity and a fresh private version. Upload audio separately. Publication of originals is not implemented.' : 'Private draft saved. Its data is not part of the public catalog.');
     });
   });
   function chooseFiles(files) {

@@ -11,11 +11,12 @@ import { convertLegacyTrack } from '../scripts/lib/track-manifests.mjs';
 import { probeManifest, createProbeReport } from '../scripts/lib/audio-probe.mjs';
 import { REVIEW_POLICY, createReviewReport } from '../../shared/draft-review.js';
 import { fileURLToPath } from 'node:url';
+import { ORIGINAL_LIBRARY } from '../../shared/original-library.js';
 
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
-const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql'].map(name => read(`../../worker/migrations/${name}`)));
+const migrations = await Promise.all(['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql', '0010_gizmagick_original_imports.sql'].map(name => read(`../../worker/migrations/${name}`)));
 const catalog = JSON.parse(await read('../public/trackData.json')).tracks;
 const trackName = "Lena's Home";
 const entry = catalog[trackName];
@@ -30,12 +31,13 @@ function ogg(marker = 1) {
   bytes.set(new TextEncoder().encode('OpusHead'), 28); bytes[36] = marker;
   return bytes; // Identification fixture, not decodable audio.
 }
-function fixture(t, { verificationMigration = true, intentMigration = true, copyMigration = true, finalMigration = true } = {}) {
+function fixture(t, { verificationMigration = true, intentMigration = true, copyMigration = true, finalMigration = true, originalMigration = true } = {}) {
   const sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys = ON;');
   for (const [index, migration] of migrations.entries()) if (index < 5 || (index === 5 && verificationMigration)
     || (index === 6 && verificationMigration && intentMigration) || (index === 7 && verificationMigration && intentMigration && copyMigration)
-    || (index === 8 && verificationMigration && intentMigration && copyMigration && finalMigration)) sql.exec(migration);
+    || (index === 8 && verificationMigration && intentMigration && copyMigration && finalMigration)
+    || (index === 9 && verificationMigration && intentMigration && copyMigration && finalMigration && originalMigration)) sql.exec(migration);
   t.after(() => sql.close());
   function prepare(query, args = []) {
     return { bind: (...values) => prepare(query, values),
@@ -64,7 +66,11 @@ function fixture(t, { verificationMigration = true, intentMigration = true, copy
       return bucket.head(key);
     },
   };
-  const env = { GIZMAGICK_DB: { prepare }, GIZMAGICK_DRAFTS: bucket,
+  const env = { GIZMAGICK_DB: { prepare, batch: async statements => {
+    sql.exec('BEGIN');
+    try { const results = []; for (const statement of statements) results.push(await statement.run()); sql.exec('COMMIT'); return results; }
+    catch (error) { sql.exec('ROLLBACK'); throw error; }
+  } }, GIZMAGICK_DRAFTS: bucket,
     GIZMAGICK_MEDIA: { put: () => { throw new Error('Public bucket must never receive drafts'); } },
     GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true' };
   const handle = principal => createAdminHandler(async () => principal);
@@ -78,6 +84,153 @@ function fixture(t, { verificationMigration = true, intentMigration = true, copy
 }
 
 const inspectionPath = (draft, offset = 0, pin) => `/api/admin/drafts/${draft.id}/storage-inspection?offset=${offset}${pin ? '&snapshot=' + pin : ''}`;
+const originalSource = name => read(`../public${catalog[name].basePath}/manifest.json`).then(JSON.parse);
+const originalInput = async (name = trackName) => ({ requestId: crypto.randomUUID(), legacyKey: name, expectedOwnerId: owner.id,
+  sourceManifest: await originalSource(name), importConfirmed: true });
+const importOriginal = (f, body, principal = owner) => f.request('/api/admin/original-imports', { method: 'POST', body, principal });
+
+test('original intake allowlist pins all 13 original identities and exact checked-in snapshots', async () => {
+  assert.deepEqual(ORIGINAL_LIBRARY.map(item => item.legacyKey), Object.keys(catalog));
+  assert.equal(new Set(ORIGINAL_LIBRARY.map(item => item.trackId)).size, 13);
+  for (const item of ORIGINAL_LIBRARY) {
+    const source = await originalSource(item.legacyKey);
+    assert.equal(source.track.id, item.trackId);
+    assert.equal(source.versionId, item.sourceVersionId);
+    assert.equal(hash(JSON.stringify(source)), item.sourceManifestSha256);
+  }
+});
+
+test('original intake stays disabled by default, requires migration/admin and never probes either bucket', async t => {
+  assert.match(await read('../../worker/wrangler.toml'), /^GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = "false"$/m);
+  const f = fixture(t), input = await originalInput();
+  const noStorage = () => assert.fail('Intake must not inspect or write storage');
+  f.env.GIZMAGICK_DRAFTS.head = f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = f.env.GIZMAGICK_MEDIA.head = noStorage;
+  assert.equal((await importOriginal(f, input)).status, 503);
+  assert(!(await (await f.request('/admin')).text()).includes('id="original-fields"'));
+  f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  assert.equal((await importOriginal(f, input, { ...owner, role: 'contributor' })).status, 403);
+  assert.equal((await (await f.request('/api/admin/original-imports')).json()).expectedOwnerId, owner.id);
+  assert((await (await f.request('/admin')).text()).includes('id="original-fields"'));
+  assert.equal((await (await f.request('/api/admin/session')).json()).capabilities.originalImports, true);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  const old = fixture(t, { originalMigration: false }); old.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  assert.equal((await importOriginal(old, input)).status, 503);
+  assert.equal(old.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+});
+
+test('original import reserves exact private identity, fresh version and immutable provenance; retries and archive retain it', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  const input = await originalInput(), response = await importOriginal(f, input);
+  assert.equal(response.status, 201, await response.clone().text());
+  const draft = await response.json(), source = input.sourceManifest;
+  assert.equal(draft.manifest.track.id, source.track.id);
+  assert.notEqual(draft.manifest.versionId, source.versionId);
+  assert.deepEqual(draft.manifest.assets, source.assets);
+  assert.deepEqual(draft.originalImport, { legacyKey: trackName, publishingSupported: false });
+  assert.equal(draft.audioProbed, false); assert.equal(draft.publishing, false); assert.equal(draft.review, null);
+  assert.equal(draft.missingAssets.length, 1);
+  assert.deepEqual({ ...f.sql.prepare('SELECT id, legacy_key, owner_id, visibility, status, current_version_id FROM library_tracks').get() },
+    { id: source.track.id, legacy_key: trackName, owner_id: owner.id, visibility: 'private', status: 'draft', current_version_id: null });
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 0);
+  assert.equal(f.objects.size, 0);
+  assert.equal((await (await handleLibraryRequest(new Request('https://example.com/api/library/catalog'), f.env)).json()).tracks[trackName], undefined);
+  assert.equal((await importOriginal(f, input)).status, 200);
+  assert.equal((await importOriginal(f, { ...input, requestId: crypto.randomUUID() })).status, 409);
+  assert.equal((await importOriginal(f, { ...input, extra: true })).status, 400);
+  assert.equal((await importOriginal(f, input, other)).status, 403);
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}`, { principal: other })).status, 404);
+  assert.throws(() => f.sql.exec('DELETE FROM admin_original_imports'), /provenance is retained/);
+  assert.throws(() => f.sql.exec("UPDATE admin_original_imports SET legacy_key = 'changed'"), /immutable/);
+  assert.throws(() => f.sql.exec("UPDATE library_tracks SET owner_id = 'another'"), /immutable/);
+  assert.throws(() => f.sql.exec('UPDATE admin_drafts SET original_legacy_key = NULL'), /immutable/);
+  await f.request(`/api/admin/drafts/${draft.id}/archive`, { method: 'POST' });
+  assert.equal((await (await importOriginal(f, input)).json()).status, 'archived');
+  assert.equal((await importOriginal(f, { ...input, requestId: crypto.randomUUID() })).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_original_imports').get().n, 1);
+});
+
+for (const [label, mutate, status] of [
+  ['different owner', input => { input.expectedOwnerId = other.id; }, 403],
+  ['unconfirmed', input => { input.importConfirmed = false; }, 400],
+  ['non-string request ID', input => { input.requestId = [input.requestId]; }, 400],
+  ['unknown catalog key', input => { input.legacyKey = 'unknown'; }, 422],
+  ['different identity', input => { input.sourceManifest.track.id = crypto.randomUUID(); }, 422],
+  ['edited snapshot', input => { input.sourceManifest.clips[trackName].clipEnd--; }, 422],
+  ['client authority', input => { input.visibility = 'public'; }, 400],
+]) test(`original intake rejects ${label} before any D1 reservation`, async t => {
+  const f = fixture(t); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  const input = await originalInput(); mutate(input);
+  assert.equal((await importOriginal(f, input)).status, status);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_drafts').get().n, 0);
+});
+
+test('original import batch rolls back identities/drafts on later failure, quotas and conflicting private drafts', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  const input = await originalInput();
+  f.sql.exec("CREATE TRIGGER simulate_import_failure BEFORE INSERT ON admin_original_imports BEGIN SELECT RAISE(ABORT, 'test rollback'); END;");
+  assert.equal((await importOriginal(f, input)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_drafts').get().n, 0);
+  f.sql.exec('DROP TRIGGER simulate_import_failure;');
+  const conflicting = await (await f.create()).json();
+  const data = structuredClone(conflicting.manifest); data.track.id = input.sourceManifest.track.id;
+  f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(data), conflicting.id);
+  assert.equal((await importOriginal(f, input)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  f.sql.prepare('UPDATE admin_drafts SET manifest_json = ? WHERE id = ?').run(JSON.stringify(conflicting.manifest), conflicting.id);
+  for (let index = 1; index < 20; index++) assert.equal((await f.create()).status, 201);
+  assert.equal((await importOriginal(f, input)).status, 409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_drafts').get().n, 20);
+});
+
+test('original key/track collisions never adopt even same-owner private library rows or smoke-test titles', async t => {
+  for (const conflict of ['track', 'key']) {
+    const f = fixture(t); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+    const input = await originalInput();
+    f.sql.prepare('INSERT INTO library_tracks (id, legacy_key, owner_id) VALUES (?, ?, ?)').run(
+      conflict === 'track' ? input.sourceManifest.track.id : crypto.randomUUID(), conflict === 'key' ? trackName : 'another-key', owner.id);
+    assert.equal((await importOriginal(f, input)).status, 409);
+    assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_drafts').get().n, 0);
+  }
+});
+
+test('Testing Time private metadata intake keeps all 129 assets and original graph with no file checks/approval', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  const input = await originalInput('Testing Time'), response = await importOriginal(f, input);
+  assert.equal(response.status, 201, await response.clone().text());
+  const draft = await response.json();
+  assert.equal(Object.keys(draft.manifest.assets).length, 129);
+  assert.equal(Object.keys(draft.manifest.clips).length, 162);
+  assert.equal(Object.keys(draft.manifest.sections).length, 82);
+  assert.equal(draft.missingAssets.length, 129); assert.equal(draft.review, null);
+  assert.equal(f.objects.size, 0);
+});
+
+test('original real-audio upload, decoder review and recovery remain private; every publisher is locked even if flags are on', async t => {
+  const f = fixture(t); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
+  const draft = await (await importOriginal(f, await originalInput())).json();
+  const root = new URL(`../public${entry.basePath}/`, import.meta.url);
+  assert.equal((await f.upload(draft, new Uint8Array(await readFile(new URL("audio/Lena's Home.ogg", root))))).status, 200);
+  const job = await (await f.request(`/api/admin/drafts/${draft.id}/review-package`, { method: 'POST' })).json();
+  const decoded = await probeManifest(job.snapshot.manifest, fileURLToPath(root));
+  const report = await createReviewReport(job, createProbeReport(job.snapshot.manifest, decoded));
+  assert.equal(report.valid, true);
+  assert.equal((await f.request(`/api/admin/drafts/${draft.id}/attest-review`, { method: 'POST', body: { report, policy: REVIEW_POLICY, provenanceConfirmed: true } })).status, 201);
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED',
+    'GIZMAGICK_PUBLICATION_INTENTS_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) f.env[flag] = 'true';
+  for (const operation of ['publication', 'publication-step', 'publication-preview', 'publication-intent', 'publication-final']) {
+    const response = await f.request(`/api/admin/drafts/${draft.id}/${operation}`, { method: 'POST', body: {} });
+    assert.equal(response.status, 409); assert.equal((await response.json()).code, 'ORIGINAL_PRIVATE_ONLY');
+  }
+  f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'false';
+  const reloaded = await (await f.request(`/api/admin/drafts/${draft.id}`)).json();
+  assert.equal(reloaded.originalImport.legacyKey, trackName);
+  assert(reloaded.review);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_track_versions').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publications').get().n, 0);
+});
 const packageRequest = (f, draft, operation = 'batches', body, options = {}) => f.request(`/api/admin/drafts/${draft.id}/review-package-${operation}`,
   { ...(body !== undefined ? { method: 'POST', body } : {}), ...options });
 const verifyRequest = (f, draft, operation = 'review-verification', body, options = {}) => f.request(`/api/admin/drafts/${draft.id}/${operation}`,

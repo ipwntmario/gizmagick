@@ -108,8 +108,11 @@ async function detail(env, row) {
     manifestSha256: await jsonSha256(manifest), metadataEditable: metadataEnabled(env) && row.status === 'draft' && !review,
     uploads: results, missingAssets: Object.keys(manifest.assets).filter(id => !uploaded.has(id)),
     audioProbed: false, publishing: false, review,
+    ...(row.original_legacy_key ? { originalImport: { legacyKey: row.original_legacy_key, publishingSupported: false } } : {}),
     warnings: validateManifestWithStructure(manifest, checkStructure).warnings.slice(0, 30) };
 }
+
+export { detail as draftDetail };
 
 async function updateMetadata(request, env, principal, row) {
   if (!metadataEnabled(env)) fail(503, 'DRAFT_METADATA_DISABLED', 'Private metadata editing is not enabled.');
@@ -230,6 +233,9 @@ export async function handleDraftRequest(request, env, principal, reply, headers
       }
     } else {
       const row = await ownDraft(env.GIZMAGICK_DB, route[1], principal.id);
+      if (row.original_legacy_key && ['publication-intent', 'publication-final', 'publication-preview', 'publication', 'publication-step'].includes(route[2])) {
+        fail(409, 'ORIGINAL_PRIVATE_ONLY', 'This original-library draft is private-only. Its preserved identity/compatibility mapping needs a separately implemented publisher.');
+      }
       if (route[2] === 'publication-intent') return await handleIntentRequest(request, env, principal, row, reply, headers);
       if (route[2] === 'publication-final') return await handleFinalRequest(request, env, principal, row, reply, headers);
       if (['review-verification', 'review-verification-batch', 'attest-review-batched'].includes(route[2])) {

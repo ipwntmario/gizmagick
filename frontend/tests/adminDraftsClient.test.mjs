@@ -5,7 +5,7 @@ import { adminClient } from '../../worker/src/admin-client.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
-  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false } = {}) {
+  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false, originalImports = false, originalReply } = {}) {
   const elements = new Map(), calls = [], downloads = [], createdNodes = [];
   let preparation = null;
   let verification = null;
@@ -14,7 +14,7 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   let metadataFailure = false;
   const element = id => {
     if (!elements.has(id)) {
-      const control = { value: '', checked: false, files: [], disabled: false,
+      const control = { id, value: '', checked: false, files: [], disabled: false,
         textContent: '', listeners: new Map(), children: [],
         addEventListener(event, callback) { this.listeners.set(event, callback); },
         replaceChildren(...children) { this.children = children; },
@@ -41,7 +41,8 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   if (intents) { draft.review = { scope: 'administrator-attested', approvedBy: 'access:admin', approvedAt: '2026-10-13',
     reportSha256: 'b'.repeat(64), snapshotSha256: 'a'.repeat(64), serverDecoded: false, publishing: false }; draft.metadataEditable = false; }
   runInNewContext(`(${adminClient.toString()})();`, {
-    document: { getElementById: id => (id.startsWith('final-') && !finalizing) || (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: () => [], createElement: tag => {
+    document: { getElementById: id => (id.startsWith('original-') && !originalImports) || (id.startsWith('final-') && !finalizing) || (id.startsWith('intent-copy') && !copies) || (id.startsWith('intent-') && !intents) || (id.startsWith('verification-') && !batchReview) || id.startsWith('publication-') || (id.startsWith('package-') && !batchPackages) ? null : element(id), querySelectorAll: selector => originalImports && selector === '#create-draft input'
+      ? ['manifest-file', 'original-owner', 'original-confirm'].map(element) : [], createElement: tag => {
       const node = element(crypto.randomUUID()); node.tagName = tag.toUpperCase(); createdNodes.push(node); return node;
     }, body: { append() {} } },
     crypto, TextEncoder, File: class File {}, confirm: () => packageConfirm, Blob,
@@ -49,6 +50,12 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
     fetch: async (path, options) => {
       calls.push({ path, options });
       let result = path === '/api/admin/drafts' && options.method === 'GET' ? { drafts: recentDraft ? [{ id: draft.id, title: draft.title, status: draft.status }] : [] } : structuredClone(draft);
+      if (path === '/api/admin/original-imports') {
+        const body = JSON.parse(options.body);
+        draft.originalImport = { legacyKey: body.legacyKey, publishingSupported: false };
+        result = structuredClone(draft);
+        if (originalReply) result = await originalReply(result, body);
+      }
       if (path.endsWith('/publication-intent')) {
         const body = options.body ? JSON.parse(options.body) : {};
         if (body.action === 'prepare' && (!intentPreparation || body.restartPreparationId)) {
@@ -190,6 +197,63 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
   };
   return { element, calls, draft, report, openDraft, openRecentDraft, selectReport, downloads, failMetadata: () => { metadataFailure = true; } };
 }
+
+test('original form requires separate confirmation, preserves retry body and never calls publication', async () => {
+  let attempts = 0;
+  const f = fixture({ originalImports: true, intents: true, copies: true, finalizing: true, originalReply: draft => {
+    if (++attempts === 1) throw new Error('Simulated lost response');
+    return draft;
+  } });
+  await new Promise(resolve => setImmediate(resolve));
+  f.element('source').value = 'original';
+  f.element('source').listeners.get('change')();
+  assert.equal(f.element('original-fields').hidden, false);
+  f.element('original-key').value = "Lena's Home";
+  f.element('original-owner').value = `access:${'a'.repeat(64)}`;
+  f.element('manifest-file').files = [{ size: 1000, text: async () => JSON.stringify(f.draft.manifest) }];
+  const submit = () => f.element('create-draft').listeners.get('submit')({ preventDefault() {} });
+  await submit(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.calls.filter(call => call.options.method === 'POST').length, 0);
+  assert.match(f.element('status').textContent, /Confirm the private original-library/);
+  f.element('original-confirm').checked = true;
+  await submit(); await new Promise(resolve => setImmediate(resolve));
+  assert.match(f.element('status').textContent, /lost response/);
+  await submit(); await new Promise(resolve => setImmediate(resolve));
+  const writes = f.calls.filter(call => call.options.method === 'POST');
+  assert.equal(writes.length, 2);
+  assert(writes.every(call => call.path === '/api/admin/original-imports'));
+  assert.equal(writes[0].options.body, writes[1].options.body);
+  const body = JSON.parse(writes[0].options.body);
+  assert.equal(body.legacyKey, "Lena's Home"); assert.equal(body.importConfirmed, true);
+  assert.equal(body.expectedOwnerId, `access:${'a'.repeat(64)}`);
+  assert.deepEqual(body.sourceManifest, f.draft.manifest);
+  assert.equal(f.element('original-confirm').checked, false);
+  assert.equal(f.element('intent-panel').hidden, true);
+  assert.equal(f.element('final-panel').hidden, true);
+  assert.equal(f.element('intent-prepare').disabled, true);
+  assert.match(f.element('draft-state').textContent, /publication unsupported for originals/);
+});
+
+test('changing original source/key clears confirmation and starts a new request rather than reusing stale authority', async () => {
+  const f = fixture({ originalImports: true });
+  await new Promise(resolve => setImmediate(resolve));
+  f.element('source').value = 'original'; f.element('source').listeners.get('change')();
+  f.element('original-key').value = "Lena's Home"; f.element('original-owner').value = `access:${'a'.repeat(64)}`;
+  f.element('manifest-file').files = [{ size: 1000, text: async () => JSON.stringify(f.draft.manifest) }];
+  const submit = () => f.element('create-draft').listeners.get('submit')({ preventDefault() {} });
+  f.element('original-confirm').checked = true; await submit(); await new Promise(resolve => setImmediate(resolve));
+  const first = JSON.parse(f.calls.find(call => call.path === '/api/admin/original-imports').options.body);
+  f.element('original-confirm').checked = true;
+  f.element('manifest-file').listeners.get('change')();
+  assert.equal(f.element('original-confirm').checked, false);
+  f.element('original-confirm').checked = true;
+  f.element('original-key').value = 'Testing Time'; f.element('original-key').listeners.get('change')();
+  assert.equal(f.element('original-confirm').checked, false);
+  f.element('original-confirm').checked = true; await submit(); await new Promise(resolve => setImmediate(resolve));
+  const last = JSON.parse(f.calls.filter(call => call.path === '/api/admin/original-imports').at(-1).options.body);
+  assert.notEqual(last.requestId, first.requestId);
+  assert.equal(last.legacyKey, 'Testing Time');
+});
 
 async function beginClientIntent(f) {
   await f.openDraft(); await f.element('intent-refresh').listeners.get('click')(); await f.element('intent-prepare').listeners.get('click')();

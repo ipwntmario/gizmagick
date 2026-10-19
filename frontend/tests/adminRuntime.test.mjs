@@ -94,6 +94,8 @@ async function verifyBrowserInitialization(html) {
   assert(html.includes('Each copy makes a file publicly downloadable by URL'));
   assert(element('sections-file').listeners.has('change'));
   assert(element('create-draft').listeners.has('submit'));
+  assert(html.includes('id="original-fields"'));
+  assert(element('original-key').listeners.has('change'));
   assert(element('audio-files').listeners.has('change'));
   assert(element('upload').listeners.has('click'));
   assert(element('review-report').listeners.has('change'));
@@ -121,7 +123,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: code, cf: false, compatibilityDate: '2024-09-01',
     d1Databases: ['GIZMAGICK_DB'], r2Buckets: ['GIZMAGICK_DRAFTS', 'GIZMAGICK_MEDIA'],
-    bindings: { GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
+    bindings: { GIZMAGICK_ORIGINAL_IMPORTS_ENABLED: 'true', GIZMAGICK_PUBLICATION_INTENTS_ENABLED: 'true', GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED: 'true', GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED: 'true', GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true', GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED: 'true', GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_ACCESS_TEAM_DOMAIN: issuer, GIZMAGICK_ACCESS_AUD: audience,
       GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_LEGACY_PUBLICATION_ENABLED: 'true', GIZMAGICK_ADMIN_ORIGIN: 'https://admin.example.com', GIZMAGICK_ADMIN_EMAILS: 'admin@example.com' },
     outboundService: async req => {
       outbound.push(req.url);
@@ -132,7 +134,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
   try {
     const db = await mf.getD1Database('GIZMAGICK_DB');
     // D1 exec() is line-oriented. Each migration is a sequence of SQL statements.
-    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql']) {
+    for (const name of ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql', '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql', '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql', '0010_gizmagick_original_imports.sql']) {
       const migration = await readFile(new URL(`../../worker/migrations/${name}`, import.meta.url), 'utf8');
       await db.exec(migration.replace(/^--.*$/gm, '').replaceAll('\n', ' '));
     }
@@ -151,6 +153,7 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal(body.capabilities.batchPackages, true);
     assert.equal(body.capabilities.batchReview, true);
     assert.equal(body.capabilities.publicationIntents, true);
+    assert.equal(body.capabilities.originalImports, true);
     assert.match(body.principal.id, /^access:[a-f0-9]{64}$/);
     const page = await request('/admin');
     assert.equal(page.status, 200);
@@ -464,5 +467,35 @@ for (const packager of ['vite', 'wrangler']) test(`the ${packager}-bundled Worke
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM library_tracks').first()).n, 3);
     await assert.rejects(db.prepare('DELETE FROM admin_publication_final_batches WHERE pass_id = ?').bind(finalPass3.id).run(), /retained/);
     assert.equal(outbound.length, 1);
+    // Identity-preserving initial import, using the actual bundled route and D1
+    // transaction. Existing randomly identified smoke tests remain independent.
+    const sourceManifest = await read(`../public${track.basePath}/manifest.json`);
+    const originalBody = JSON.stringify({ requestId: crypto.randomUUID(), legacyKey: "Lena's Home", expectedOwnerId: body.principal.id,
+      sourceManifest, importConfirmed: true });
+    assert.equal((await request('/api/admin/original-imports', null, { method: 'POST', headers: writeHeaders, body: originalBody })).status, 401);
+    assert.equal((await request('/api/admin/original-imports', token, { method: 'POST', body: originalBody })).status, 403);
+    const publicCount = (await publicBucket.list()).objects.length;
+    const imported = await request('/api/admin/original-imports', token, { method: 'POST', headers: writeHeaders, body: originalBody });
+    assert.equal(imported.status, 201, await imported.clone().text());
+    const original = await imported.json();
+    assert.equal(original.manifest.track.id, sourceManifest.track.id);
+    assert.notEqual(original.manifest.versionId, sourceManifest.versionId);
+    assert.equal(original.originalImport.legacyKey, "Lena's Home");
+    assert.equal((await request('/api/admin/original-imports', token, { method: 'POST', headers: writeHeaders, body: originalBody })).status, 200);
+    assert.equal((await request(`/api/admin/drafts/${original.id}/assets/${Object.keys(original.manifest.assets)[0]}`, token,
+      { method: 'PUT', headers: { ...writeHeaders, 'Content-Type': 'application/octet-stream' }, body: bytes })).status, 200);
+    assert.equal((await request(`/api/admin/drafts/${original.id}/publication-intent`, token, { method: 'POST', headers: writeHeaders, body: '{}' })).status, 409);
+    assert.equal((await publicBucket.list()).objects.length, publicCount);
+    const reserved = await db.prepare('SELECT * FROM library_tracks WHERE id = ?').bind(sourceManifest.track.id).first();
+    assert.equal(reserved.legacy_key, "Lena's Home"); assert.equal(reserved.visibility, 'private'); assert.equal(reserved.current_version_id, null);
+    // Actual Miniflare D1 batch rollback, after the first two inserts succeed.
+    await db.exec("CREATE TRIGGER simulate_original_failure BEFORE INSERT ON admin_original_imports BEGIN SELECT RAISE(ABORT, 'original rollback'); END;");
+    const otherSource = await read("../public/tracks/Lena's Sight/manifest.json");
+    const failedImport = await request('/api/admin/original-imports', token, { method: 'POST', headers: writeHeaders,
+      body: JSON.stringify({ requestId: crypto.randomUUID(), legacyKey: "Lena's Sight", expectedOwnerId: body.principal.id,
+        sourceManifest: otherSource, importConfirmed: true }) });
+    assert.equal(failedImport.status, 409);
+    assert.equal(await db.prepare('SELECT id FROM library_tracks WHERE id = ?').bind(otherSource.track.id).first(), null);
+    assert.equal(await db.prepare("SELECT id FROM admin_drafts WHERE original_legacy_key = ?").bind("Lena's Sight").first(), null);
   } finally { await mf.dispose(); }
 });

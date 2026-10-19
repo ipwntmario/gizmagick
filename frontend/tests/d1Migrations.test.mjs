@@ -6,7 +6,7 @@ import { unstable_splitSqlQuery } from 'wrangler';
 
 const names = ['0001_gizmagick_library.sql', '0002_gizmagick_drafts.sql', '0003_gizmagick_draft_reviews.sql',
   '0004_gizmagick_publications.sql', '0005_gizmagick_review_package_batches.sql', '0006_gizmagick_review_verification_batches.sql',
-  '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql'];
+  '0007_gizmagick_publication_intents.sql', '0008_gizmagick_bounded_public_copy.sql', '0009_gizmagick_bounded_publication_final.sql', '0010_gizmagick_original_imports.sql'];
 
 test('versioned D1 migrations compile through the installed delivery splitter with remote-compatible guard bodies', async () => {
   const db = new DatabaseSync(':memory:');

@@ -2,6 +2,9 @@
 
 Deployed October 19, 2026, Eastern. Remote schema/configuration and public catalog
 checks pass; the signed-in read-only admin walkthrough remains pending.
+Subsequent screenshot-assisted UI verification and a separately authorized first
+private original import are now recorded [below](#screenshot-assisted-check-and-first-private-original-import).
+The pending-walkthrough statements describe the initial deployment checkpoint.
 The administrator authorized a D1 backup, migrations 0010–0011 and Worker
 deployment with original private intake enabled, **not an actual track import**.
 Original publishing and all public-write gates must remain off.
@@ -155,3 +158,67 @@ automatically. A failed deployment leaves schema verification and active traffic
 as separate facts to inspect. Turning a flag off does not undo a private identity
 reservation or remove already-public files. No remote restore/rollback is part
 of this rollout's authority.
+
+## Screenshot-assisted check and first private original import
+
+The administrator signed in and supplied screenshots showing administrator
+verification, private-only intake, recent drafts and the original-import mode.
+The new form showed no selected file or checked reservation confirmation during
+the read-only check. On the existing approved batched-review test, the clip-end
+export, picker and Apply controls appeared disabled, as expected.
+
+Windows computer use had stopped because it could not confidently determine the
+browser URL. No workaround, session-token extraction or raw database mutation
+was used. These are administrator-provided screenshot observations, **not an
+automated browser interaction or independent test of every disabled control**.
+
+The administrator separately approved using the **original Lena's Home** for one
+private reservation and manifest/audio upload, with no approval or publication.
+Before submission, a read-only remote check found no matching library reservation,
+original import or draft by original track ID/key. One Cloudflare API request
+returned account-authorization error 7403; a single identical read-only retry
+succeeded. No credentials or permissions were changed.
+
+The local pinned source matched the original allowlist, and a fresh full decode
+passed: one Opus file, stereo, 48 kHz, exactly 180 seconds, 3,961,537 bytes. The
+administrator then selected the original workflow/key/source manifest, confirmed
+the private identity reservation and uploaded the original Ogg using the deployed
+page. They supplied screenshots of the resulting unreviewed editor, original
+metadata, no graph warnings and no administrator attestation. The clip-end export
+and picker were available for this unreviewed draft, with no proposal selected;
+no endpoint edit was requested or needed.
+
+Independent read-only D1 verification confirms:
+
+- Original key: `Lena's Home`; retained track ID:
+  `5c22b71c-2af0-5483-8a25-821b726707e1`.
+- Draft: `3cef51f3-d20e-4790-bf8f-df2a1744365b`; fresh private version:
+  `0ca37c1b-51ed-4965-9f53-fe9e4292f004`.
+- Immutable source version: `eaed4e03-9e2d-51e7-970c-15bb894a8bbe`; source manifest
+  SHA-256: `17ad6b83aab2617f665b9427d8c9ba672040c198ae7a5d96752b8459d7897e0a`.
+- Draft, reservation and provenance have the same owner. Working metadata equals
+  the immutable source except for the fresh version ID.
+- Reservation is private/draft with no current-version pointer. This original
+  has zero review, publication and published-version rows.
+- Asset `628e2a15-5748-5b9d-b521-a2eb28fe2f42` has an `uploaded` record for
+  3,961,537 bytes, SHA-256
+  `954d31b74c8c6db4409d673b277b48c887c26d09dcf9f86cd82fc1abfa81f66b`.
+- Counts are now 1 original import, 4 drafts and 3 uploaded assets. Existing
+  reviews/publications/commits stay at 2 each, receipts at 4 and public tracks at 2.
+  Foreign-key checks return no violations.
+
+The upload record matches the expected original bytes; it is not a fresh R2 HEAD
+or download/decode of the stored object. No new cloud review package, personal
+validation, attestation, publication intent or public copy was performed by the
+agent. The existing two public smoke tests and checked-in source files were not
+modified, and no player/configuration deployment was made for this test.
+
+Next: prepare a fresh batched review package for **this exact draft**, then have
+the administrator personally run the pinned local validator and inspect the
+report. Read-only storage inspection and reload recovery can be checked too.
+Personal-run confirmation, approval rechecks/attestation and any future public
+publishing remain separate actions. Do not reuse either smoke test's old package,
+and do not recreate or archive this original reservation to retry it.
+
+This follow-up changes documentation only. No source/configuration change or new
+test run is claimed; the preceding implementation checkpoint passed 630 tests.

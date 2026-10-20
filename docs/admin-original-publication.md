@@ -1,5 +1,9 @@
 # Phase 7R: bounded first publication of imported originals
 
+Current cloud status: [Phase 7T](admin-cloud-original-rollout.md) installs the
+schema/code with original publishing and all public-write gates still disabled.
+The local-only statements below describe the historical Phase 7R checkpoint.
+
 Current local follow-up: [Phase 7S](clip-end-preparation.md) adds explicit
 preview/apply preparation of missing or overlong clip endings in unreviewed
 working metadata. The endpoint-preparation statements below describe the

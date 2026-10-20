@@ -1,5 +1,9 @@
 # Phase 7Q: identity-preserving private intake for original tracks
 
+Current cloud status: [Phase 7T](admin-cloud-original-rollout.md) deploys private
+original intake after migrations 0010–0011, with original/public publishing off.
+The local-only statements below are the historical Phase 7Q implementation record.
+
 The agreed endpoint editing helper is now implemented locally in
 [Phase 7S](clip-end-preparation.md). It changes only unreviewed working metadata
 after explicit preview/apply/save, not the pinned original intake documents.

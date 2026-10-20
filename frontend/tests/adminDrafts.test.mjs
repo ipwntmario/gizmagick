@@ -13,6 +13,7 @@ import { REVIEW_POLICY, createReviewReport } from '../../shared/draft-review.js'
 import { fileURLToPath } from 'node:url';
 import { ORIGINAL_LIBRARY } from '../../shared/original-library.js';
 import { prepareClipEnds } from '../scripts/lib/clip-end-preparation.mjs';
+import { unstable_splitSqlQuery } from 'wrangler';
 
 const owner = { id: 'access:' + 'a'.repeat(64), email: 'admin@example.com', role: 'admin' };
 const other = { ...owner, id: 'access:' + 'b'.repeat(64) };
@@ -103,7 +104,6 @@ test('original intake allowlist pins all 13 original identities and exact checke
 });
 
 test('original intake stays disabled by default, requires migration/admin and never probes either bucket', async t => {
-  assert.match(await read('../../worker/wrangler.toml'), /^GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = "false"$/m);
   const f = fixture(t), input = await originalInput();
   const noStorage = () => assert.fail('Intake must not inspect or write storage');
   f.env.GIZMAGICK_DRAFTS.head = f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = f.env.GIZMAGICK_MEDIA.head = noStorage;
@@ -370,8 +370,8 @@ test('intent-only Cloudflare rollout reserves a bounded review without enabling 
   }
 });
 
-async function copyReady(t, { count = 1, copyMigration = true, boundedReview = false, finalMigration = true } = {}) {
-  const f = fixture(t, { copyMigration, finalMigration });
+async function copyReady(t, { count = 1, copyMigration = true, boundedReview = false, finalMigration = true, originalMigration = true } = {}) {
+  const f = fixture(t, { copyMigration, finalMigration, originalMigration });
   let input = canonical();
   if (count === 129) {
     input = { requestId: crypto.randomUUID(), manifest: JSON.parse(await read('../public/tracks/Testing Time/manifest.json')) };
@@ -1806,6 +1806,76 @@ async function startedPublisher(t) {
   const { publication } = await response.json();
   return { f, ready, storage, input, publication };
 }
+
+test('original migrations preserve populated pre-original legacy and bounded publications without replaying any write', async t => {
+  const r = await finalReady(t, { boundedReview: true, originalMigration: false }), { f, ready, intent, pass } = r;
+  assert.equal((await finalRequest(f, ready.draft, finalBatch(intent, pass))).status, 200);
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+  const input = canonical(); input.manifest.track.id = crypto.randomUUID(); input.manifest.versionId = crypto.randomUUID();
+  const legacy = await readyReview(f, input); assert.equal((await legacy.attest()).status, 201);
+  f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED = 'true';
+  const started = await startPublication(f, legacy); assert.equal(started.status, 201);
+  const publication = (await started.json()).publication;
+  for (let step = 0; step < 3; step++) assert.equal((await publicationStep(f, legacy, publication.id)).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM library_tracks').get().n, 2);
+  const tables = f.sql.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
+  const rows = (name, columns) => f.sql.prepare(`SELECT ${columns.map(column => `"${column}"`).join(',')} FROM "${name}"`).all().map(row => JSON.stringify(row)).sort();
+  const before = tables.map(({ name }) => {
+    const columns = f.sql.prepare(`PRAGMA table_info("${name}")`).all().map(column => column.name);
+    return { name, columns, rows: rows(name, columns) };
+  });
+  const finalGuard = f.sql.prepare("SELECT sql FROM sqlite_master WHERE name = 'admin_bounded_final_commit_guard'").get().sql;
+  const publicObjects = [...r.storage.objects.entries()], privateObjects = [...f.objects.entries()];
+  const publicCatalog = await (await handleLibraryRequest(new Request('https://app.example.com/api/library/catalog'), f.env)).json();
+  for (const migration of migrations.slice(9)) {
+    f.sql.exec('BEGIN;');
+    try { for (const statement of unstable_splitSqlQuery(migration)) f.sql.exec(statement); f.sql.exec('COMMIT;'); }
+    catch (error) { f.sql.exec('ROLLBACK;'); throw error; }
+  }
+  for (const table of before) assert.deepEqual(rows(table.name, table.columns), table.rows, table.name);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_drafts WHERE original_legacy_key IS NOT NULL').get().n, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_original_imports').get().n, 0);
+  assert.equal(f.sql.prepare("SELECT sql FROM sqlite_master WHERE name = 'admin_bounded_final_commit_guard'").get().sql, finalGuard);
+  assert.deepEqual(f.sql.prepare('PRAGMA foreign_key_check').all(), []);
+  assert.equal(f.sql.prepare('PRAGMA integrity_check').get().integrity_check, 'ok');
+  assert.deepEqual(await (await handleLibraryRequest(new Request('https://app.example.com/api/library/catalog'), f.env)).json(), publicCatalog);
+  for (const bucket of [f.env.GIZMAGICK_DRAFTS, f.env.GIZMAGICK_MEDIA]) {
+    bucket.get = bucket.head = bucket.put = () => assert.fail('Completed status recovery must not access R2');
+  }
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) f.env[flag] = 'false';
+  const status = await intentRequest(f, ready.draft); assert.equal(status.status, 200);
+  assert.equal((await status.json()).intent.state, 'published');
+  for (const table of before) assert.deepEqual(rows(table.name, table.columns), table.rows, table.name);
+  assert.deepEqual([...r.storage.objects.entries()], publicObjects); assert.deepEqual([...f.objects.entries()], privateObjects);
+});
+
+test('authorized private original rollout exposes intake and clip-end editing but rejects every public mutation', async t => {
+  const f = fixture(t), config = await read('../../worker/wrangler.toml');
+  Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
+  assert.equal(f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED, 'true'); // Explicitly authorized private-only rollout.
+  for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
+  const noStorage = () => assert.fail('Intake/status and disabled publishers must not access either bucket');
+  for (const bucket of [f.env.GIZMAGICK_DRAFTS, f.env.GIZMAGICK_MEDIA]) bucket.head = bucket.get = bucket.put = noStorage;
+  const html = await (await f.request('/admin')).text();
+  for (const id of ['original-fields', 'metadata-editor', 'clip-ends-export', 'clip-ends-file', 'clip-ends-apply', 'package-panel', 'verification-panel']) assert(html.includes(`id="${id}"`), id);
+  for (const id of ['publication-panel', 'intent-copy', 'final-panel']) assert(!html.includes(`id="${id}"`), id);
+  const capabilities = (await (await f.request('/api/admin/session')).json()).capabilities;
+  assert.equal(capabilities.originalImports, true); assert.equal(capabilities.originalPublishing, false); assert.equal(capabilities.publishing, false);
+  const list = await f.request('/api/admin/original-imports'); assert.equal(list.status, 200);
+  assert.equal((await list.json()).originals.length, 13);
+  const imported = await importOriginal(f, await originalInput()); assert.equal(imported.status, 201);
+  const draft = await imported.json(); assert.equal(draft.originalImport.publishingSupported, false);
+  assert.equal(draft.metadataEditable, true); assert.equal(draft.review, null);
+  for (const route of ['publication-preview', 'publication', 'publication-step', 'publication-intent', 'publication-final']) {
+    const blocked = await f.request(`/api/admin/drafts/${draft.id}/${route}`, { method: 'POST', body: { publicationConfirmed: true } });
+    assert.equal(blocked.status, 409, route); assert.equal((await blocked.json()).code, 'ORIGINAL_PRIVATE_ONLY');
+  }
+  assert.equal((await (await handleLibraryRequest(new Request('https://app.example.com/api/library/catalog'), f.env)).json()).tracks[trackName], undefined);
+  for (const table of ['admin_draft_assets', 'admin_draft_reviews', 'admin_publications', 'admin_publication_objects', 'admin_publication_commits', 'library_track_versions']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0, table);
+  const count = f.sql.prepare('SELECT COUNT(*) n FROM admin_original_imports').get().n;
+  for (let attempt = 0; attempt < 2; attempt++) assert.equal((await f.request(`/api/admin/drafts/${draft.id}`)).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_original_imports').get().n, count);
+});
 
 for (const [name, flag] of [['missing', undefined], ['false', 'false'], ['uppercase', 'TRUE'], ['empty', ''], ['boolean', true], ['numeric', 1]]) {
   test(`legacy publisher fails closed with ${name} opt-in, including an existing pending intent`, async t => {

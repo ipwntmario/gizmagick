@@ -130,6 +130,8 @@ Phase 7R adds [bounded first publication for imported originals](docs/admin-orig
 
 Phase 7S adds [local measured clip-end preparation](docs/clip-end-preparation.md). In plain English: missing or overlong endings get a file-duration proposal; shorter intentional trims stay unchanged. Inspect it, explicitly apply it to unsaved private metadata, then save separately and run a fresh normal review. Unequal mode lengths and invalid musical timing cannot be silently guessed. Real UglyOnPurpose preparation and private save/review pass without modifying original source files or provenance; stale proposals/reports and locked drafts are rejected. No cloud deployment, upload, publication, schema relaxation or live-player change occurs. A separately authorized private-only rollout is next.
 
+Phase 7T completes the authorized [private-only original tooling deployment](docs/admin-cloud-original-rollout.md): migrations 0010–0011 are applied and private original intake/clip-end admin tools are deployed, while original publishing and all public writes stay off. In plain English: the tools are available, but no original track has been imported or uploaded. A fresh backup rehearsal and exact post-migration comparison preserve all 17 existing application tables; the two public smoke tests, bindings/secret presence and live player remain unchanged. All 630 tests, lint and the unchanged normal build pass. A signed-in read-only admin walkthrough is pending before a separately approved one-original private test.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

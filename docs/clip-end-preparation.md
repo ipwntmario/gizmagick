@@ -1,5 +1,9 @@
 # Phase 7S: prepare clip endings from measured audio
 
+Current cloud status: the admin controls are deployed in
+[Phase 7T](admin-cloud-original-rollout.md); the signed-in read-only walkthrough
+is pending. The local-only statements below describe the Phase 7S checkpoint.
+
 Implemented locally; **not deployed to Cloudflare**. No migration, new backend
 route, dependency or rollout flag is added. Original intake/publication and
 public-write flags remain off. The live player and checked-in tracks are unchanged.

@@ -6,7 +6,8 @@ Subsequent screenshot-assisted UI verification and a separately authorized first
 private original import are now recorded [below](#screenshot-assisted-check-and-first-private-original-import).
 The pending-walkthrough statements describe the initial deployment checkpoint.
 The first original's [private approval is now verified](#original-lenas-home-private-approval-october-28-2026);
-a separately authorized Testing Time import/upload is the next cloud test.
+the subsequent [Testing Time batched private approval](#testing-time-nine-batch-private-approval-verified)
+is also verified. Both originals remain private and unpublished.
 The administrator authorized a D1 backup, migrations 0010–0011 and Worker
 deployment with original private intake enabled, **not an actual track import**.
 Original publishing and all public-write gates must remain off.
@@ -349,3 +350,85 @@ download the package. Preserve it separately from Lena's Home's packages/reports
 The administrator must personally run the pinned local validator on that exact
 package before any personal-run confirmation or separately approved attestation.
 Do not use the single-request package/review route for this larger track.
+
+## Testing Time nine-batch private approval verified
+
+Completed October 28, 2026, Eastern. The administrator prepared the exact private
+Testing Time package through nine requests, downloaded it and personally ran the
+pinned local validator against all 129 source audio files. They confirmed exit 0,
+`valid: true`, 129 measurements and no errors. Independent local contract checks
+confirm all expected byte lengths/checksums and no graph warnings. No agent-run
+decoder result was substituted for the administrator's personal-run assertion.
+
+Read-only D1 checks corroborate nine package-preparation receipts, covering
+offsets 0–16, 16–32, 32–48, 48–64, 64–80, 80–96, 96–112, 112–128 and 128–129.
+The stored package job/snapshot match the downloaded package:
+
+- Package job: `abae004c-5f0c-44f5-98d3-3d6ed118a1ef`.
+- Draft: `608a370e-6b78-421c-848c-cf23250d1857`; private version:
+  `d70d3a75-3bad-4928-a46e-2b6fcadda464`.
+- Snapshot SHA-256:
+  `083490ec784105f029c9a8cd13c160fbd5a12d7993b0a3eec66c52f604fb92d8`.
+- Manifest SHA-256:
+  `90f3e653074234481ae533773b19d91f6d84af98faaf2eaad763a0f0f9ac49b3`.
+- Report SHA-256:
+  `3586075fc23c3f4a92bc85be8ba1e57b6f95654395c7846bd006a3f5e740fdfe`.
+
+The administrator explicitly authorized private batched approval. Initially,
+the enabled Start button produced `Failed to fetch`, displayed in the top-page
+status area rather than beside the distant button. Read-only checks found no
+saved verification pass or approval; the package was unexpired, the 50,295-byte
+report was within limits, and public Worker health returned 200. Source inspection
+and [Cloudflare's session documentation](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/#ajax)
+identified an expired Access-session
+redirect as a plausible cause, **not a confirmed network diagnosis**. No HTTP
+trace/log proved its cause, and no app/Access configuration fix was deployed.
+
+After reload/sign-in guidance, the administrator reported reaching 129/129.
+The final checkbox was initially disabled because starting a pass deliberately
+clears the earlier personal-run confirmation. The requirement to recheck that
+first checkbox was explained, then the administrator reported clicking
+**Record batched administrator attestation (keep private)**. No agent clicked
+either personal confirmation or called the attestation endpoint.
+
+Independent read-only D1 verification confirms:
+
+- Scope: `administrator-attested`, storage scope **`bounded-batches`**.
+- Verification ID: `f69e65a1-30a9-44e0-808e-99e3e7bb9330`, bound to the exact
+  package, report, snapshot and original-owner mapping above.
+- Nine approval recheck receipts, contiguous from offset 0 to 129. These are
+  separate from the earlier nine package-preparation receipts.
+- Recorded check window: epochs `1793239403` through `1793239426`.
+  Approval timestamp: `2026-10-29T02:06:33.469Z` (October 28, 10:06 p.m. Eastern).
+  The oldest file-check batch was approximately 190 seconds old at approval,
+  within the five-minute limit. The checks are separate point-in-time checks,
+  not an atomic snapshot of D1 and R2 or server-side audio decoding.
+- Original track ID/key and owner remain unchanged. Working metadata still
+  equals the pinned source except for its fresh private version ID; the review
+  is now persisted and metadata editing remains locked.
+- Reservation remains private with no current-version pointer. There are zero
+  publication intents and published-version rows for this original.
+- Totals: 4 reviews, 2 publications, 4 public copy receipts, 2 commits and
+  2 public tracks. Foreign-key checks return no violations.
+
+An initial read-only verification query encountered the previously observed
+Cloudflare 7403 account-authorization error; one identical retry succeeded.
+There was no credential change, raw database mutation, review reset, re-upload,
+new Worker/Pages deployment or public write for this checkpoint. Lena's Home's
+single-request approval and the two published smoke tests remain separate.
+
+This completes real cloud private intake/upload, batched package preparation,
+personal local validation and bounded approval for the 129-file original. It
+does **not** verify original-track public copying/catalog publication, remote
+playback/rooms or frontend cutover. Published revisions, cleanup and multi-user
+uploads remain separate work.
+
+Next: review a controlled original-publication rollout, keeping public-write
+gates off until separately authorized. Any original plan preparation/reservation,
+public exposure/copy and catalog commit need their own scope and confirmations;
+do not treat the saved private approval as permission to publish. Begin with the
+small approved original before attempting 130 public objects for Testing Time.
+
+This is a documentation/evidence checkpoint only; no full regression rerun or
+new code/configuration change is claimed. The implementation baseline remains
+the previously verified 630-test checkpoint.

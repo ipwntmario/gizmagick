@@ -279,6 +279,9 @@ Publication and player cutover remain unauthorized and disabled.
 
 ## Next multi-file private test: Testing Time
 
+Update: the authorized private import/upload is now verified below. The following
+preflight statements describe the state before the administrator submitted it.
+
 The administrator explicitly approved reserving and uploading the **original
 Testing Time privately**, not approving or publishing it and not changing
 Lena's Home. No Testing Time cloud mutation was performed for this preflight.
@@ -308,3 +311,41 @@ approval, any public copy and publication are **not yet verified** here.
 
 This checkpoint records cloud/local evidence only; it changes no application
 code, flags, schema or live frontend. No full regression rerun is claimed.
+
+## Testing Time private import and 129-file upload verified
+
+On October 28, 2026, the administrator completed the original-library import and
+selected/uploaded all 129 Oggs through the deployed private uploader. Their
+screenshot shows the original Testing Time header, zero missing files, private
+file download links and original publication disabled. `NOT server-decoded` is
+expected: intake does not claim server audio decoding.
+
+Independent read-only D1 checks confirm:
+
+- Draft: `608a370e-6b78-421c-848c-cf23250d1857`.
+- Retained original track ID/key: `7031282b-1a1f-5b39-ba9e-1415052d3aad` /
+  `Testing Time`.
+- Fresh private version: `d70d3a75-3bad-4928-a46e-2b6fcadda464`.
+- Source version/checksum match the pinned preflight snapshot above. The draft,
+  library reservation and source provenance share the same owner; working
+  metadata equals the source except for the fresh version ID.
+- All 129 expected upload records are `uploaded`, totaling 21,700,676 bytes.
+  Each expected asset ID has exactly the source's size and SHA-256, with zero
+  missing or mismatched assets. The graph retains 162 clips and 82 sections.
+- The reservation is private/draft, with no current-version pointer. There are
+  zero review, publication or published-version rows for this original.
+- Totals: 2 original imports, 5 drafts, 132 uploaded assets, 3 reviews,
+  2 publications, 4 copy receipts, 2 commits and 2 public tracks. Foreign-key
+  checks pass. The preceding Lena's Home approval/public smoke tests are retained.
+
+These checks verify the private upload records, not a fresh HEAD or full decode
+of all stored R2 objects. No review package, personal validator run, batched
+attestation or public publication for this new draft is claimed. No source,
+configuration, database schema or frontend deployment was changed for this test.
+
+Next: start/resume **batched** review-package preparation for this exact draft;
+check nine batches (up to 16 files per request) until 129/129; then finish and
+download the package. Preserve it separately from Lena's Home's packages/reports.
+The administrator must personally run the pinned local validator on that exact
+package before any personal-run confirmation or separately approved attestation.
+Do not use the single-request package/review route for this larger track.

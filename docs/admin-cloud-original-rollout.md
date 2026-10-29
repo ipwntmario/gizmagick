@@ -5,6 +5,8 @@ checks pass; the signed-in read-only admin walkthrough remains pending.
 Subsequent screenshot-assisted UI verification and a separately authorized first
 private original import are now recorded [below](#screenshot-assisted-check-and-first-private-original-import).
 The pending-walkthrough statements describe the initial deployment checkpoint.
+The first original's [private approval is now verified](#original-lenas-home-private-approval-october-28-2026);
+a separately authorized Testing Time import/upload is the next cloud test.
 The administrator authorized a D1 backup, migrations 0010–0011 and Worker
 deployment with original private intake enabled, **not an actual track import**.
 Original publishing and all public-write gates must remain off.
@@ -222,3 +224,87 @@ and do not recreate or archive this original reservation to retry it.
 
 This follow-up changes documentation only. No source/configuration change or new
 test run is claimed; the preceding implementation checkpoint passed 630 tests.
+
+## Original Lena's Home private approval: October 28, 2026
+
+The administrator downloaded the exact first package and personally ran the
+pinned validator on October 19, confirming exit 0, `valid: true` and 180 seconds.
+The agent independently checked its identity, snapshot checksum and successful
+report contract. No personal-run statement was asserted on the administrator's
+behalf. Before approval resumed on October 28, the original package was correctly
+found expired; the old report was not reused or its expiry changed.
+
+The expired-preparation refresh rejects that record, clearing the browser's local
+preparation state and leaving Restart disabled. The initially given Restart
+instruction was corrected after source inspection: **Start or resume package
+preparation** replaces an expired preparation for the same draft/audio. The
+administrator completed a fresh one-file batch and downloaded a replacement,
+then personally reran the validator and confirmed the successful measurements.
+
+Fresh package and report evidence:
+
+- Job: `a633c48d-257f-4052-8a2a-b31bc44c32ea`.
+- Package expiry: `2026-10-30T00:54:30Z` (October 29, 8:54 p.m. Eastern).
+- Draft and private version remain `3cef51f3-d20e-4790-bf8f-df2a1744365b` /
+  `0ca37c1b-51ed-4965-9f53-fe9e4292f004`.
+- Snapshot SHA-256:
+  `8c43b97f2abd13c236535180796ba2961aaa7943d32732c4848f890f569db661`.
+- Manifest SHA-256:
+  `beb2fcd462dad47979f93649b79b121d843ca9998c0d4b289b4d3bc37d8d1cb0`.
+- Report SHA-256:
+  `5a81b6982086930075824b77387b2d0492e61e2335c6ed6c204ad460feb2b767`.
+- Exact expected audio checksum/size, 180 seconds, no errors or graph warnings.
+
+The administrator explicitly authorized private approval. The planned walkthrough
+used bounded approval rechecks, but they reported clicking the single-request
+attestation button instead. Read-only D1 inspection confirms a successful
+`administrator-attested` record with **`single-request`** storage scope, approved
+at `2026-10-29T01:03:15.409Z` (October 28, 9:03 p.m. Eastern), bound to the fresh
+job/report/snapshot above. The reviewer matches the draft/reservation owner.
+There is no bounded verification pass for this original; do not relabel this
+approval or claim the original's batched approval path has been cloud-tested.
+
+This is a supported full private-storage recheck for the one-file original,
+not a failed or partial batched approval. Existing publishing-plan code accepts
+either supported review scope while preserving its actual audit. The app has no
+review undo/conversion workflow; no record was deleted, rewritten, archived or
+recreated to change scope. Metadata is now locked as reviewed. The agent made
+no attestation API call or raw database write.
+
+Subsequent read-only verification confirms the original remains private, has no
+current-version pointer, publication intent or published-version rows, and passes
+foreign-key checks. Totals are 3 reviews, 2 publications, 2 commits and 2 public
+tracks; the earlier public smoke tests remain independent and unchanged.
+Publication and player cutover remain unauthorized and disabled.
+
+## Next multi-file private test: Testing Time
+
+The administrator explicitly approved reserving and uploading the **original
+Testing Time privately**, not approving or publishing it and not changing
+Lena's Home. No Testing Time cloud mutation was performed for this preflight.
+
+A fresh full local audit succeeds for all 129 assets (21,700,676 bytes, about
+21.7 MB), 162 clips and 82 sections, with no errors or warnings. All source
+metadata/audio fingerprints match the pinned original snapshot:
+
+- Track ID: `7031282b-1a1f-5b39-ba9e-1415052d3aad`.
+- Source version: `79f945fe-8301-5c3d-8266-b9a09ba350d8`.
+- Source manifest SHA-256:
+  `468875621bfdccb9c349bd1867aa1863ccc4f3512171a3c759f861aff5b21036`.
+
+Read-only D1 queries find zero matching library identities, original imports or
+drafts by this original's ID/key. This is a point-in-time collision check, not a
+reservation or public-destination check. The authenticated intake must enforce
+collisions and bind the owner again at the actual submission.
+
+Next: the administrator selects original-library mode, Testing Time and its
+checked-in manifest, confirms the private identity reservation and uploads all
+129 referenced Oggs through the existing private uploader. If interrupted, stop
+and recover the same draft; do not create another original or archive this one.
+Verify the new draft/upload records before fresh review-package preparation and
+personal local validation. At 16 files per request, a complete package/check pass
+will require nine batches. Actual Testing Time cloud upload, private batched
+approval, any public copy and publication are **not yet verified** here.
+
+This checkpoint records cloud/local evidence only; it changes no application
+code, flags, schema or live frontend. No full regression rerun is claimed.

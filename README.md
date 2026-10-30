@@ -140,6 +140,8 @@ The subsequent [Testing Time batched private approval](docs/admin-cloud-original
 
 Phase 7U deploys [original-track planning only](docs/admin-cloud-original-planning.md), after explicit authorization. In plain English: prepare/check the approved original Lena's Home's audio-and-manifest plan, but do not reserve it or make anything public. The original workflow gate is enabled; shared/copy/final/legacy writing stays off. All 632 tests pass, including new real-audio original tests for its actual single-request review scope after package expiry. Active flags/bindings, unchanged private approvals and the unchanged two-track public catalog are verified. No original plan or public copy was created by deployment; the signed-in readiness walkthrough is next. Live-player loading remains unchanged.
 
+The subsequent [original Lena's Home readiness check and separately authorized reservation](docs/admin-cloud-original-planning.md#completed-original-lenas-home-readiness-and-reservation) are verified. In plain English: the exact approved two-file publishing plan is now saved as a lasting pending intent, not copied or published. Read-only checks confirm the unchanged plan/review/original identity, zero copy receipts/commits and a private track with no current version; both proposed public URLs return 404. Testing Time is untouched and the public catalog retains only the two smoke tests. A separately authorized copy-only rollout review is next; public copying and final publication remain off.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

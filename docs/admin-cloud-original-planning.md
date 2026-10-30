@@ -1,9 +1,10 @@
 # Phase 7U: original-track planning-only rollout
 
 Deployed October 30, 2026, Eastern, after explicit planning-only authorization.
-All local verification and cloud configuration readback pass. Signed-in readiness
-checks remain pending. This checkpoint enables **planning**, not public copying
-or catalog publication. The authorized walkthrough is the original Lena's Home only.
+All local verification and cloud configuration readback pass. The subsequently
+authorized [readiness check and private reservation](#completed-original-lenas-home-readiness-and-reservation)
+are now verified. This checkpoint enables **planning**, not public copying or
+catalog publication. The walkthrough is the original Lena's Home only.
 
 ## Plain-English rundown
 
@@ -151,3 +152,76 @@ The live player remains on its prior source. Rollback of this configuration
 means closing the original gate again, not restoring D1, deleting records,
 archiving originals or recalling public files. Existing public smoke-test files
 remain public. Any future actual public write requires separately scoped approval.
+
+## Completed original Lena's Home readiness and reservation
+
+Completed October 30, 2026, Eastern. The administrator signed in, opened the
+original Lena's Home and used the deployed intent controls to prepare/check its
+two-object plan. Their initial screenshot showed 2/2 proposed objects checked,
+the original identity/report/source hashes and an unchecked reservation box.
+Read-only D1 verification corroborated this unreserved preparation:
+
+- Preparation: `03f4e09d-e48e-4452-8d88-210a6e90ffc6`.
+- Request: `eb661c73-be61-4bfb-b99a-9012ac29b426`.
+- Plan SHA-256:
+  `9dd42a2d2cb86d7967b2b82bc71f1c597bf18fc36c403dc4e2b9113d9ae96e1a`.
+- One contiguous readiness batch covering objects 0–2 at epoch `1793389498`.
+- Exact `bounded-original-track` mapping and approved version/report, with zero
+  reserved intents. Testing Time had no preparation or publication.
+
+The lasting nature of reservation and its no-public-copy boundary were explained,
+and the administrator **separately authorized reserving this exact plan**. They
+then confirmed the private intent using the deployed page and supplied its saved
+status screenshot. The final reservation uses preparation/intent ID
+`926c9038-c0df-4450-b385-6397c47e7850`, rather than the initial unreserved ID;
+the plan SHA-256 above is unchanged. The retained final readiness batch covers
+objects 0–2 at epoch `1793390303`, with preparation expiry `1793391199`.
+No stale timestamps or audit records were modified to obtain reservation.
+
+Independent read-only D1 inspection confirms:
+
+- Intent: `926c9038-c0df-4450-b385-6397c47e7850`, state `pending`, created at
+  `2026-10-30T19:58:36.000Z` (October 30, 3:58 p.m. Eastern).
+- Workflow: `bounded-original-track`; original key `Lena's Home`.
+- Draft/track/version remain `3cef51f3-d20e-4790-bf8f-df2a1744365b` /
+  `5c22b71c-2af0-5483-8a25-821b726707e1` /
+  `0ca37c1b-51ed-4965-9f53-fe9e4292f004`.
+- Original source version/checksum and the original `single-request` review
+  report hash match the baseline. The intent, draft, library row and provenance
+  have the same owner.
+- Two planned objects, zero public-copy receipts and zero commits for this
+  intent. The original remains private with no current-version pointer.
+- Totals: 3 intent records (two earlier published tests plus this pending plan),
+  4 public-copy receipts, 2 catalog commits and 2 public tracks. Testing Time
+  still has zero publishing preparations. Foreign-key checks pass.
+
+The fixed copy targets are under
+`tracks/5c22b71c-2af0-5483-8a25-821b726707e1/versions/0ca37c1b-51ed-4965-9f53-fe9e4292f004/`:
+
+- `audio/Lena's Home.ogg`: 3,961,537 bytes, SHA-256
+  `954d31b74c8c6db4409d673b277b48c887c26d09dcf9f86cd82fc1abfa81f66b`.
+- `manifest.json`: 721 bytes, SHA-256
+  `f50d119ecee7304168da247ef0378ade25c58bc48619a4e35b8a561921763573`.
+
+Public HEAD requests to both proposed versioned URLs returned **404** (audio
+cache MISS, manifest DYNAMIC). These are point-in-time public URL observations,
+not a storage lock or future permission to overwrite. Any later copy must still
+perform its independent exact-source/destination checks and conditional PUT.
+
+The agent used only source inspection and read-only cloud/public checks for
+verification; the administrator performed the authenticated form actions. No
+session tokens were extracted, review was reset, original was archived or raw
+D1 mutation was used. No additional code/configuration deployment or public copy
+was performed after the planning-only deployment above.
+
+The original's private publishing plan is now reserved, but its audio/manifest
+are not publicly served and it is not in the public catalog. Next is reviewing a
+separately authorized copy-only rollout for these **two exact objects**, keeping
+legacy/final catalog publication disabled and Testing Time untouched. Actual
+copying makes each object public by URL even before catalog publication, so that
+public exposure must be clearly authorized before enabling/using the copy gate.
+The live player remains unchanged; final verification/catalog commit and any
+frontend cutover remain separate decisions.
+
+This follow-up is a documentation/evidence checkpoint only. No new implementation
+or regression run is claimed beyond the 632-test verified rollout above.

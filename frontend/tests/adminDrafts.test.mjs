@@ -407,7 +407,7 @@ async function finalReady(t, options = {}) {
 }
 
 const originalDecodes = new Map();
-async function reviewedOriginal(t, { name = trackName, originalPublicationMigration = true } = {}) {
+async function reviewedOriginal(t, { name = trackName, originalPublicationMigration = true, reviewScope = 'bounded-batches', expirePackageAfterApproval = false } = {}) {
   const f = fixture(t, { originalPublicationMigration }); f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = 'true';
   const input = await originalInput(name), created = await importOriginal(f, input);
   assert.equal(created.status, 201, await created.clone().text());
@@ -428,11 +428,19 @@ async function reviewedOriginal(t, { name = trackName, originalPublicationMigrat
   const decoded = await originalDecodes.get(name);
   const report = await createReviewReport(job, createProbeReport(job.snapshot.manifest, decoded));
   assert.equal(report.valid, true, JSON.stringify(report.errors));
-  const verification = (await (await verifyRequest(f, draft, undefined, verifyBegin(report))).json()).verification;
-  for (let offset = 0; offset < Object.keys(draft.manifest.assets).length; offset += 16) {
-    assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset })).status, 200);
+  if (reviewScope === 'single-request') {
+    const attested = await f.request(`/api/admin/drafts/${draft.id}/attest-review`, { method: 'POST', body: verifyBegin(report) });
+    assert.equal(attested.status, 201, await attested.clone().text());
+  } else {
+    assert.equal(reviewScope, 'bounded-batches');
+    const verification = (await (await verifyRequest(f, draft, undefined, verifyBegin(report))).json()).verification;
+    for (let offset = 0; offset < Object.keys(draft.manifest.assets).length; offset += 16) {
+      assert.equal((await verifyRequest(f, draft, 'review-verification-batch', { verificationId: verification.id, offset })).status, 200);
+    }
+    assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id))).status, 201);
   }
-  assert.equal((await verifyRequest(f, draft, 'attest-review-batched', verifyFinish(verification.id))).status, 201);
+  // Simulate time passing after a valid approval, never alter cloud audit data.
+  if (expirePackageAfterApproval) f.sql.prepare('UPDATE admin_draft_review_jobs SET expires_at = 0 WHERE draft_id = ?').run(draft.id);
   enableIntents(f);
   const storage = enablePublisher(f);
   f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED = 'false';
@@ -495,8 +503,78 @@ for (const name of [trackName, 'Testing Time']) test(`original first publication
   assert.equal(status.intent.originalImport.legacyKey, name);
 });
 
+test('authorized original planning-only rollout preserves an expired-package single-request review and blocks every public write', async t => {
+  const r = await reviewedOriginal(t, { reviewScope: 'single-request', expirePackageAfterApproval: true }), { f, ready } = r;
+  const config = await read('../../worker/wrangler.toml');
+  Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
+  assert.equal(f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED, 'true'); // Explicitly authorized planning-only rollout.
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
+  const review = f.sql.prepare('SELECT * FROM admin_draft_reviews').get();
+  const source = f.sql.prepare('SELECT * FROM admin_original_imports').get();
+  assert.equal(review.storage_check_scope, 'single-request');
+  assert.equal(f.sql.prepare('SELECT expires_at FROM admin_draft_review_jobs').get().expires_at, 0);
+  let privateHeads = 0, publicHeads = 0;
+  const head = f.env.GIZMAGICK_DRAFTS.head;
+  f.env.GIZMAGICK_DRAFTS.head = async key => { privateHeads++; return head(key); };
+  f.env.GIZMAGICK_DRAFTS.get = f.env.GIZMAGICK_DRAFTS.put = () => assert.fail('Planning must not read audio or write private files');
+  f.env.GIZMAGICK_MEDIA = { head: async () => { publicHeads++; return null; }, get: () => assert.fail('Planning must not read public audio'), put: () => assert.fail('Public writes remain disabled') };
+  const html = await (await f.request('/admin')).text();
+  assert(html.includes('id="intent-panel"'));
+  for (const id of ['publication-panel', 'intent-copy', 'final-panel']) assert(!html.includes(`id="${id}"`));
+  const detail = await (await f.request(`/api/admin/drafts/${ready.draft.id}`)).json();
+  assert.equal(detail.originalImport.publishingSupported, true); assert.equal(detail.metadataEditable, false);
+  const status = await intentRequest(f, ready.draft); assert.equal(status.status, 200);
+  assert.equal((await status.json()).intent, null); assert.equal(privateHeads + publicHeads, 0);
+  const input = intentInput(ready), prepared = await intentRequest(f, ready.draft, input);
+  assert.equal(prepared.status, 201, await prepared.clone().text());
+  const prep = (await prepared.json()).preparation; assert.equal(prep.storageCheckScope, 'single-request');
+  assert.equal(privateHeads + publicHeads, 0);
+  const premature = await intentRequest(f, ready.draft, reserveInput(prep)); assert.equal(premature.status, 409);
+  const checked = await intentRequest(f, ready.draft, { action: 'check-batch', preparationId: prep.id, offset: 0 });
+  assert.equal(checked.status, 200, await checked.clone().text());
+  assert.equal((await checked.json()).preparation.checkedObjects, 2);
+  assert.equal(privateHeads, 1); assert.equal(publicHeads, 2);
+  const reserved = await intentRequest(f, ready.draft, reserveInput(prep));
+  assert.equal(reserved.status, 201, await reserved.clone().text());
+  const result = await reserved.json(); assert.equal(result.intent.storageCheckScope, 'single-request');
+  assert.equal(result.intent.originalImport.legacyKey, trackName);
+  assert.equal(result.publicCopyEnabled, false); assert.equal(result.catalogCommitEnabled, false);
+  assert.equal(result.intent.copiedObjects, 0); assert.equal(result.intent.nextAction, null);
+  const recovered = await intentRequest(f, ready.draft); assert.equal(recovered.status, 200);
+  assert.equal((await recovered.json()).intent.id, prep.id);
+  const before = privateHeads + publicHeads;
+  assert.equal((await intentRequest(f, ready.draft, { action: 'copy-one', publicationId: prep.id,
+    expectedPlanSha256: result.intent.planSha256, ordinal: 0, publicationConfirmed: true })).status, 503);
+  assert.equal((await finalRequest(f, ready.draft, finalStart(result.intent))).status, 503);
+  assert.equal((await startPublication(f, ready)).status, 409); // Originals cannot use the legacy route.
+  assert.equal(privateHeads + publicHeads, before);
+  for (const table of ['admin_publication_objects', 'admin_publication_commits', 'library_track_versions']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  assert.equal(f.sql.prepare('SELECT visibility FROM library_tracks').get().visibility, 'private');
+  assert.equal(r.storage.objects.size, 0);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_draft_reviews').get(), review);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_original_imports').get(), source);
+  f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = 'false';
+  const locked = await intentRequest(f, ready.draft); assert.equal(locked.status, 200);
+  assert.equal((await locked.json()).intent.id, prep.id);
+});
+
+test('single-request original approval survives package expiry through fresh bounded copying and final publication locally', async t => {
+  const r = await originalFinal(t, { reviewScope: 'single-request', expirePackageAfterApproval: true }), { f, ready, intent, pass } = r;
+  const review = f.sql.prepare('SELECT * FROM admin_draft_reviews').get(), source = f.sql.prepare('SELECT * FROM admin_original_imports').get();
+  assert.equal(review.storage_check_scope, 'single-request'); assert.equal(intent.storageCheckScope, 'single-request');
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_draft_review_verifications').get().n, 0);
+  const committed = await finalRequest(f, ready.draft, finalCommit(intent, pass));
+  assert.equal(committed.status, 200, await committed.clone().text());
+  const catalog = await (await handleLibraryRequest(new Request('https://app.example.com/api/library/catalog'), f.env)).json();
+  assert.equal(catalog.tracks[trackName].id, source.track_id); assert.equal(catalog.tracks[trackName].versionId, ready.draft.manifest.versionId);
+  assert.equal(r.storage.objects.size, 2);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_draft_reviews').get(), review);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_original_imports').get(), source);
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+});
+
 test('original publication requires its own exact opt-in and migration before storage checks or writes', async t => {
-  assert.match(await read('../../worker/wrangler.toml'), /^GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = "false"$/m);
   const r = await reviewedOriginal(t);
   for (const flag of [undefined, false, 'false', 'TRUE', '']) {
     r.f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = flag;
@@ -1849,10 +1927,11 @@ test('original migrations preserve populated pre-original legacy and bounded pub
   assert.deepEqual([...r.storage.objects.entries()], publicObjects); assert.deepEqual([...f.objects.entries()], privateObjects);
 });
 
-test('authorized private original rollout exposes intake and clip-end editing but rejects every public mutation', async t => {
+test('private original intake with planning gate closed exposes editing but rejects every publication operation', async t => {
   const f = fixture(t), config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
   assert.equal(f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED, 'true'); // Explicitly authorized private-only rollout.
+  f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = 'false'; // Closed-gate compatibility; actual planning config is guarded separately.
   for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
   const noStorage = () => assert.fail('Intake/status and disabled publishers must not access either bucket');
   for (const bucket of [f.env.GIZMAGICK_DRAFTS, f.env.GIZMAGICK_MEDIA]) bucket.head = bucket.get = bucket.put = noStorage;

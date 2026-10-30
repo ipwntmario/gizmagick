@@ -28,8 +28,9 @@ GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
 # Phase 7T: authorized private intake rollout, after migrations 0010-0011.
 # Availability is not permission to reserve a track or upload the library.
 GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = "true"
-# Original publication remains off; future public writes need separate authorization.
-GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = "false"
+# Phase 7U: original plan preparation enabled; this does not enable public copies.
+# Shared/copy/final/legacy write gates below stay off. Walkthrough: Lena's Home only.
+GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = "true"
 # Migration 0003 is applied. Administrator attestations remain private only.
 GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 # Phase 7L private-only rollout: apply migrations 0005-0009 before deployment.

@@ -1,5 +1,9 @@
 # Phase 7T: private-only original-library tooling rollout
 
+Latest follow-up: [Phase 7U](admin-cloud-original-planning.md) deploys original
+planning controls after the private-review milestones below. All public-writing
+gates remain off; only the original Lena's Home readiness walkthrough is authorized.
+
 Deployed October 19, 2026, Eastern. Remote schema/configuration and public catalog
 checks pass; the signed-in read-only admin walkthrough remains pending.
 Subsequent screenshot-assisted UI verification and a separately authorized first

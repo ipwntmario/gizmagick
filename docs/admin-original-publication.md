@@ -1,5 +1,10 @@
 # Phase 7R: bounded first publication of imported originals
 
+Latest cloud status: [Phase 7U](admin-cloud-original-planning.md) enables original
+plan preparation with all public-writing gates still off. No original public
+copy or catalog publication has been performed; the statements below retain
+their historical checkpoint context.
+
 Current cloud status: [Phase 7T](admin-cloud-original-rollout.md) installs the
 schema/code with original publishing and all public-write gates still disabled.
 The local-only statements below describe the historical Phase 7R checkpoint.

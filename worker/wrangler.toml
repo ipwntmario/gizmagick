@@ -29,7 +29,7 @@ GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
 # Availability is not permission to reserve a track or upload the library.
 GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = "true"
 # Phase 7U: original plan preparation enabled; this does not enable public copies.
-# Shared/copy/final/legacy write gates below stay off. Walkthrough: Lena's Home only.
+# Phase 7V copy-only test: the existing reserved Lena's Home plan only.
 GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = "true"
 # Migration 0003 is applied. Administrator attestations remain private only.
 GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
@@ -37,20 +37,20 @@ GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 # Preparing packages or rechecking private audio never publishes a track.
 GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "true"
 GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "true"
-# Phase 7O final test completed; readiness/reservation stay enabled.
-# Public writes are disabled again; existing files/catalog entries remain public.
+# Readiness/reservation stay enabled. Phase 7V temporarily enables bounded copies.
+# Existing files/catalog entries remain public when writes are closed again.
 GIZMAGICK_PUBLICATION_INTENTS_ENABLED = "true"
-# One-object v2 copies require explicit rollout authorization and migration 0008.
-GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "false"
+# Temporarily authorized two-object original copy test. Close after verification.
+GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "true"
 # Final catalog test completed; fresh rollout authorization is required for more writes.
 GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = "false"
 # Local browser walkthrough and cloud preflight passed. Requires reviews enabled.
 GIZMAGICK_DRAFT_METADATA_ENABLED = "true"
 # Phase 7A only inspects attested drafts; it does not enable publication.
 GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = "true"
-# Phase 7O: the exact approved test is published; shared write gate closed.
-# Existing public objects remain public when writes are disabled.
-GIZMAGICK_PUBLICATION_ENABLED = "false"
+# Phase 7V: shared writes serve bounded copies only; both catalog gates stay off.
+# Close this and the copy gate after verifying the two authorized public objects.
+GIZMAGICK_PUBLICATION_ENABLED = "true"
 # Phase 7N: shared writes must not enable the old v1 catalog path.
 # Legacy publishing requires this separate explicit opt-in; leave it disabled.
 GIZMAGICK_LEGACY_PUBLICATION_ENABLED = "false"

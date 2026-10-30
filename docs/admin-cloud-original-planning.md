@@ -1,5 +1,9 @@
 # Phase 7U: original-track planning-only rollout
 
+Latest follow-up: [Phase 7V](admin-cloud-original-copy.md) temporarily enables the
+separately authorized two-object original Lena's Home copy test. Both catalog
+publishers remain disabled. The closed-copy statements below describe Phase 7U.
+
 Deployed October 30, 2026, Eastern, after explicit planning-only authorization.
 All local verification and cloud configuration readback pass. The subsequently
 authorized [readiness check and private reservation](#completed-original-lenas-home-readiness-and-reservation)

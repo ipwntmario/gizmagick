@@ -332,11 +332,13 @@ async function preparedIntent(f) {
   return { ...ready, input, preparation: (await response.json()).preparation };
 }
 
-test('intent-only Cloudflare rollout reserves a bounded review without enabling any public write', async t => {
+test('planning-only compatibility reserves a bounded review without enabling any public write', async t => {
   const f = fixture(t), config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)]
     .map(([, name, value]) => [name, value])));
   assert.equal(f.env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED, 'true');
+  // Closed-write compatibility; the active copy-only configuration is guarded separately.
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
   for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) {
     assert.equal(f.env[flag], 'false');
   }
@@ -503,11 +505,13 @@ for (const name of [trackName, 'Testing Time']) test(`original first publication
   assert.equal(status.intent.originalImport.legacyKey, name);
 });
 
-test('authorized original planning-only rollout preserves an expired-package single-request review and blocks every public write', async t => {
+test('original planning-only compatibility preserves an expired-package single-request review and blocks every public write', async t => {
   const r = await reviewedOriginal(t, { reviewScope: 'single-request', expirePackageAfterApproval: true }), { f, ready } = r;
   const config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
-  assert.equal(f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED, 'true'); // Explicitly authorized planning-only rollout.
+  assert.equal(f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED, 'true');
+  // Original planning remains safe when the shared/copy gates are closed again.
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
   for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
   const review = f.sql.prepare('SELECT * FROM admin_draft_reviews').get();
   const source = f.sql.prepare('SELECT * FROM admin_original_imports').get();
@@ -572,6 +576,50 @@ test('single-request original approval survives package expiry through fresh bou
   assert.deepEqual(f.sql.prepare('SELECT * FROM admin_original_imports').get(), source);
   assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, pass))).status, 200);
   assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
+});
+
+test('authorized original copy-only rollout recovers a lost copy response without catalog publication or review changes', async t => {
+  const r = await originalReserved(t, { reviewScope: 'single-request', expirePackageAfterApproval: true }), { f, ready, intent, storage, copy } = r;
+  const config = await read('../../worker/wrangler.toml');
+  Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
+  for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED']) assert.equal(f.env[flag], 'true');
+  for (const flag of ['GIZMAGICK_LEGACY_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) assert.equal(f.env[flag], 'false');
+  const review = f.sql.prepare('SELECT * FROM admin_draft_reviews').get(), source = f.sql.prepare('SELECT * FROM admin_original_imports').get();
+  const plan = f.sql.prepare('SELECT plan_json,plan_sha256 FROM admin_publications').get(), privateObjects = [...f.objects.entries()];
+  assert.equal(review.storage_check_scope, 'single-request');
+  const html = await (await f.request('/admin')).text();
+  assert(html.includes('id="intent-copy"')); assert(html.includes('id="intent-copy-confirm"'));
+  for (const id of ['publication-panel', 'final-panel']) assert(!html.includes(`id="${id}"`));
+  const status = await intentRequest(f, ready.draft); assert.equal(status.status, 200);
+  assert.equal((await status.json()).intent.copiedObjects, 0); assert.equal(storage.objects.size, 0);
+  storage.hooks.afterPut = () => { throw new Error('Local fixture: lost successful PUT response'); };
+  assert.equal((await copy(0)).status, 503);
+  assert.equal(storage.objects.size, 1); assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 0);
+  storage.hooks.afterPut = undefined;
+  const recovered = await intentRequest(f, ready.draft); assert.equal(recovered.status, 200);
+  assert.equal((await recovered.json()).intent.copiedObjects, 0); // Status never invents a receipt or replays a copy.
+  assert.equal((await copy(0)).status, 200); assert.equal(storage.objects.size, 1);
+  assert.equal((await copy(0)).status, 200); assert.equal(storage.objects.size, 1); // Exact retry cannot copy the manifest.
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 1);
+  assert.equal((await copy(1)).status, 200); assert.equal(storage.objects.size, 2);
+  assert.equal((await copy(1)).status, 200); assert.equal(storage.objects.size, 2);
+  const done = await (await intentRequest(f, ready.draft)).json();
+  assert.equal(done.intent.copiedObjects, 2); assert.equal(done.intent.nextAction, null);
+  assert.equal(done.intent.state, 'pending'); assert.equal(done.catalogCommitEnabled, false);
+  assert.equal(done.intent.originalImport.legacyKey, trackName);
+  assert.equal((await startPublication(f, ready)).status, 409);
+  for (const input of [finalStart(intent), finalCommit(intent, { id: crypto.randomUUID() })]) assert.equal((await finalRequest(f, ready.draft, input)).status, 503);
+  for (const table of ['admin_publication_commits', 'admin_publication_final_passes', 'library_track_versions']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  assert.equal(f.sql.prepare('SELECT visibility FROM library_tracks').get().visibility, 'private');
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_draft_reviews').get(), review);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM admin_original_imports').get(), source);
+  assert.deepEqual(f.sql.prepare('SELECT plan_json,plan_sha256 FROM admin_publications').get(), plan);
+  assert.deepEqual([...f.objects.entries()], privateObjects);
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
+  for (const bucket of [f.env.GIZMAGICK_DRAFTS, f.env.GIZMAGICK_MEDIA]) bucket.head = bucket.get = bucket.put = () => assert.fail('Disabled status recovery must not access R2');
+  const locked = await intentRequest(f, ready.draft); assert.equal(locked.status, 200);
+  assert.equal((await locked.json()).intent.copiedObjects, 2);
+  assert.equal((await copy(1)).status, 503);
 });
 
 test('original publication requires its own exact opt-in and migration before storage checks or writes', async t => {
@@ -721,6 +769,7 @@ test('proposed final rollout recovers saved bounded copies and publishes only af
   // Production writes are disabled again after the authorized final test.
   // Exercise recovery and the explicit final-enabled configuration in isolated storage.
   Object.assign(f.env, deployedFlags);
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false'; // Closed-write recovery fixture.
   for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) {
     assert.equal(f.env[flag], 'false');
   }
@@ -778,6 +827,7 @@ test('proposed final rollout recovers saved bounded copies and publishes only af
   assert.equal(storage.objects.size, 2);
 
   Object.assign(f.env, deployedFlags);
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false'; // Closed-write post-publication recovery.
   const recovered = await (await intentRequest(f, ready.draft)).json();
   assert.equal(recovered.intent.state, 'published'); assert.equal(recovered.intent.copiedObjects, 2);
   assert.equal(recovered.publicCopyEnabled, false); assert.equal(recovered.intent.nextAction, null);
@@ -1932,6 +1982,7 @@ test('private original intake with planning gate closed exposes editing but reje
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
   assert.equal(f.env.GIZMAGICK_ORIGINAL_IMPORTS_ENABLED, 'true'); // Explicitly authorized private-only rollout.
   f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = 'false'; // Closed-gate compatibility; actual planning config is guarded separately.
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
   for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
   const noStorage = () => assert.fail('Intake/status and disabled publishers must not access either bucket');
   for (const bucket of [f.env.GIZMAGICK_DRAFTS, f.env.GIZMAGICK_MEDIA]) bucket.head = bucket.get = bucket.put = noStorage;

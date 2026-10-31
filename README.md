@@ -148,6 +148,8 @@ Phase 7W completes the [authorized original Lena's Home catalog publication](doc
 
 Phase 7X completes [Testing Time's private readiness and reservation](docs/admin-cloud-testing-time-planning.md#completed-readiness-and-immutable-reservation). In plain English: nine fresh batches checked its proposed publishing plan, and the exact 129-audio-plus-manifest plan is now saved. Read-only verification matches the plan checksum, all 130 unique version-bound destinations, unchanged approval/source/owner and private version, with zero copies/commits/published versions. Four focused preflight tests pass. Public-write gates stay off; no deployment or live-player change occurred. Public copying is next, followed separately by final catalog checks/publication. All three published catalog entries remain unchanged.
 
+Phase 7Y deploys [Testing Time's authorized copy-only rollout](docs/admin-cloud-testing-time-copy.md). In plain English: permit copying its saved 129 audio files and manifest publicly by URL, one confirmed object per click, while both catalog publishers stay disabled. All 635 tests, frontend/Worker lint and the unchanged player build pass, including a real-audio 130-copy/retry/resume scenario with unchanged private approval/source/plan. Active settings/bindings and the original pending 0/130 plan are verified; no files were copied by deployment. Actual copying, all-object verification and closing shared/copy writes remain next. Existing catalog entries and live playback are unchanged.
+
 `frontend/public/trackData.json` contains a `tracks` object keyed by track name. Each entry names its `basePath`, `firstSection`, `simple` flag, and optional display name/test flag.
 
 Each track folder contains:

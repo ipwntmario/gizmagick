@@ -337,7 +337,7 @@ test('planning-only compatibility reserves a bounded review without enabling any
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)]
     .map(([, name, value]) => [name, value])));
   assert.equal(f.env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED, 'true');
-  // Closed-write compatibility; the active final configuration is guarded separately.
+  // Closed-write compatibility; the active rollout configuration is guarded separately.
   f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'false';
   for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) {
     assert.equal(f.env[flag], 'false');
@@ -583,7 +583,7 @@ test('original copy-only compatibility recovers lost copy responses without enab
   const config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
   assert.equal(f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED, 'true');
-  // Historical closed-write compatibility; the active final rollout is guarded separately.
+  // Historical closed-write compatibility; the active rollout is guarded separately.
   f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'false';
   for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) assert.equal(f.env[flag], 'false');
   // Exercise the formerly authorized copy-only mode only in isolated storage.
@@ -626,15 +626,17 @@ test('original copy-only compatibility recovers lost copy responses without enab
   assert.equal((await copy(1)).status, 503);
 });
 
-test('completed original final rollout guards closed production writes and publishes reviewed copies only in isolation', async t => {
+test('completed original final compatibility publishes reviewed copies only in isolated final-enabled storage', async t => {
   const { f, ready, intent, storage, copy, source } = await originalReserved(t, { reviewScope: 'single-request', expirePackageAfterApproval: true });
   for (let ordinal = 0; ordinal < intent.totalObjects; ordinal++) assert.equal((await copy(ordinal)).status, 200);
   const config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
   assert.equal(f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED, 'true');
+  // Historical closed-write compatibility; Testing Time's active copy-only
+  // production configuration is guarded by its own real-audio rollout scenario.
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
   for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
-  // Cloud publication is complete. Preserve the production guard above and
-  // exercise the final-enabled workflow only in isolated fixture storage.
+  // Exercise the final-enabled workflow only in isolated fixture storage.
   f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'true';
   const before = {};
   for (const table of ['admin_draft_reviews', 'admin_original_imports', 'admin_publication_objects']) before[table] = f.sql.prepare(`SELECT * FROM ${table}`).all();
@@ -680,6 +682,48 @@ test('completed original final rollout guards closed production writes and publi
   assert.equal(catalog.tracks[trackName].id, source.track.id); assert.equal(catalog.tracks[trackName].versionId, intent.versionId);
   assert.equal(catalog.tracks[intent.trackId], undefined);
   assert.equal(f.sql.prepare('SELECT current_version_id FROM library_tracks').get().current_version_id, intent.versionId);
+});
+
+test('authorized Testing Time copy-only rollout preserves its bounded review through 130 confirmed copies and recovery', async t => {
+  const { f, ready, intent, storage, copy } = await originalReserved(t, { name: 'Testing Time', expirePackageAfterApproval: true });
+  const config = await read('../../worker/wrangler.toml');
+  Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
+  for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED']) assert.equal(f.env[flag], 'true');
+  for (const flag of ['GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
+  assert.equal(intent.totalObjects, 130); assert.equal(intent.originalImport.legacyKey, 'Testing Time');
+  const before = {};
+  for (const table of ['admin_draft_reviews', 'admin_original_imports']) before[table] = f.sql.prepare(`SELECT * FROM ${table}`).all();
+  assert.equal(before.admin_draft_reviews[0].storage_check_scope, 'bounded-batches');
+  const plan = f.sql.prepare('SELECT plan_json,plan_sha256 FROM admin_publications').get(), privateObjects = [...f.objects.entries()];
+  const objects = JSON.parse(plan.plan_json).objects;
+  assert.equal(objects[129].kind, 'manifest');
+  const html = await (await f.request('/admin')).text();
+  assert(html.includes('id="intent-copy"')); assert(!html.includes('id="final-panel"')); assert(!html.includes('id="publication-panel"'));
+  assert.equal((await copy(129)).status, 409); assert.equal(storage.objects.size, 0);
+  for (let ordinal = 0; ordinal < 130; ordinal++) {
+    const response = await copy(ordinal); assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(storage.objects.size, ordinal + 1);
+    assert.equal((await copy(ordinal)).status, 200); assert.equal(storage.objects.size, ordinal + 1);
+    if (ordinal === 15 || ordinal === 128 || ordinal === 129) {
+      const refreshed = await (await intentRequest(f, ready.draft)).json();
+      assert.equal(refreshed.intent.copiedObjects, ordinal + 1); assert.equal(refreshed.intent.state, 'pending');
+      assert.equal(refreshed.catalogCommitEnabled, false);
+    }
+    if (ordinal < 129) assert(!storage.objects.has(objects[129].key));
+  }
+  assert.equal((await startPublication(f, ready)).status, 409);
+  assert.equal((await finalRequest(f, ready.draft, finalStart(intent))).status, 503);
+  assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, { id: crypto.randomUUID() }))).status, 503);
+  for (const table of ['admin_publication_commits', 'admin_publication_final_passes', 'library_track_versions']) assert.equal(f.sql.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
+  assert.equal(f.sql.prepare('SELECT visibility FROM library_tracks').get().visibility, 'private');
+  for (const table of Object.keys(before)) assert.deepEqual(f.sql.prepare(`SELECT * FROM ${table}`).all(), before[table]);
+  assert.deepEqual(f.sql.prepare('SELECT plan_json,plan_sha256 FROM admin_publications').get(), plan);
+  assert.deepEqual([...f.objects.entries()], privateObjects);
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'false';
+  for (const bucket of [f.env.GIZMAGICK_DRAFTS, f.env.GIZMAGICK_MEDIA]) bucket.head = bucket.get = bucket.put = () => assert.fail('Closed-write status recovery must not access R2');
+  const closed = await (await intentRequest(f, ready.draft)).json();
+  assert.equal(closed.intent.copiedObjects, 130); assert.equal(closed.intent.nextAction, null); assert.equal(closed.publicCopyEnabled, false);
+  assert.equal((await copy(129)).status, 503);
 });
 
 test('original publication requires its own exact opt-in and migration before storage checks or writes', async t => {
@@ -772,7 +816,7 @@ test('proposed copy-only rollout copies a bounded review but disables both catal
   const config = await read('../../worker/wrangler.toml');
   const deployedFlags = Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+_ENABLED)\s*=\s*"([^"]*)"/gm)]
     .map(([, name, value]) => [name, value]));
-  // Historical copy-only configuration, independent of the active final rollout.
+  // Historical copy-only configuration, independent of the active rollout.
   Object.assign(f.env, deployedFlags, { GIZMAGICK_PUBLICATION_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED: 'true', GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED: 'false' });
   assert.equal(f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED, 'false');
   assert.equal(f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED, 'false');

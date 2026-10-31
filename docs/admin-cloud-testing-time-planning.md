@@ -1,5 +1,9 @@
 # Phase 7X: Testing Time readiness and reservation
 
+Follow-up: [Phase 7Y](admin-cloud-testing-time-copy.md) deploys the separately
+authorized copy-only rollout. The disabled-copy statements below describe the
+completed readiness/reservation checkpoint.
+
 The administrator requested proceeding with Testing Time's larger publishing
 workflow after original Lena's Home publication. The administrator has completed
 all nine cloud readiness batches and reserved the exact approved plan. Screenshot

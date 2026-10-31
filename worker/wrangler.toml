@@ -37,20 +37,20 @@ GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 # Preparing packages or rechecking private audio never publishes a track.
 GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "true"
 GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "true"
-# Readiness/reservation stay enabled. Phase 7W public writes are closed again.
+# Readiness/reservation stay enabled. Phase 7Y temporarily permits Testing Time copies.
 # Existing files/catalog entries remain public when writes are disabled.
 GIZMAGICK_PUBLICATION_INTENTS_ENABLED = "true"
-# Phase 7W: existing public copies verified; new copying closed again.
-GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "false"
+# Phase 7Y: authorized Testing Time reserved plan only; close after verification.
+GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "true"
 # Original Lena's Home catalog publication verified; final writes closed again.
 GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = "false"
 # Local browser walkthrough and cloud preflight passed. Requires reviews enabled.
 GIZMAGICK_DRAFT_METADATA_ENABLED = "true"
 # Phase 7A only inspects attested drafts; it does not enable publication.
 GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = "true"
-# Phase 7W complete: shared/copy/final closed again; legacy stayed off throughout.
-# Existing public files and catalog entries remain available.
-GIZMAGICK_PUBLICATION_ENABLED = "false"
+# Phase 7Y: shared/copy temporarily enabled; both catalog publishers stay off.
+# Close shared/copy after verifying Testing Time's 130 authorized public objects.
+GIZMAGICK_PUBLICATION_ENABLED = "true"
 # Phase 7N: shared writes must not enable the old v1 catalog path.
 # Legacy publishing requires this separate explicit opt-in; leave it disabled.
 GIZMAGICK_LEGACY_PUBLICATION_ENABLED = "false"

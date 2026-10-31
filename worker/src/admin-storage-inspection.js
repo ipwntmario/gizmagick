@@ -2,6 +2,7 @@ import checkStructure from './generated/manifest-validator.js';
 import { validateManifestWithStructure } from '../../shared/track-manifest.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 import { DraftError, DRAFT_LIMITS } from './admin-drafts.js';
+import { calculateJsonOnce } from './admin-json-cache.js';
 
 export const STORAGE_INSPECTION_BATCH_SIZE = 16;
 const fail = (status, code, message) => { throw new DraftError(status, code, message); };
@@ -11,12 +12,16 @@ const hashPattern = /^[a-f0-9]{64}$/;
 export async function allocationSnapshot(env, row) {
   if (row.status !== 'draft') fail(409, 'INSPECTION_ARCHIVED', 'Only active drafts can be inspected.');
   if (new TextEncoder().encode(row.manifest_json).length > DRAFT_LIMITS.metadataBytes) fail(409, 'INSPECTION_METADATA', 'Draft metadata exceeds the inspection limit.');
-  let manifest;
-  try { manifest = JSON.parse(row.manifest_json); } catch { fail(409, 'INSPECTION_METADATA', 'Draft metadata is invalid.'); }
-  if (!validateManifestWithStructure(manifest, checkStructure).valid
-      || Object.keys(manifest.assets).length > DRAFT_LIMITS.assets
-      || Object.keys(manifest.clips).length > DRAFT_LIMITS.clips
-      || Object.keys(manifest.sections).length > DRAFT_LIMITS.sections) fail(409, 'INSPECTION_METADATA', 'Draft metadata no longer passes validation.');
+  const document = await calculateJsonOnce(['allocation-manifest-v1', row.manifest_json], async () => {
+    let manifest;
+    try { manifest = JSON.parse(row.manifest_json); } catch { fail(409, 'INSPECTION_METADATA', 'Draft metadata is invalid.'); }
+    if (!validateManifestWithStructure(manifest, checkStructure).valid
+        || Object.keys(manifest.assets).length > DRAFT_LIMITS.assets
+        || Object.keys(manifest.clips).length > DRAFT_LIMITS.clips
+        || Object.keys(manifest.sections).length > DRAFT_LIMITS.sections) fail(409, 'INSPECTION_METADATA', 'Draft metadata no longer passes validation.');
+    return { manifest, manifestSha256: await jsonSha256(manifest) };
+  });
+  const { manifest, manifestSha256 } = document;
   const { results } = await env.GIZMAGICK_DB.prepare('SELECT * FROM admin_draft_assets WHERE draft_id = ? ORDER BY asset_id LIMIT ?')
     .bind(row.id, DRAFT_LIMITS.assets + 1).all();
   if (results.length !== Object.keys(manifest.assets).length || results.some(asset => {
@@ -29,7 +34,7 @@ export async function allocationSnapshot(env, row) {
   })) fail(409, 'INSPECTION_INCOMPLETE', 'Every referenced file must have a complete, matching private upload allocation.');
   const assets = results.map(asset => ({ assetId: asset.asset_id, path: manifest.assets[asset.asset_id].path,
     objectKey: asset.object_key, byteLength: asset.byte_length, sha256: asset.sha256, state: asset.state }));
-  return { manifest, assets, sha256: await jsonSha256({ draftId: row.id, manifest, assets }) };
+  return { manifest, manifestSha256, assets, sha256: await jsonSha256({ draftId: row.id, manifest, assets }) };
 }
 
 export async function inspectPrivateStorage(request, env, principal, row) {

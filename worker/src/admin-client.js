@@ -313,10 +313,20 @@ export function adminClient(calculateClipEndChanges) {
   };
   async function api(path, method = 'GET', body) {
     const response = await fetch(path, { method, credentials: 'same-origin', cache: 'no-store', headers: {
+      'X-Requested-With': 'XMLHttpRequest',
       ...(method !== 'GET' ? { 'X-Gizmagick-Admin-Request': '1' } : {}),
       ...(body ? { 'Content-Type': body instanceof File ? 'application/octet-stream' : 'application/json' } : {}),
     }, body });
-    if (response.redirected || !response.headers.get('Content-Type')?.includes('application/json')) throw new Error('Your session may have expired. Reload and sign in again.');
+    const json = response.headers.get('Content-Type')?.toLowerCase().includes('application/json');
+    const ray = response.headers.get('CF-Ray');
+    const diagnostic = typeof ray === 'string' && /^[a-z0-9-]{1,80}$/i.test(ray) ? ` Cloudflare reference: ${ray}.` : '';
+    if (response.status === 429) {
+      const retry = response.headers.get('Retry-After');
+      const wait = typeof retry === 'string' && /^\d{1,6}$/.test(retry) ? ` Wait at least ${Number(retry)} seconds.` : ' Wait before trying again.';
+      throw new Error(`The server is limiting requests (HTTP 429).${wait}${diagnostic}`);
+    }
+    if (response.redirected || response.status === 401) throw new Error(`Your session may have expired. Reload and sign in again.${diagnostic}`);
+    if (!json) throw new Error(`The server returned an unexpected response (HTTP ${response.status}).${diagnostic} This does not confirm an expired session.`);
     const result = await response.json();
     if (!response.ok) throw Object.assign(new Error(`${result.error || 'Request failed'}${result.details ? '\n' + result.details.map(item => item.path + ': ' + item.message).join('\n') : ''}`), { code: result.code });
     return result;

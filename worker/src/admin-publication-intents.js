@@ -7,6 +7,7 @@ import { allocationSnapshot, inspectAllocationAssets } from './admin-storage-ins
 import { publicationPreflightEnabled } from './admin-publication-preview.js';
 import { originalPublicationEnabled, publicationIdentity } from './admin-original-publication.js';
 import { copyOne, publishingEnabled, PUBLICATION_LIMITS } from './admin-publications.js';
+import { calculateJsonOnce } from './admin-json-cache.js';
 
 export const publicationIntentsEnabled = env => publicationPreflightEnabled(env) && env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED === 'true';
 export const boundedCopyEnabled = env => publicationIntentsEnabled(env) && publishingEnabled(env) && env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED === 'true';
@@ -29,10 +30,17 @@ export async function reviewedIntentPlan(env, principal, row) {
   if (!job || new TextEncoder().encode(job.snapshot_json).length > REVIEW_PACKAGE_BYTES
       || new TextEncoder().encode(review.report_json).length > REVIEW_REPORT_BYTES
       || new TextEncoder().encode(review.candidate_json).length > REVIEW_PACKAGE_BYTES) fail(409, 'INTENT_REVIEW', 'The bounded review record is missing or too large.');
-  const allocation = await allocationSnapshot(env, row), snapshot = JSON.parse(job.snapshot_json), report = JSON.parse(review.report_json);
-  if (!snapshot || snapshot.draftId !== row.id || await jsonSha256(snapshot) !== job.snapshot_sha256
-      || job.snapshot_sha256 !== review.snapshot_sha256 || await jsonSha256(snapshot.manifest) !== review.manifest_sha256
-      || await jsonSha256(allocation.manifest) !== review.manifest_sha256 || await jsonSha256(report) !== review.report_sha256
+  const allocation = await allocationSnapshot(env, row);
+  const documents = await calculateJsonOnce(['review-documents-v1', job.id, job.snapshot_sha256, job.snapshot_json, review.report_json, review.candidate_json], async () => {
+    const snapshot = JSON.parse(job.snapshot_json), report = JSON.parse(review.report_json);
+    const checked = await checkReviewReport({ jobId: job.id, snapshotSha256: job.snapshot_sha256, snapshot }, report, validate);
+    return { snapshot, checked, snapshotHash: await jsonSha256(snapshot), manifestHash: await jsonSha256(snapshot.manifest),
+      reportHash: await jsonSha256(report), candidateMatches: checked.valid && await jsonSha256(checked.candidate) === await jsonSha256(JSON.parse(review.candidate_json)) };
+  });
+  const { snapshot, checked } = documents;
+  if (!snapshot || snapshot.draftId !== row.id || documents.snapshotHash !== job.snapshot_sha256
+      || job.snapshot_sha256 !== review.snapshot_sha256 || documents.manifestHash !== review.manifest_sha256
+      || allocation.manifestSha256 !== review.manifest_sha256 || documents.reportHash !== review.report_sha256
       || !Array.isArray(snapshot.assets) || snapshot.assets.length !== allocation.assets.length
       || snapshot.assets.some((source, index) => {
         const asset = allocation.assets[index];
@@ -56,22 +64,28 @@ export async function reviewedIntentPlan(env, principal, row) {
         || Math.max(...checks.map(check => check.checked_at)) !== review.storage_checked_until) fail(409, 'INTENT_REVIEW', 'The recorded separate-batch review evidence is incomplete or inconsistent.');
     storageAudit = { verificationId: verification.id, checkedFrom: review.storage_checked_from, checkedUntil: review.storage_checked_until };
   }
-  const checked = await checkReviewReport({ jobId: job.id, snapshotSha256: job.snapshot_sha256, snapshot }, report, validate);
-  if (!checked.valid || await jsonSha256(checked.candidate) !== await jsonSha256(JSON.parse(review.candidate_json))) fail(409, 'INTENT_REVIEW', 'The exact measured review candidate could not be reconstructed.');
-  const candidate = checked.candidate, location = libraryVersionLocation(env.GIZMAGICK_MEDIA_BASE_URL, candidate.track.id, candidate.versionId);
-  const objects = [...Object.entries(candidate.assets).map(([assetId, asset]) => ({ kind: 'audio', assetId,
-    key: `${location.prefix}/${asset.path}`, byteLength: asset.byteLength, sha256: asset.sha256 })),
-  { kind: 'manifest', key: location.manifestKey, byteLength: new TextEncoder().encode(JSON.stringify(candidate)).length, sha256: await jsonSha256(candidate) }];
+  if (!checked.valid || !documents.candidateMatches) fail(409, 'INTENT_REVIEW', 'The exact measured review candidate could not be reconstructed.');
+  const candidate = checked.candidate, mediaBase = normalizeMediaBase(env.GIZMAGICK_MEDIA_BASE_URL);
   const originalImport = await publicationIdentity(env, principal, row, candidate);
-  const plan = { planVersion: 2, workflow: originalImport ? 'bounded-original-track' : 'bounded-new-track',
-    ...(originalImport ? { originalImport } : {}), draftId: row.id, ownerId: principal.id,
-    mediaBase: normalizeMediaBase(env.GIZMAGICK_MEDIA_BASE_URL), manifestJson: row.manifest_json, candidate,
-    candidateJson: review.candidate_json, snapshotJson: job.snapshot_json, reportJson: review.report_json, sources: snapshot.assets,
-    review: { jobId: review.job_id, policy: review.policy, scope: review.scope, snapshotSha256: review.snapshot_sha256,
-      reportSha256: review.report_sha256, manifestSha256: review.manifest_sha256, storageCheckScope: scope, storageAudit },
-    objects, warnings: checked.warnings.slice(0, 30) };
-  if (new TextEncoder().encode(JSON.stringify(plan)).length > INTENT_LIMITS.planBytes) fail(413, 'INTENT_SIZE', 'The publication plan exceeds its metadata limit.');
-  return { plan, planHash: await jsonSha256(plan), allocation };
+  const reviewIdentity = { jobId: review.job_id, policy: review.policy, scope: review.scope, snapshotSha256: review.snapshot_sha256,
+    reportSha256: review.report_sha256, manifestSha256: review.manifest_sha256, storageCheckScope: scope, storageAudit };
+  // All mutable authority and allocation/audit checks above still run per request.
+  // Only assembly/hashing of an exactly identical JSON plan is reusable.
+  const assembled = await calculateJsonOnce(['reviewed-plan-v1', row.id, principal.id, mediaBase, row.manifest_json,
+    review.candidate_json, job.snapshot_json, review.report_json, JSON.stringify(reviewIdentity), JSON.stringify(originalImport)], async () => {
+    const location = libraryVersionLocation(mediaBase, candidate.track.id, candidate.versionId);
+    const objects = [...Object.entries(candidate.assets).map(([assetId, asset]) => ({ kind: 'audio', assetId,
+      key: `${location.prefix}/${asset.path}`, byteLength: asset.byteLength, sha256: asset.sha256 })),
+    { kind: 'manifest', key: location.manifestKey, byteLength: new TextEncoder().encode(JSON.stringify(candidate)).length, sha256: await jsonSha256(candidate) }];
+    const plan = { planVersion: 2, workflow: originalImport ? 'bounded-original-track' : 'bounded-new-track',
+      ...(originalImport ? { originalImport } : {}), draftId: row.id, ownerId: principal.id,
+      mediaBase, manifestJson: row.manifest_json, candidate, candidateJson: review.candidate_json,
+      snapshotJson: job.snapshot_json, reportJson: review.report_json, sources: snapshot.assets,
+      review: reviewIdentity, objects, warnings: checked.warnings.slice(0, 30) };
+    if (new TextEncoder().encode(JSON.stringify(plan)).length > INTENT_LIMITS.planBytes) fail(413, 'INTENT_SIZE', 'The publication plan exceeds its metadata limit.');
+    return { plan, planHash: await jsonSha256(plan) };
+  });
+  return { ...assembled, allocation };
 }
 
 // Same database predicates fence preparation/batch/intent writes. No storage
@@ -109,9 +123,13 @@ async function batchesFor(env, prep) {
   return { end, results, recent: results.every(batch => batch.recent) };
 }
 export async function checkedStored(prep) {
-  if (new TextEncoder().encode(prep.plan_json).length > INTENT_LIMITS.planBytes) fail(409, 'INTENT_PLAN', 'Stored plan exceeds its limit.');
-  const plan = JSON.parse(prep.plan_json);
-  if (await jsonSha256(plan) !== prep.plan_sha256 || plan.planVersion !== 2 || plan.draftId !== prep.draft_id || plan.ownerId !== prep.owner_id
+  const stored = await calculateJsonOnce(['stored-intent-v1', prep.plan_json], async () => {
+    if (new TextEncoder().encode(prep.plan_json).length > INTENT_LIMITS.planBytes) fail(409, 'INTENT_PLAN', 'Stored plan exceeds its limit.');
+    const plan = JSON.parse(prep.plan_json);
+    return { plan, hash: await jsonSha256(plan) };
+  });
+  const { plan } = stored;
+  if (stored.hash !== prep.plan_sha256 || plan.planVersion !== 2 || plan.draftId !== prep.draft_id || plan.ownerId !== prep.owner_id
       || !['bounded-new-track', 'bounded-original-track'].includes(plan.workflow)
       || (plan.workflow === 'bounded-new-track' ? Object.hasOwn(plan, 'originalImport')
         : !plan.originalImport || Object.keys(plan.originalImport).sort().join(',') !== 'legacyKey,sourceManifestSha256,sourceVersionId'

@@ -2,6 +2,7 @@ import { ORIGINAL_LIBRARY } from '../../shared/original-library.js';
 import { jsonSha256 } from '../../shared/draft-review.js';
 import { DraftError } from './admin-drafts.js';
 import { requireNewLibraryIdentity } from './admin-publication-preview.js';
+import { calculateJsonOnce } from './admin-json-cache.js';
 
 export const originalPublicationEnabled = env => env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED === 'true';
 const fail = (status, code, message) => { throw new DraftError(status, code, message); };
@@ -21,7 +22,7 @@ export async function publicationIdentity(env, principal, row, candidate) {
       || identity.track_id !== candidate.track.id || pinned.trackId !== candidate.track.id
       || identity.legacy_key !== row.original_legacy_key || identity.source_version_id !== pinned.sourceVersionId
       || identity.source_manifest_sha256 !== pinned.sourceManifestSha256
-      || await jsonSha256(JSON.parse(identity.source_manifest_json)) !== pinned.sourceManifestSha256) {
+      || await calculateJsonOnce(['original-source-hash-v1', identity.source_manifest_json], () => jsonSha256(JSON.parse(identity.source_manifest_json))) !== pinned.sourceManifestSha256) {
     fail(409, 'ORIGINAL_PUBLICATION_IDENTITY', 'Original source, owner/key mapping or private unpublished identity no longer matches. Existing published tracks cannot be revised here.');
   }
   return originalMapping(identity);

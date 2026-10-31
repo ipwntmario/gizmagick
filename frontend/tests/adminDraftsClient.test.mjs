@@ -6,7 +6,7 @@ import { jsonSha256 } from '../../shared/draft-review.js';
 import { calculateClipEndChanges } from '../../shared/clip-end-preparation.js';
 
 function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = false, batchPackages = false, packageReply, packageConfirm = false,
-  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false, originalImports = false, originalReply, originalPublication = false } = {}) {
+  batchReview = false, verificationReply, verificationSessionExpired = false, intents = false, intentReply, copies = false, finalizing = false, finalReply, recentDraft = false, originalImports = false, originalReply, originalPublication = false, responseOverride } = {}) {
   const elements = new Map(), calls = [], downloads = [], createdNodes = [];
   let preparation = null;
   let verification = null;
@@ -52,6 +52,8 @@ function fixture({ assetCount = 1, inspectionReply, inspectionSessionExpired = f
     URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:local-test'; }, revokeObjectURL() {} }, setTimeout: callback => callback(),
     fetch: async (path, options) => {
       calls.push({ path, options });
+      const override = await responseOverride?.(path, options);
+      if (override) return override;
       let result = path === '/api/admin/drafts' && options.method === 'GET' ? { drafts: recentDraft ? [{ id: draft.id, title: draft.title, status: draft.status }] : [] } : structuredClone(draft);
       if (path === '/api/admin/original-imports') {
         const body = JSON.parse(options.body);
@@ -433,6 +435,31 @@ test('bounded copy UI requires separate fresh confirmation for every exact ordin
   }
   assert(f.element('intent-state').textContent.includes('Catalog continuation is locked'));
   assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'copy-one').length, 2);
+});
+
+for (const status of [429, 503, 401, 403]) test(`HTTP ${status} copy failure reports its cause and keeps recovery read-only`, async () => {
+  let interrupt = true;
+  const f = fixture({ intents: true, copies: true, responseOverride: (path, options) => {
+    if (!interrupt || !path.endsWith('/publication-intent') || !options.body || JSON.parse(options.body).action !== 'copy-one') return;
+    return { status, ok: false, redirected: false, headers: { get: name => ({ 'Content-Type': 'text/html', 'CF-Ray': '123abc-IAD', 'Retry-After': '60' })[name] },
+      json: () => assert.fail('HTML failures must not be parsed as JSON') };
+  } });
+  await reserveClientIntent(f);
+  f.element('intent-copy-confirm').checked = true; await f.element('intent-copy').listeners.get('click')();
+  const message = f.element('status').textContent;
+  assert(message.includes('123abc-IAD'));
+  if (status === 401) assert(message.includes('session may have expired'));
+  else { assert(message.includes(`HTTP ${status}`)); assert(!message.includes('Your session may have expired')); }
+  if (status === 429) assert(message.includes('Wait at least 60 seconds'));
+  assert.equal(f.element('intent-copy').disabled, true); assert.equal(f.element('intent-copy-confirm').checked, false);
+  assert(f.element('intent-state').textContent.includes('unknown'));
+  assert(f.element('status').textContent.includes('No automatic retry'));
+  assert(f.calls.every(call => call.options.headers['X-Requested-With'] === 'XMLHttpRequest'));
+  interrupt = false;
+  await f.element('intent-refresh').listeners.get('click')();
+  assert.equal(f.calls.at(-1).options.method, 'GET'); assert.equal(f.element('intent-progress').value, 0);
+  assert.equal(f.element('intent-copy').disabled, true);
+  assert.equal(f.calls.filter(call => call.options.body && JSON.parse(call.options.body).action === 'copy-one').length, 1);
 });
 
 test('lost copy response locks UI until read-only refresh; refresh recovers progress without replay', async () => {

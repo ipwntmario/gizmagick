@@ -1,5 +1,12 @@
 # Phase 7Y: Testing Time copy-only rollout
 
+Latest follow-up: [CPU-limit diagnosis and optimization](admin-copy-cpu-recovery.md)
+confirms a Cloudflare `exceededCpu` failure at 70/130 and deploys exact-input
+calculation reuse plus clearer response errors. Live measurement reached 78/130
+but still exceeds the free CPU budget; a separately observed 401 also requires
+sign-in recovery. The administrator chose a further free-plan copy redesign.
+Both catalog publishers remain disabled and the plan stays unchanged.
+
 The administrator authorized proceeding with public copying of the verified
 [Testing Time reserved plan](admin-cloud-testing-time-planning.md). Local rollout
 verification and deployment readback pass. Copying is now in progress, with

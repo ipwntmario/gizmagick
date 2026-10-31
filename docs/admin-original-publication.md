@@ -1,9 +1,9 @@
 # Phase 7R: bounded first publication of imported originals
 
 Latest next-original checkpoint: [Phase 7X](admin-cloud-testing-time-planning.md)
-verifies Testing Time's private starting state and guides readiness/reservation
-with all public-writing gates still disabled. No Testing Time copy or catalog
-publication has occurred at this checkpoint.
+verifies Testing Time's nine readiness batches and saved immutable plan, with all
+public-writing gates still disabled. No Testing Time copy or catalog publication
+has occurred at this checkpoint.
 
 Latest rollout: [Phase 7W](admin-cloud-original-final.md) completes original Lena's
 Home catalog publication after its two public files were verified in

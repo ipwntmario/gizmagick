@@ -2,8 +2,10 @@
 
 The administrator authorized proceeding with public copying of the verified
 [Testing Time reserved plan](admin-cloud-testing-time-planning.md). Local rollout
-verification and deployment readback pass; actual public copies remain pending.
-Only this plan's 129 audio files and final manifest are authorized here.
+verification and deployment readback pass. Copying is now in progress, with
+35/130 receipts independently verified after a recovered interruption. Only this
+plan's 129 audio files and final manifest are authorized here. Earlier pending
+statements below preserve the initial deployment checkpoint.
 
 ## Plain-English rundown and scope
 
@@ -105,3 +107,34 @@ No files were copied by deployment. The administrator's signed-in copy actions,
 all-object verification and closing shared/copy writes remain next. When closing,
 adapt the actual-configuration guard to require both switches false before
 enabling them only in the isolated copy scenario; retain its guard assertions.
+
+## Interrupted copy at 34/130 and verified recovery
+
+The administrator reported repeated failures attempting object 35 after reaching
+34/130. The intent panel showed unknown status; the top notice said the session
+may have expired. Source inspection shows that message covers either a redirected
+response or any non-JSON response, so it does not prove an expired session.
+Read-only D1 checks found contiguous receipts 0–33, an unlocked lease and no
+catalog commit; the next object was `audio/PreQ_c10.ogg` (100,346 bytes).
+
+During a brief sanitized response-diagnostic listener, the administrator reloaded,
+opened the same draft, refreshed intent status and explicitly retried once. The
+page reported success. The listener captured HTTP 200, outcome `ok`, no exceptions.
+It did not capture an earlier failing request, so the original cause remains
+unconfirmed. No session policy, authentication header, code or deployment changed.
+The listener excluded request headers/cookies/identities and was stopped afterward.
+
+Independent D1 checks confirm 35 contiguous receipts, with ordinal 34 saved at
+`2026-10-31T03:45:36.838Z` and ETag `c9adb6a9f7e2c3087f7f1e169d869a09`.
+The plan hash is unchanged, the track remains private with no current version,
+and zero catalog commits exist. Public GET verifies `PreQ_c10.ogg` at 100,346
+bytes and SHA-256 `1b5b34e5045524017a31d9cb93dbefff787f37815d5b455d3988f9cc31e643d7`.
+A missing-file response observed before copying briefly persisted at the edge;
+the ordinary URL subsequently returned 200 with cache status `EXPIRED`, and a
+fresh query-string probe independently verified the bytes. No purge was performed.
+
+Copying can continue from 35/130 using fresh per-object confirmation, with no
+new plan, reupload or repeat of completed ordinals. Shared/copy gates remain
+enabled for the authorized remainder; both catalog publishers remain disabled.
+Full 130-object verification and closing shared/copy writes are still pending.
+No tests were rerun for this documentation-only recovery checkpoint.

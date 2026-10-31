@@ -33,7 +33,7 @@ function ogg(marker = 1) {
   bytes.set(new TextEncoder().encode('OpusHead'), 28); bytes[36] = marker;
   return bytes; // Identification fixture, not decodable audio.
 }
-function fixture(t, { verificationMigration = true, intentMigration = true, copyMigration = true, finalMigration = true, originalMigration = true, originalPublicationMigration = true } = {}) {
+function fixture(t, { verificationMigration = true, intentMigration = true, copyMigration = true, finalMigration = true, originalMigration = true, originalPublicationMigration = true, compactCopy = true } = {}) {
   const sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys = ON;');
   for (const [index, migration] of migrations.entries()) if (index < 5 || (index === 5 && verificationMigration)
@@ -75,7 +75,8 @@ function fixture(t, { verificationMigration = true, intentMigration = true, copy
     catch (error) { sql.exec('ROLLBACK'); throw error; }
   } }, GIZMAGICK_DRAFTS: bucket,
     GIZMAGICK_MEDIA: { put: () => { throw new Error('Public bucket must never receive drafts'); } },
-    GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true' };
+    GIZMAGICK_DRAFT_UPLOADS_ENABLED: 'true', GIZMAGICK_DRAFT_REVIEWS_ENABLED: 'true', GIZMAGICK_DRAFT_METADATA_ENABLED: 'true',
+    GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED: compactCopy && verificationMigration && intentMigration && copyMigration && finalMigration && originalMigration && originalPublicationMigration ? 'true' : 'false' };
   const handle = principal => createAdminHandler(async () => principal);
   const request = (path = '/api/admin/drafts', { method = 'GET', body, principal = owner, headers = {} } = {}) => handle(principal)(new Request(`https://admin.example.com${path}`, {
     method, headers: { ...(body !== undefined ? { 'Content-Type': typeof body === 'object' && !(body instanceof Uint8Array) ? 'application/json' : 'application/octet-stream' } : {}), ...headers },
@@ -689,6 +690,7 @@ test('authorized Testing Time copy-only rollout preserves its bounded review thr
   const config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
   for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED']) assert.equal(f.env[flag], 'true');
+  assert.equal(f.env.GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED, 'true');
   for (const flag of ['GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
   assert.equal(intent.totalObjects, 130); assert.equal(intent.originalImport.legacyKey, 'Testing Time');
   const before = {};
@@ -699,6 +701,20 @@ test('authorized Testing Time copy-only rollout preserves its bounded review thr
   assert.equal(objects[129].kind, 'manifest');
   const html = await (await f.request('/admin')).text();
   assert(html.includes('id="intent-copy"')); assert(!html.includes('id="final-panel"')); assert(!html.includes('id="publication-panel"'));
+  const originalPrepare = f.env.GIZMAGICK_DB.prepare;
+  let largestBinding = 0;
+  f.env.GIZMAGICK_DB.prepare = query => {
+    const wrap = statement => ({
+      bind: (...values) => { for (const value of values) if (typeof value === 'string') largestBinding = Math.max(largestBinding, Buffer.byteLength(value)); return wrap(statement.bind(...values)); },
+      first: async () => {
+        const value = await statement.first();
+        for (const key of ['plan_json', 'snapshot_json', 'report_json', 'manifest_json']) assert(!value || !(key in value), `Compact requests must keep ${key} inside D1`);
+        return value;
+      },
+      all: () => statement.all(), run: () => statement.run(),
+    });
+    return wrap(originalPrepare(query));
+  };
   assert.equal((await copy(129)).status, 409); assert.equal(storage.objects.size, 0);
   for (let ordinal = 0; ordinal < 130; ordinal++) {
     const response = await copy(ordinal); assert.equal(response.status, 200, await response.clone().text());
@@ -711,6 +727,7 @@ test('authorized Testing Time copy-only rollout preserves its bounded review thr
     }
     if (ordinal < 129) assert(!storage.objects.has(objects[129].key));
   }
+  f.env.GIZMAGICK_DB.prepare = originalPrepare; // The payload budget above covers copy requests, not the separate legacy API.
   assert.equal((await startPublication(f, ready)).status, 409);
   assert.equal((await finalRequest(f, ready.draft, finalStart(intent))).status, 503);
   assert.equal((await finalRequest(f, ready.draft, finalCommit(intent, { id: crypto.randomUUID() }))).status, 503);
@@ -724,6 +741,42 @@ test('authorized Testing Time copy-only rollout preserves its bounded review thr
   const closed = await (await intentRequest(f, ready.draft)).json();
   assert.equal(closed.intent.copiedObjects, 130); assert.equal(closed.intent.nextAction, null); assert.equal(closed.publicCopyEnabled, false);
   assert.equal((await copy(129)).status, 503);
+  assert(largestBinding <= 512, `Compact SQL values must stay small, saw ${largestBinding} bytes`);
+});
+
+test('compact copying fails closed when immutable intent protection is missing', async t => {
+  const { f, copy, storage } = await copyReady(t);
+  f.sql.exec('DROP TRIGGER admin_publication_intent_immutable');
+  assert.equal((await copy(0)).status, 503); assert.equal(storage.objects.size, 0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_objects').get().n, 0);
+});
+
+test('compact copying compares both retained plan texts before any public storage access', async t => {
+  const { f, copy, storage } = await copyReady(t);
+  // Simulate privileged out-of-band corruption in an isolated database. The
+  // ordinary API cannot change a reserved preparation or disable its triggers.
+  const trigger = f.sql.prepare("SELECT sql FROM sqlite_master WHERE name='admin_intent_preparation_retained_update'").get().sql;
+  f.sql.exec('DROP TRIGGER admin_intent_preparation_retained_update');
+  f.sql.prepare("UPDATE admin_publication_intent_preparations SET plan_json=json_set(plan_json,'$.candidate.track.title','changed')").run();
+  f.sql.exec(trigger);
+  storage.bucket.head = storage.bucket.get = storage.bucket.put = () => assert.fail('Mismatched retained plans must fail before R2');
+  assert.equal((await copy(0)).status, 409); assert.equal(storage.objects.size, 0);
+});
+
+test('compact copying rejects an invalid approval timestamp in retained bounded audit evidence', async t => {
+  const { f, copy, storage } = await copyReady(t, { boundedReview: true });
+  const trigger = f.sql.prepare("SELECT sql FROM sqlite_master WHERE name='admin_batched_review_retained_update'").get().sql;
+  f.sql.exec('DROP TRIGGER admin_batched_review_retained_update');
+  f.sql.prepare("UPDATE admin_draft_reviews SET approved_at='invalid'").run();
+  f.sql.exec(trigger);
+  assert.equal((await copy(0)).status, 409); assert.equal(storage.objects.size, 0);
+});
+
+test('the previous bounded copy path remains available when compact copying is explicitly disabled', async t => {
+  const { f, copy, ready } = await copyReady(t);
+  f.env.GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED = 'false';
+  assert.equal((await copy(0)).status, 200); assert.equal((await copy(1)).status, 200);
+  assert.equal((await (await intentRequest(f, ready.draft)).json()).intent.copiedObjects, 2);
 });
 
 test('original publication requires its own exact opt-in and migration before storage checks or writes', async t => {

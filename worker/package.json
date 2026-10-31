@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint:auth": "node ../frontend/node_modules/eslint/bin/eslint.js --config ../frontend/eslint.config.js src/admin-auth.js src/admin.js src/admin-drafts.js src/admin-original-imports.js src/admin-original-publication.js src/admin-json-cache.js src/admin-storage-inspection.js src/admin-reviews.js src/admin-review-packages.js src/admin-review-verification.js src/admin-publication-preview.js src/admin-publication-intents.js src/admin-publications.js src/admin-publication-final.js src/admin-page.js src/admin-client.js"
+    "lint:auth": "node ../frontend/node_modules/eslint/bin/eslint.js --config ../frontend/eslint.config.js src/admin-auth.js src/admin.js src/admin-drafts.js src/admin-original-imports.js src/admin-original-publication.js src/admin-json-cache.js src/admin-compact-copy.js src/admin-storage-inspection.js src/admin-reviews.js src/admin-review-packages.js src/admin-review-verification.js src/admin-publication-preview.js src/admin-publication-intents.js src/admin-publications.js src/admin-publication-final.js src/admin-page.js src/admin-client.js"
   },
   "dependencies": {
     "jose": "6.2.12"

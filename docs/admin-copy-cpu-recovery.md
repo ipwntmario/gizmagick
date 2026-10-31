@@ -111,3 +111,76 @@ was made. That follow-up should avoid repeatedly transferring/reconstructing the
 entire immutable plan inside the Worker, while retaining current database
 authority/lease fences, exact source/destination checks, ordinal-specific retries
 and separate confirmations. Preserve the existing plan and all 78 receipts.
+
+## Compact copy requests checked inside D1
+
+The free-plan follow-up moves current-record comparisons into SQLite instead of
+transferring and reconstructing the complete plan, review and working manifest
+inside the Worker for every click. It is opt-in via
+`GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED`, in addition to the existing copy gates.
+Both catalog publishers remain disabled for this rollout.
+
+The full metadata, report and graph are still validated when approved and when
+the plan is reserved. The existing database retains identical plan text/hash in
+both the preparation and intent, with triggers preventing later changes. Compact
+copying checks those independent retained copies still match, and fails closed
+if the required immutability/identity guards are absent. It does not accept a
+new plan or checksum from the browser as proof of approval, and does not merely
+trust a remembered authorization decision. The trusted D1 records remain the
+authority; an administrator maliciously dropping/recreating database guards is
+outside the application's access model.
+
+Each copy freshly compares current draft status/owner, exact review/job text and
+fingerprints, original mapping, all asset allocations, and bounded review audit
+evidence against that retained plan in D1. The original pinned-source checksum
+is independently checked as before. Lease checks repeat current authority inside
+D1 before public writes and before receipt recording. Existing conditional source
+GET, native checksum on public PUT, destination ownership/ETag verification and
+receipt triggers are unchanged. Exact retries still acknowledge only their own
+ordinal; copying the manifest early is rejected. No new tables or migrations are
+needed, and existing reservations/receipts are adopted without rewriting them.
+
+Status and copy routing now load only the draft identity fields; preparation
+and other metadata-dependent operations deliberately reload full draft data.
+The Worker receives only the selected file descriptor/source and small status
+records for ordinary copies, plus the original-source document for its retained
+independent checksum check. Only the final manifest copy loads its candidate
+JSON. Full plan/report/snapshot/working-manifest transfer is prohibited by the
+real Testing Time test, and its copy SQL bindings are limited to 512 bytes each.
+
+The local 130-object real-audio copy/retry/resume test passes against this path.
+Backend tests and both actual bundled Worker fixtures now opt into compact
+copying where the required schema is installed; missing-schema cases retain
+the earlier explicit compatibility path. Additional cases reject missing intent
+protection, mismatched retained plan text and invalid bounded-approval timestamps,
+and verify the previous copy path remains available when explicitly disabled.
+All 647 tests pass, including both bundled Worker checks, existing mutation/race
+and conditional-storage tests running against compact copying, the real 130-file
+payload-budget test, and the four new guard/retention/compatibility cases. Lint
+passes. No frontend playback code changed; the normal player build remains the
+previously verified output.
+
+Compact-copy Worker version `04c5ba19-6216-4c3b-9d33-606e561ff5e8`, created
+`2026-10-31T04:25:04.95683Z` (October 31, 12:25 a.m. Eastern), serves 100% of
+traffic. The first deployment attempt hit a transient DNS lookup failure; an
+identical authorized retry succeeded. Readback verifies all 19 configured
+variables (including the new compact flag), unchanged D1/R2/room bindings and the
+existing administrator-secret binding without reading its value. Shared/copy
+remain enabled, final/legacy disabled. D1 confirms the same 78 receipts,
+unchanged plan/review/scope, private track with no current version and zero
+commits. Three catalog entries remain public and foreign-key checks pass.
+The administrator reloaded, resumed the same saved intent and confirmed reaching
+83/130. The sanitized listener captured five HTTP 200 copies, all outcome `ok`
+without exceptions. The first used 15 ms CPU; the subsequent four used 10, 9, 10
+and 9 ms, versus the earlier 30–36 ms warm samples. The listener was stopped.
+These observations support continuing the current free-plan walkthrough; they
+do not prove that every future cold start or differently sized track will stay
+under 10 ms. In particular, the first observed request still exceeded that
+nominal allowance and succeeded under Cloudflare's documented flexibility.
+
+Independent D1 checks confirm 83 contiguous receipts (ordinals 0–82), last saved
+at `2026-10-31T04:30:54.519Z`, unchanged plan SHA-256, pending intent, private
+track with no current version and zero catalog commits. Foreign-key checks pass.
+There was no new plan, reupload, review change or direct database/storage write.
+The remaining 47 objects can continue with the existing per-object confirmation;
+complete byte/receipt verification and closing shared/copy writes remain pending.

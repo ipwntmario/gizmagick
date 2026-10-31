@@ -8,6 +8,7 @@ import { publicationPreflightEnabled } from './admin-publication-preview.js';
 import { originalPublicationEnabled, publicationIdentity } from './admin-original-publication.js';
 import { copyOne, publishingEnabled, PUBLICATION_LIMITS } from './admin-publications.js';
 import { calculateJsonOnce } from './admin-json-cache.js';
+import { compactIntentStatus, copyCompactIntent } from './admin-compact-copy.js';
 
 export const publicationIntentsEnabled = env => publicationPreflightEnabled(env) && env.GIZMAGICK_PUBLICATION_INTENTS_ENABLED === 'true';
 export const boundedCopyEnabled = env => publicationIntentsEnabled(env) && publishingEnabled(env) && env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED === 'true';
@@ -148,8 +149,12 @@ export async function copyProgress(env, intent, plan) {
   return results;
 }
 async function statusFor(env, row) {
-  const intent = await existingIntent(env, row);
   const enabled = boundedCopyEnabled(env) && (!row.original_legacy_key || originalPublicationEnabled(env));
+  if (env.GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED === 'true') {
+    const compact = await compactIntentStatus(env, row, enabled);
+    if (compact) return compact;
+  }
+  const intent = await existingIntent(env, row);
   if (enabled) await copySchema(env);
   const flags = { workflowVersion: 2, publishing: false, publicCopyEnabled: enabled, catalogCommitEnabled: false,
     publicationAuthorized: false, serverDecoded: false, pointInTimeBatches: true };
@@ -253,7 +258,16 @@ export async function handleIntentRequest(request, env, principal, row, reply, h
   if (new URL(request.url).search) fail(400, 'INTENT_INPUT', 'Intent operations do not accept query parameters.');
   if (['GET', 'HEAD'].includes(request.method)) return reply(await statusFor(env, row));
   if (request.method !== 'POST') { headers.set('Allow', 'GET, HEAD, POST'); return reply({ error: 'Method not allowed', code: 'INTENT_METHOD' }, 405); }
-  const input = await inputFor(request), intent = await existingIntent(env, row);
+  const input = await inputFor(request);
+  if (input.action === 'copy-one' && env.GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED === 'true') {
+    return copyCompactIntent(env, principal, row, input, reply,
+      boundedCopyEnabled(env) && (!row.original_legacy_key || originalPublicationEnabled(env)));
+  }
+  if (env.GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED === 'true') {
+    row = await env.GIZMAGICK_DB.prepare('SELECT * FROM admin_drafts WHERE id = ? AND owner_id = ?').bind(row.id, principal.id).first();
+    if (!row) fail(404, 'INTENT_NOT_FOUND', 'Draft not found.');
+  }
+  const intent = await existingIntent(env, row);
   if (input.action === 'copy-one') return copyIntent(env, principal, row, intent, input, reply);
   if (intent) {
     const plan = JSON.parse(intent.plan_json);

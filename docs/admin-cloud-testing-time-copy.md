@@ -4,7 +4,9 @@ Latest follow-up: [CPU-limit diagnosis and optimization](admin-copy-cpu-recovery
 confirms a Cloudflare `exceededCpu` failure at 70/130 and deploys exact-input
 calculation reuse plus clearer response errors. Live measurement reached 78/130
 but still exceeds the free CPU budget; a separately observed 401 also requires
-sign-in recovery. The administrator chose a further free-plan copy redesign.
+sign-in recovery. The administrator chose a further free-plan copy redesign,
+now deployed after 647 passing tests. Five observed copies succeeded, reaching
+83/130; CPU was 15 ms initially and 9–10 ms on the four following requests.
 Both catalog publishers remain disabled and the plan stays unchanged.
 
 The administrator authorized proceeding with public copying of the verified

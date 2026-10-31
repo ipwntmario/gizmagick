@@ -42,6 +42,8 @@ GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "true"
 GIZMAGICK_PUBLICATION_INTENTS_ENABLED = "true"
 # Phase 7Y: authorized Testing Time reserved plan only; close after verification.
 GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "true"
+# Compact copy path keeps full immutable JSON in D1 and checks current authority there.
+GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED = "true"
 # Original Lena's Home catalog publication verified; final writes closed again.
 GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = "false"
 # Local browser walkthrough and cloud preflight passed. Requires reviews enabled.

@@ -93,8 +93,9 @@ function prepareManifest(input) {
   return { manifest, warnings: validation.warnings.slice(0, 30) };
 }
 
-async function ownDraft(db, id, owner) {
-  const row = await db.prepare('SELECT * FROM admin_drafts WHERE id = ? AND owner_id = ?').bind(id, owner).first();
+async function ownDraft(db, id, owner, compact = false) {
+  const fields = compact ? 'id, owner_id, status, original_legacy_key' : '*';
+  const row = await db.prepare(`SELECT ${fields} FROM admin_drafts WHERE id = ? AND owner_id = ?`).bind(id, owner).first();
   if (!row) fail(404, 'DRAFT_NOT_FOUND', 'Draft not found.');
   return row;
 }
@@ -236,7 +237,8 @@ export async function handleDraftRequest(request, env, principal, reply, headers
         return reply(await detail(env, existing));
       }
     } else {
-      const row = await ownDraft(env.GIZMAGICK_DB, route[1], principal.id);
+      const row = await ownDraft(env.GIZMAGICK_DB, route[1], principal.id,
+        route[2] === 'publication-intent' && env.GIZMAGICK_COMPACT_PUBLIC_COPY_ENABLED === 'true');
       if (row.original_legacy_key && (['publication-preview', 'publication', 'publication-step'].includes(route[2])
           || (['publication-intent', 'publication-final'].includes(route[2]) && !['GET', 'HEAD'].includes(request.method) && !originalPublicationEnabled(env)))) {
         fail(409, 'ORIGINAL_PRIVATE_ONLY', 'Original identities require the separately enabled bounded original publisher. The legacy publisher cannot publish them.');

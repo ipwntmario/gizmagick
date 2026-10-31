@@ -29,7 +29,7 @@ GIZMAGICK_DRAFT_UPLOADS_ENABLED = "true"
 # Availability is not permission to reserve a track or upload the library.
 GIZMAGICK_ORIGINAL_IMPORTS_ENABLED = "true"
 # Phase 7U: original plan preparation enabled; this does not enable public copies.
-# Phase 7V copies verified; original planning remains available.
+# Phase 7W: final verification/publication of the existing Lena's Home intent.
 GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED = "true"
 # Migration 0003 is applied. Administrator attestations remain private only.
 GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
@@ -37,20 +37,20 @@ GIZMAGICK_DRAFT_REVIEWS_ENABLED = "true"
 # Preparing packages or rechecking private audio never publishes a track.
 GIZMAGICK_REVIEW_PACKAGE_BATCHES_ENABLED = "true"
 GIZMAGICK_REVIEW_VERIFICATION_BATCHES_ENABLED = "true"
-# Readiness/reservation stay enabled. Phase 7V public writes are closed again.
+# Readiness/reservation stay enabled. Phase 7W temporarily enables finalization.
 # Existing files/catalog entries remain public when writes are disabled.
 GIZMAGICK_PUBLICATION_INTENTS_ENABLED = "true"
-# Phase 7V original Lena's Home audio and manifest verified; copying closed again.
-GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "false"
-# Final catalog test completed; fresh rollout authorization is required for more writes.
-GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = "false"
+# Required by final verification. Both Lena's Home copies already exist; do not recopy.
+GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = "true"
+# Authorized original Lena's Home final test only. Close after verification.
+GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = "true"
 # Local browser walkthrough and cloud preflight passed. Requires reviews enabled.
 GIZMAGICK_DRAFT_METADATA_ENABLED = "true"
 # Phase 7A only inspects attested drafts; it does not enable publication.
 GIZMAGICK_PUBLICATION_PREFLIGHT_ENABLED = "true"
-# Phase 7V copy test completed; both catalog gates stayed off throughout.
-# Existing public objects remain downloadable; new shared/copy writes are closed.
-GIZMAGICK_PUBLICATION_ENABLED = "false"
+# Phase 7W: shared/copy/final temporarily enabled; legacy stays disabled.
+# Close all three after verifying the authorized original's catalog publication.
+GIZMAGICK_PUBLICATION_ENABLED = "true"
 # Phase 7N: shared writes must not enable the old v1 catalog path.
 # Legacy publishing requires this separate explicit opt-in; leave it disabled.
 GIZMAGICK_LEGACY_PUBLICATION_ENABLED = "false"

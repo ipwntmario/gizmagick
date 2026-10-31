@@ -1,5 +1,9 @@
 # Phase 7V: original Lena's Home copy-only rollout
 
+Latest follow-up: [Phase 7W](admin-cloud-original-final.md) deploys the separately
+authorized original catalog finalization controls. The closed-write statements below
+describe the completed Phase 7V checkpoint.
+
 Completed October 30, 2026, Eastern. The administrator copied both authorized
 objects; public bytes and database receipts match. Shared/copy writes are
 disabled again, and both catalog publishers stayed disabled throughout.

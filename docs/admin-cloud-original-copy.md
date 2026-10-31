@@ -1,8 +1,10 @@
 # Phase 7V: original Lena's Home copy-only rollout
 
-Authorized and deployed October 30, 2026, Eastern. Local verification and cloud
-configuration/database readback pass. The administrator's two public-copy
-actions remain pending; deployment did not copy either file.
+Completed October 30, 2026, Eastern. The administrator copied both authorized
+objects; public bytes and database receipts match. Shared/copy writes are
+disabled again, and both catalog publishers stayed disabled throughout.
+The original remains unlisted in the cloud catalog; live playback is unchanged.
+The deployment/walkthrough sections below preserve the earlier checkpoints.
 
 ## Plain-English rundown
 
@@ -19,14 +21,14 @@ frontend deployment, another original, or changes to private approval records.
 
 ## Configuration and scope
 
-| Flag | Temporary value |
-| --- | --- |
-| `GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED` | `true` (unchanged) |
-| `GIZMAGICK_PUBLICATION_INTENTS_ENABLED` | `true` (unchanged) |
-| `GIZMAGICK_PUBLICATION_ENABLED` | `true` |
-| `GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED` | `true` |
-| `GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED` | `false` |
-| `GIZMAGICK_LEGACY_PUBLICATION_ENABLED` | `false` |
+| Flag | Temporary value | Final repository/deployment |
+| --- | --- | --- |
+| `GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED` | `true` | `true` |
+| `GIZMAGICK_PUBLICATION_INTENTS_ENABLED` | `true` | `true` |
+| `GIZMAGICK_PUBLICATION_ENABLED` | `true` | `false` |
+| `GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED` | `true` | `false` |
+| `GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED` | `false` | `false` |
+| `GIZMAGICK_LEGACY_PUBLICATION_ENABLED` | `false` | `false` |
 
 These are global workflow gates, not a server-enforced Lena's Home allowlist.
 Operate only on the exact intent below. No new migrations, secrets, Access
@@ -103,3 +105,42 @@ intents. Foreign-key checks pass, and the public API still returns exactly the
 two existing smoke-test track/version pairs. No cloud data was written by these
 checks. Both public-copy actions, byte/receipt verification and closing the
 temporary gates remain next.
+
+## Completed copies and closed-write verification
+
+The administrator confirmed 2/2 progress for the exact intent. Remote read-only
+verification found receipts for ordinal 0 at `2026-10-31T00:36:11.341Z` and
+ordinal 1 at `2026-10-31T00:36:37.345Z` (October 30, 8:36 p.m. Eastern).
+Public GETs returned HTTP 200 and exactly the bytes and SHA-256 values in the
+object table above. Their entity tags match the saved receipts (the manifest's
+HTTP weak-validator prefix is transport metadata):
+
+- Audio: `1fe9a3fa6dbab0a6495594885deca89b`.
+- Manifest: `8285b1afece9d2592927fd3bebe35cc6`.
+
+Shared/copy flags were then set false and deployed as Worker version
+`0542215b-7d65-4e4a-9099-99b03b380c7f`, created
+`2026-10-31T00:38:24.441925Z` (October 30, 8:38 p.m. Eastern).
+Readback verifies 100% traffic, all 18 configured variables, unchanged D1/R2/room
+bindings and the existing administrator-secret binding without reading its value.
+All four public-writing gates are false.
+
+Post-closure database checks confirm the unchanged intent/plan/version, 2/2
+receipts, zero catalog commits, private track visibility and null current-version
+pointer. Owner mapping, source version/hash and the original single-request
+review/hash match. Testing Time retains zero publication preparations/intents;
+the public API still contains exactly the two smoke-test track/version pairs.
+Foreign-key checks pass. A transient Cloudflare 7403 read error succeeded on an
+identical read-only retry without changing credentials or policy.
+
+The original copy-only test now asserts all four production write gates are
+closed before enabling copies solely in its isolated fixture. Six selected
+rollout/recovery tests and test-file lint pass after closure; the full 633-test,
+frontend/Worker lint and unchanged player build results above precede closure.
+No application code changed during this completion step. Authenticated browser
+reload verification of closed controls was not automated; deployed flag readback
+and persisted 2/2 database progress are verified.
+
+The next separate step is fresh final verification and explicit catalog
+publication authorization for this original. No recopy or new intent is needed.
+The live-player switch and Testing Time rollout remain separate work.

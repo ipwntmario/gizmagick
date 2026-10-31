@@ -1,9 +1,10 @@
 # Phase 7T: private-only original-library tooling rollout
 
-Latest follow-up: [Phase 7V](admin-cloud-original-copy.md) temporarily enables the
+Latest follow-up: [Phase 7V](admin-cloud-original-copy.md) completes the
 separately authorized two-object original Lena's Home copy test, following
 [Phase 7U planning and reservation](admin-cloud-original-planning.md). Both catalog
-publishers remain disabled. The private-only statements below describe Phase 7T.
+publishers remain disabled; shared/copy writes are closed again. The private-only
+statements below describe Phase 7T.
 
 Deployed October 19, 2026, Eastern. Remote schema/configuration and public catalog
 checks pass; the signed-in read-only admin walkthrough remains pending.

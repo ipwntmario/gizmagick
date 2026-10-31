@@ -578,12 +578,15 @@ test('single-request original approval survives package expiry through fresh bou
   assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM admin_publication_commits').get().n, 1);
 });
 
-test('authorized original copy-only rollout recovers a lost copy response without catalog publication or review changes', async t => {
+test('completed original copy-only rollout guards closed production writes and recovers lost copy responses in isolation', async t => {
   const r = await originalReserved(t, { reviewScope: 'single-request', expirePackageAfterApproval: true }), { f, ready, intent, storage, copy } = r;
   const config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
-  for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED']) assert.equal(f.env[flag], 'true');
-  for (const flag of ['GIZMAGICK_LEGACY_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) assert.equal(f.env[flag], 'false');
+  assert.equal(f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED, 'true');
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) assert.equal(f.env[flag], 'false');
+  // The public-copy test is complete. Guard closed production gates above;
+  // exercise the formerly authorized copy-only mode only in isolated storage.
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = 'true';
   const review = f.sql.prepare('SELECT * FROM admin_draft_reviews').get(), source = f.sql.prepare('SELECT * FROM admin_original_imports').get();
   const plan = f.sql.prepare('SELECT plan_json,plan_sha256 FROM admin_publications').get(), privateObjects = [...f.objects.entries()];
   assert.equal(review.storage_check_scope, 'single-request');

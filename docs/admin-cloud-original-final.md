@@ -1,9 +1,11 @@
 # Phase 7W: original Lena's Home final catalog rollout
 
-Authorized and deployed October 30, 2026, Eastern, after the administrator's request
-to proceed with final verification and catalog publication after the verified
-[two-file copy checkpoint](admin-cloud-original-copy.md). Deployment verification
-passes; actual signed-in final checks/publication remain pending.
+Completed October 30, 2026, Eastern, after the separately authorized final
+workflow following the verified [two-file copy checkpoint](admin-cloud-original-copy.md).
+The administrator's screenshot and read-only cloud verification confirm the
+original Lena's Home is published to the cloud catalog. Shared/copy/final writes
+are disabled again; legacy stayed off throughout. Live playback is unchanged.
+The preparation and initial deployment statements below are historical.
 
 ## Plain-English rundown
 
@@ -32,14 +34,14 @@ have their own `bounded-batches` audit; they do not relabel or replace that revi
 Do not create another intent, repeat copying, change Testing Time, or operate on
 either similarly named published smoke test.
 
-| Flag | Temporary final rollout |
-| --- | --- |
-| `GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED` | `true` (unchanged) |
-| `GIZMAGICK_PUBLICATION_INTENTS_ENABLED` | `true` (unchanged) |
-| `GIZMAGICK_PUBLICATION_ENABLED` | `true` |
-| `GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED` | `true` |
-| `GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED` | `true` |
-| `GIZMAGICK_LEGACY_PUBLICATION_ENABLED` | `false` |
+| Flag | Temporary final rollout | Final repository/deployment |
+| --- | --- | --- |
+| `GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED` | `true` | `true` |
+| `GIZMAGICK_PUBLICATION_INTENTS_ENABLED` | `true` | `true` |
+| `GIZMAGICK_PUBLICATION_ENABLED` | `true` | `false` |
+| `GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED` | `true` | `false` |
+| `GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED` | `true` | `false` |
+| `GIZMAGICK_LEGACY_PUBLICATION_ENABLED` | `false` | `false` |
 
 The final workflow currently depends on the shared and copy gates as well as its
 own gate. These flags enable eligible administrator-owned workflows globally;
@@ -116,3 +118,44 @@ performed no final verification, copy or catalog publication. Manual final check
 and publication, result verification and closing shared/copy/final flags remain
 next. The existing final publisher requires those three gates temporarily enabled;
 no extra copying is authorized or necessary.
+
+## Completed catalog publication and closed-write verification
+
+The administrator supplied a screenshot showing this exact original, version,
+plan and source hash with completed 2/2 final checks and locked published status.
+Read-only D1 verification confirms one final pass
+`b7f3ebc6-1237-47bb-a336-9cfe68570407`, one batch covering objects 0–2, and one
+catalog commit at `2026-10-31T03:13:15.735Z` (October 30, 11:13 p.m. Eastern).
+The batch started/finished at `2026-10-31T03:12:48.000Z`, approximately 28 seconds
+before publication, within the five-minute requirement. Final audit scope is
+`bounded-batches`; the original private review remains `single-request` with its
+unchanged report hash. Review/source/plan hashes and owner mapping match.
+
+The original library row is now public/published with its existing compatibility
+key `Lena's Home` and current pointer `0ca37c1b-51ed-4965-9f53-fe9e4292f004`.
+Exactly one version row and one commit exist for this original. Its two copy
+receipts retain their original ETags/timestamps; nothing was recopied. Public
+GETs returned the same expected 3,961,537-byte audio and 721-byte manifest with
+the Phase 7V SHA-256 values. The public API contains exactly this original plus
+the two prior smoke-test ID/version pairs. Testing Time still has zero planning
+preparations/intents, and foreign-key checks pass.
+
+Shared/copy/final gates were set false and deployed as Worker version
+`004ed4a0-4bd2-4239-868a-025b0c85aa68`, created
+`2026-10-31T03:14:17.827934Z` (October 30, 11:14 p.m. Eastern). Readback verifies
+100% traffic and all 18 configured variables, unchanged D1/R2/room bindings and
+the administrator-secret binding without reading its value. All four public-write
+gates are false. Post-closure D1/API checks confirm the published original,
+one version/commit, retained 2/2 copies and all three expected catalog entries.
+
+Seven selected rollout/recovery tests and test-file lint pass after closure.
+The actual-configuration test now requires all four production write gates false
+before enabling finalization only in isolated storage. The full 634-test run,
+frontend/Worker lint and unchanged player build above passed before closure.
+This completion changes configuration, test expectations and documentation only.
+Authenticated post-closure browser reload was not automated; active flags and
+persisted published state were independently verified through read-only tools.
+
+No Pages deployment or live-player source change occurred. The next original
+rollout can exercise Testing Time's 129 audio files plus manifest, subject to its
+own readiness, reservation and public-exposure/publication authorization.

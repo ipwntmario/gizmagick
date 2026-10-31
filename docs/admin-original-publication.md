@@ -1,8 +1,8 @@
 # Phase 7R: bounded first publication of imported originals
 
-Latest rollout: [Phase 7W](admin-cloud-original-final.md) enables original Lena's
-Home catalog finalization after its two public files were verified in
-[Phase 7V](admin-cloud-original-copy.md). Catalog publication remains pending;
+Latest rollout: [Phase 7W](admin-cloud-original-final.md) completes original Lena's
+Home catalog publication after its two public files were verified in
+[Phase 7V](admin-cloud-original-copy.md). Shared/copy/final writes are closed again;
 the statements below retain their historical checkpoint context.
 
 Current cloud status: [Phase 7T](admin-cloud-original-rollout.md) installs the

@@ -626,13 +626,16 @@ test('original copy-only compatibility recovers lost copy responses without enab
   assert.equal((await copy(1)).status, 503);
 });
 
-test('authorized original final rollout publishes the existing single-request-reviewed copies without any R2 write', async t => {
+test('completed original final rollout guards closed production writes and publishes reviewed copies only in isolation', async t => {
   const { f, ready, intent, storage, copy, source } = await originalReserved(t, { reviewScope: 'single-request', expirePackageAfterApproval: true });
   for (let ordinal = 0; ordinal < intent.totalObjects; ordinal++) assert.equal((await copy(ordinal)).status, 200);
   const config = await read('../../worker/wrangler.toml');
   Object.assign(f.env, Object.fromEntries([...config.matchAll(/^(GIZMAGICK_[A-Z_]+)\s*=\s*"([^"]*)"/gm)].map(([, key, value]) => [key, value])));
-  for (const flag of ['GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED', 'GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED']) assert.equal(f.env[flag], 'true');
-  assert.equal(f.env.GIZMAGICK_LEGACY_PUBLICATION_ENABLED, 'false');
+  assert.equal(f.env.GIZMAGICK_ORIGINAL_PUBLICATION_ENABLED, 'true');
+  for (const flag of ['GIZMAGICK_PUBLICATION_ENABLED', 'GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED', 'GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED', 'GIZMAGICK_LEGACY_PUBLICATION_ENABLED']) assert.equal(f.env[flag], 'false');
+  // Cloud publication is complete. Preserve the production guard above and
+  // exercise the final-enabled workflow only in isolated fixture storage.
+  f.env.GIZMAGICK_PUBLICATION_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLIC_COPY_ENABLED = f.env.GIZMAGICK_BOUNDED_PUBLICATION_FINAL_ENABLED = 'true';
   const before = {};
   for (const table of ['admin_draft_reviews', 'admin_original_imports', 'admin_publication_objects']) before[table] = f.sql.prepare(`SELECT * FROM ${table}`).all();
   const plan = f.sql.prepare('SELECT plan_json,plan_sha256 FROM admin_publications').get();
